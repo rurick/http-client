@@ -7,9 +7,7 @@ import (
 	"time"
 )
 
-var (
-	ErrCircuitBreakerOpen = errors.New("circuit breaker is open")
-)
+var ErrCircuitBreakerOpen = errors.New("circuit breaker is open")
 
 // SimpleCircuitBreaker implements a basic circuit breaker pattern
 type SimpleCircuitBreaker struct {

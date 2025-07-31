@@ -12,7 +12,7 @@ import (
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
 
-	"gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
 func main() {

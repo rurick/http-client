@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"slices"
 	"math"
 	"net/http"
 	"time"
@@ -162,12 +163,7 @@ var RetryableHTTPCodes = []int{
 
 // IsRetryableStatusCode проверяет, является ли статус код подходящим для повтора
 func IsRetryableStatusCode(statusCode int) bool {
-	for _, code := range RetryableHTTPCodes {
-		if code == statusCode {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(RetryableHTTPCodes, statusCode)
 }
 
 // SmartRetryStrategy адаптивная стратегия повтора, которая анализирует историю ошибок

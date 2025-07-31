@@ -5,7 +5,7 @@ import (
 	"log"
 	"time"
 
-	"gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
 func main() {
