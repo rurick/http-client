@@ -12,5 +12,5 @@ metadata:
 spec:
   type: library
   system: Dev-tools
-  owner: teams-backend-product
-  lifecycle: production
+  owner: teams-backend-products
+  lifecycle: experimental
