@@ -1,0 +1,16 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: http-client
+  description: пакет для работы с http клиентом
+  annotations:
+    gitlab.com/project-slug: backend/go/pkg/http-client
+  tags:
+    - golang
+    - http
+    - http-client
+spec:
+  type: library
+  system: Dev-tools
+  owner: teams-backend-product
+  lifecycle: production
