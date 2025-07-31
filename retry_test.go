@@ -12,6 +12,8 @@ import (
 // Тестирует правильное увеличение задержки: 1с -> 1с -> 2с -> 4с -> 8с...
 // и ограничение максимальной задержки
 func TestExponentialBackoffStrategy(t *testing.T) {
+	t.Parallel()
+
 	strategy := NewExponentialBackoffStrategy(3, 1*time.Second, 10*time.Second)
 
 	// Проверяем максимальное количество попыток
@@ -39,6 +41,8 @@ func TestExponentialBackoffStrategy(t *testing.T) {
 // Проверяет что повторы происходят только для сетевых ошибок и серверных ошибок (5xx, 429)
 // Клиентские ошибки (4xx) и успешные ответы (2xx, 3xx) не должны повторяться
 func TestExponentialBackoffShouldRetry(t *testing.T) {
+	t.Parallel()
+
 	strategy := NewExponentialBackoffStrategy(3, 1*time.Second, 10*time.Second)
 
 	tests := []struct {
@@ -110,6 +114,8 @@ func TestExponentialBackoffShouldRetry(t *testing.T) {
 // TestFixedDelayStrategy проверяет стратегию фиксированной задержки
 // Проверяет что задержка между повторами всегда одинаковая
 func TestFixedDelayStrategy(t *testing.T) {
+	t.Parallel()
+
 	maxAttempts := 5
 	delay := 2 * time.Second
 	strategy := NewFixedDelayStrategy(maxAttempts, delay)
@@ -127,6 +133,8 @@ func TestFixedDelayStrategy(t *testing.T) {
 // TestFixedDelayShouldRetry проверяет логику принятия решений для фиксированной задержки
 // Должна работать аналогично экспоненциальной стратегии по критериям повтора
 func TestFixedDelayShouldRetry(t *testing.T) {
+	t.Parallel()
+
 	strategy := NewFixedDelayStrategy(3, 1*time.Second)
 
 	// Проверяем сетевую ошибку
@@ -148,6 +156,8 @@ func TestFixedDelayShouldRetry(t *testing.T) {
 // TestCustomRetryStrategy проверяет пользовательскую стратегию повтора
 // Позволяет определить собственную логику расчета задержки и условий повтора
 func TestCustomRetryStrategy(t *testing.T) {
+	t.Parallel()
+
 	maxAttempts := 4
 
 	// Пользовательская функция задержки, возвращающая номер попытки в секундах
@@ -192,6 +202,8 @@ func TestCustomRetryStrategy(t *testing.T) {
 // TestCustomRetryStrategyWithError проверяет передачу ошибки в функцию задержки
 // Проверяет что последняя ошибка передается для анализа при расчете задержки
 func TestCustomRetryStrategyWithError(t *testing.T) {
+	t.Parallel()
+
 	// Проверяем что lastErr передается в функцию задержки
 	var capturedErr error
 	delayFunc := func(attempt int, lastErr error) time.Duration {
@@ -244,6 +256,8 @@ func BenchmarkFixedDelayNextDelay(b *testing.B) {
 }
 
 func TestRetryStrategyEdgeCases(t *testing.T) {
+	t.Parallel()
+
 	t.Run("exponential backoff with zero base delay", func(t *testing.T) {
 		strategy := NewExponentialBackoffStrategy(3, 0, 10*time.Second)
 		delay := strategy.NextDelay(1, nil)
@@ -270,6 +284,7 @@ func TestRetryStrategyEdgeCases(t *testing.T) {
 }
 
 func TestRetryStrategyThreadSafety(t *testing.T) {
+	// НЕ parallel - тест concurrency
 	strategy := NewExponentialBackoffStrategy(5, 1*time.Second, 10*time.Second)
 
 	// Run multiple goroutines concurrently

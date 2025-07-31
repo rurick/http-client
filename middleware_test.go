@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"encoding/base64"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -17,6 +18,8 @@ import (
 // Проверяет что все middleware в цепочке выполняются в правильном порядке
 // и каждый может модифицировать запрос перед передачей следующему
 func TestMiddlewareChain(t *testing.T) {
+	t.Parallel()
+
 	// Создаем тестовые middleware, которые добавляют заголовки
 	middleware1 := NewHeaderMiddleware(map[string]string{"X-Test-1": "value1"})
 	middleware2 := NewHeaderMiddleware(map[string]string{"X-Test-2": "value2"})
@@ -47,6 +50,8 @@ func TestMiddlewareChain(t *testing.T) {
 // TestMiddlewareChainEmpty проверяет пустую цепочку middleware
 // Проверяет что когда middleware нет, запрос проходит напрямую к финальному обработчику
 func TestMiddlewareChainEmpty(t *testing.T) {
+	t.Parallel()
+
 	chain := NewMiddlewareChain()
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
@@ -63,6 +68,8 @@ func TestMiddlewareChainEmpty(t *testing.T) {
 // TestMiddlewareChainAdd проверяет динамическое добавление middleware в цепочку
 // Проверяет что middleware можно добавлять в уже созданную цепочку
 func TestMiddlewareChainAdd(t *testing.T) {
+	t.Parallel()
+
 	chain := NewMiddlewareChain()
 
 	middleware1 := NewHeaderMiddleware(map[string]string{"X-Test": "value"})
@@ -84,6 +91,8 @@ func TestMiddlewareChainAdd(t *testing.T) {
 // Проверяет что логируются начало и завершение запроса с правильными данными:
 // метод, URL, User-Agent, статус код и время выполнения
 func TestLoggingMiddleware(t *testing.T) {
+	t.Parallel()
+
 	// Создаем logger с observer для захвата логов
 	core, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(core)
@@ -126,6 +135,8 @@ func TestLoggingMiddleware(t *testing.T) {
 // TestLoggingMiddlewareError проверяет логирование ошибок в middleware
 // Проверяет что ошибки в запросах корректно логируются с соответствующим уровнем
 func TestLoggingMiddlewareError(t *testing.T) {
+	t.Parallel()
+
 	core, logs := observer.New(zap.InfoLevel)
 	logger := zap.New(core)
 
@@ -155,6 +166,8 @@ func TestLoggingMiddlewareError(t *testing.T) {
 // TestHeaderMiddleware проверяет middleware для добавления заголовков
 // Проверяет что все указанные заголовки добавляются к запросу
 func TestHeaderMiddleware(t *testing.T) {
+	t.Parallel()
+
 	headers := map[string]string{
 		"X-Custom-Header": "custom-value",
 		"Authorization":   "Bearer token123",
@@ -181,6 +194,8 @@ func TestHeaderMiddleware(t *testing.T) {
 // TestBearerAuthMiddleware проверяет middleware для Bearer токен аутентификации
 // Проверяет корректное формирование Authorization заголовка с Bearer токеном
 func TestBearerAuthMiddleware(t *testing.T) {
+	t.Parallel()
+
 	token := "abc123xyz"
 	middleware := NewBearerAuthMiddleware(token)
 
@@ -201,6 +216,8 @@ func TestBearerAuthMiddleware(t *testing.T) {
 // TestBasicAuthMiddleware проверяет middleware для Basic аутентификации
 // Проверяет корректное формирование Authorization заголовка с Basic авторизацией
 func TestBasicAuthMiddleware(t *testing.T) {
+	t.Parallel()
+
 	username := "testuser"
 	password := "testpass"
 	middleware := NewBasicAuthMiddleware(username, password)
@@ -224,6 +241,7 @@ func TestBasicAuthMiddleware(t *testing.T) {
 // TestTimeoutMiddleware проверяет middleware для установки таймаута запроса
 // Проверяет что контекст запроса получает правильный таймаут
 func TestTimeoutMiddleware(t *testing.T) {
+	// НЕ parallel - тест с timeout и sleep
 	timeout := 100 * time.Millisecond
 	middleware := NewTimeoutMiddleware(timeout)
 
@@ -244,6 +262,8 @@ func TestTimeoutMiddleware(t *testing.T) {
 }
 
 func TestTimeoutMiddlewareZeroTimeout(t *testing.T) {
+	t.Parallel()
+
 	middleware := NewTimeoutMiddleware(0)
 
 	req := httptest.NewRequest(http.MethodGet, "http://example.com", nil)
@@ -261,6 +281,8 @@ func TestTimeoutMiddlewareZeroTimeout(t *testing.T) {
 }
 
 func TestUserAgentMiddleware(t *testing.T) {
+	t.Parallel()
+
 	userAgent := "MyApp/1.0 (Go HTTP Client)"
 	middleware := NewUserAgentMiddleware(userAgent)
 
@@ -277,6 +299,8 @@ func TestUserAgentMiddleware(t *testing.T) {
 }
 
 func TestBase64Encode(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		input    string
 		expected string
@@ -294,13 +318,15 @@ func TestBase64Encode(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.input, func(t *testing.T) {
-			result := base64Encode([]byte(tt.input))
+			result := base64.StdEncoding.EncodeToString([]byte(tt.input))
 			assert.Equal(t, tt.expected, result)
 		})
 	}
 }
 
 func TestMiddlewareOrder(t *testing.T) {
+	t.Parallel()
+
 	var order []string
 
 	// Create middlewares that record their execution order
@@ -327,6 +353,8 @@ func TestMiddlewareOrder(t *testing.T) {
 }
 
 func TestMiddlewareErrorPropagation(t *testing.T) {
+	t.Parallel()
+
 	testErr := assert.AnError
 
 	middleware := &ErrorTestMiddleware{err: testErr}
@@ -426,6 +454,7 @@ func BenchmarkHeaderMiddleware(b *testing.B) {
 
 // TestRateLimitMiddleware проверяет работу ограничения скорости запросов
 func TestRateLimitMiddleware(t *testing.T) {
+	// НЕ parallel - тест с timing и sleep
 	rateLimiter := NewRateLimitMiddleware(2) // 2 запроса в секунду
 
 	mockNext := func(req *http.Request) (*http.Response, error) {

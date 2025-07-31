@@ -268,10 +268,5 @@ func (rlm *RateLimitMiddleware) Process(req *http.Request, next func(*http.Reque
 // Helper function for basic auth
 func basicAuth(username, password string) string {
 	auth := username + ":" + password
-	return base64Encode([]byte(auth))
-}
-
-// Simple base64 encoding helper using standard library
-func base64Encode(data []byte) string {
-	return base64.StdEncoding.EncodeToString(data)
+	return base64.StdEncoding.EncodeToString([]byte(auth))
 }

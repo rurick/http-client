@@ -69,7 +69,7 @@ func simpleTracingExample(client httpclient.HTTPClient) {
 	tracer := otel.Tracer("example")
 
 	// Создаем родительский span
-	ctx, span := tracer.Start(ctx, "simple_http_request")
+	_, span := tracer.Start(ctx, "simple_http_request")
 	defer span.End()
 
 	// HTTP клиент автоматически создаст дочерний span
@@ -106,7 +106,7 @@ func nestedSpansExample(client httpclient.HTTPClient) {
 	userSpan.End()
 
 	// Span для получения настроек пользователя
-	ctx, settingsSpan := tracer.Start(ctx, "get_user_settings")
+	_, settingsSpan := tracer.Start(ctx, "get_user_settings")
 	resp2, err := client.Get("https://httpbin.org/headers")
 	if err == nil {
 		defer resp2.Body.Close()
@@ -127,7 +127,7 @@ func errorTracingExample(client httpclient.HTTPClient) {
 	ctx := context.Background()
 	tracer := otel.Tracer("example")
 
-	ctx, span := tracer.Start(ctx, "error_handling_example")
+	_, span := tracer.Start(ctx, "error_handling_example")
 	defer span.End()
 
 	// Запрос к несуществующему URL для демонстрации ошибки

@@ -17,6 +17,8 @@ import (
 // TestNewClient проверяет создание HTTP клиента с настройками по умолчанию
 // Проверяет что все основные компоненты инициализированы корректно
 func TestNewClient(t *testing.T) {
+	t.Parallel()
+
 	client, err := NewClient()
 	assert.NoError(t, err)
 	assert.NotNil(t, client)
@@ -28,6 +30,8 @@ func TestNewClient(t *testing.T) {
 // TestNewClientWithOptions проверяет создание клиента с пользовательскими настройками
 // Проверяет что все переданные опции корректно применяются к клиенту
 func TestNewClientWithOptions(t *testing.T) {
+	t.Parallel()
+
 	logger := zap.NewNop()
 
 	client, err := NewClient(
@@ -52,6 +56,8 @@ func TestNewClientWithOptions(t *testing.T) {
 // TestClientGet проверяет выполнение GET запросов
 // Создает тестовый сервер и проверяет что GET запрос выполняется корректно
 func TestClientGet(t *testing.T) {
+	t.Parallel()
+
 	// Создаем тестовый сервер
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
@@ -73,6 +79,8 @@ func TestClientGet(t *testing.T) {
 // TestClientPost проверяет выполнение POST запросов с телом
 // Проверяет что тело запроса и Content-Type передаются корректно
 func TestClientPost(t *testing.T) {
+	t.Parallel()
+
 	expectedBody := "test body"
 	expectedContentType := "text/plain"
 
@@ -81,7 +89,7 @@ func TestClientPost(t *testing.T) {
 		assert.Equal(t, expectedContentType, r.Header.Get("Content-Type"))
 
 		body := make([]byte, len(expectedBody))
-		r.Body.Read(body)
+		_, _ = r.Body.Read(body)
 		assert.Equal(t, expectedBody, string(body))
 
 		w.WriteHeader(http.StatusCreated)
@@ -101,6 +109,8 @@ func TestClientPost(t *testing.T) {
 // TestClientPostForm проверяет отправку форм через POST
 // Проверяет корректную обработку form-data с множественными значениями
 func TestClientPostForm(t *testing.T) {
+	t.Parallel()
+
 	formData := map[string][]string{
 		"name":  {"John Doe"},
 		"email": {"john@example.com"},
@@ -136,6 +146,8 @@ func TestClientPostForm(t *testing.T) {
 // TestClientGetJSON проверяет удобный метод для получения JSON данных
 // Проверяет автоматическую установку Accept заголовка и десериализацию ответа
 func TestClientGetJSON(t *testing.T) {
+	t.Parallel()
+
 	expectedData := map[string]interface{}{
 		"name":   "John Doe",
 		"age":    float64(30),
@@ -165,6 +177,8 @@ func TestClientGetJSON(t *testing.T) {
 // TestClientPostJSON проверяет удобный метод для отправки JSON данных
 // Проверяет автоматическую сериализацию, установку заголовков и десериализацию ответа
 func TestClientPostJSON(t *testing.T) {
+	t.Parallel()
+
 	requestData := map[string]interface{}{
 		"name":  "Jane Doe",
 		"email": "jane@example.com",
@@ -199,6 +213,8 @@ func TestClientPostJSON(t *testing.T) {
 // TestClientWithMiddleware проверяет интеграцию middleware с клиентом
 // Проверяет что middleware применяется ко всем запросам клиента
 func TestClientWithMiddleware(t *testing.T) {
+	t.Parallel()
+
 	headerKey := "X-Test-Header"
 	headerValue := "test-value"
 
@@ -227,6 +243,8 @@ func TestClientWithMiddleware(t *testing.T) {
 // TestClientMetrics проверяет сбор метрик клиентом
 // Проверяет что метрики корректно накапливаются после выполнения запросов
 func TestClientMetrics(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte("OK"))
@@ -252,6 +270,7 @@ func TestClientMetrics(t *testing.T) {
 }
 
 func TestClientTimeout(t *testing.T) {
+	// НЕ parallel - тест содержит time.Sleep
 	// Create a slow server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(2 * time.Second)
@@ -270,6 +289,8 @@ func TestClientTimeout(t *testing.T) {
 }
 
 func TestClientStream(t *testing.T) {
+	t.Parallel()
+
 	expectedData := "streaming data"
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -301,6 +322,8 @@ func TestClientStream(t *testing.T) {
 }
 
 func TestClientErrorHandling(t *testing.T) {
+	t.Parallel()
+
 	// Test with non-existent server
 	client, err := NewClient()
 	require.NoError(t, err)
@@ -316,6 +339,8 @@ func TestClientErrorHandling(t *testing.T) {
 }
 
 func TestClientHTTPErrorStatus(t *testing.T) {
+	t.Parallel()
+
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("Not Found"))

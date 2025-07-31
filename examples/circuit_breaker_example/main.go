@@ -110,8 +110,16 @@ func circuitBreakerStateMonitoringExample() {
 	fmt.Println("\n=== Circuit Breaker State Monitoring ===")
 
 	// Create logger for state changes
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Printf("Failed to create logger: %v", err)
+		return
+	}
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			log.Printf("Failed to sync logger: %v", err)
+		}
+	}()
 
 	// Create circuit breaker with state change monitoring
 	config := httpclient.CircuitBreakerConfig{

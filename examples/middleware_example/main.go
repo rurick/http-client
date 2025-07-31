@@ -22,8 +22,16 @@ func loggingMiddlewareExample() {
 	fmt.Println("=== Logging Middleware Example ===")
 
 	// Создаем логгер
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Printf("Failed to create logger: %v", err)
+		return
+	}
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			log.Printf("Failed to sync logger: %v", err)
+		}
+	}()
 
 	// Создаем клиент с middleware логирования
 	client, err := httpclient.NewClient(

@@ -130,9 +130,9 @@ func (mc *MockClient) PostForm(url string, data map[string][]string) (*http.Resp
 	for key, vals := range values {
 		for _, val := range vals {
 			if !first {
-				body.WriteString("&")
+				_, _ = body.WriteString("&")
 			}
-			body.WriteString(key + "=" + val)
+			_, _ = body.WriteString(key + "=" + val)
 			first = false
 		}
 	}

@@ -118,8 +118,16 @@ func customOptionsExample() {
 	fmt.Println("\n=== Custom Options Example ===")
 
 	// Create logger
-	logger, _ := zap.NewDevelopment()
-	defer logger.Sync()
+	logger, err := zap.NewDevelopment()
+	if err != nil {
+		log.Printf("Failed to create logger: %v", err)
+		return
+	}
+	defer func() {
+		if err := logger.Sync(); err != nil {
+			log.Printf("Failed to sync logger: %v", err)
+		}
+	}()
 
 	// Create client with custom options
 	client, err := httpclient.NewClient(

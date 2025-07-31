@@ -25,7 +25,8 @@ func NewExponentialBackoffStrategy(maxAttempts int, baseDelay, maxDelay time.Dur
 }
 
 // NextDelay вычисляет следующую задержку на основе экспоненциального отката
-func (e *ExponentialBackoffStrategy) NextDelay(attempt int, lastErr error) time.Duration {
+// Параметр lastErr не используется в этой стратегии
+func (e *ExponentialBackoffStrategy) NextDelay(attempt int, _ error) time.Duration {
 	if attempt <= 0 {
 		return e.baseDelay
 	}
@@ -81,7 +82,8 @@ func NewFixedDelayStrategy(maxAttempts int, delay time.Duration) *FixedDelayStra
 }
 
 // NextDelay возвращает фиксированную задержку
-func (f *FixedDelayStrategy) NextDelay(attempt int, lastErr error) time.Duration {
+// Параметры attempt и lastErr не используются в этой стратегии
+func (f *FixedDelayStrategy) NextDelay(_ int, _ error) time.Duration {
 	return f.delay
 }
 

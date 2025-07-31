@@ -33,9 +33,10 @@ func main() {
 			fmt.Printf("Запрос %d: Ошибка - %v (время: %v)\n", i, err, elapsed)
 			continue
 		}
-		defer resp.Body.Close()
-
-		fmt.Printf("Запрос %d: Успех %s (время: %v)\n", i, resp.Status, elapsed)
+		func() {
+			defer resp.Body.Close()
+			fmt.Printf("Запрос %d: Успех %s (время: %v)\n", i, resp.Status, elapsed)
+		}()
 	}
 
 	fmt.Println("\nТест завершен. Rate Limiter должен был задерживать запросы после 2-го.")

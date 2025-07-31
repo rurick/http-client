@@ -128,6 +128,9 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 				cb.setState(CircuitBreakerOpen)
 			}
 		}
+	case CircuitBreakerOpen:
+		// В состоянии Open мы не записываем результаты, так как запросы не выполняются
+		// Переход в Half-Open происходит только по таймауту в canExecute()
 	case CircuitBreakerHalfOpen:
 		if isSuccess {
 			cb.successCount++

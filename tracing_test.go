@@ -10,7 +10,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/resource"
 	tracesdk "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.4.0"
-	oteltrace "go.opentelemetry.io/otel/trace"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +17,8 @@ import (
 
 // TestOTelMetricsCollectorTracing проверяет создание и завершение spans
 func TestOTelMetricsCollectorTracing(t *testing.T) {
+	t.Parallel()
+
 	// Настройка трейсинга для тестов
 	setupTestTracing(t)
 
@@ -34,7 +35,7 @@ func TestOTelMetricsCollectorTracing(t *testing.T) {
 	assert.NotEqual(t, ctx, spanCtx) // Контекст должен измениться
 
 	// Проверяем что span содержит правильные атрибуты
-	if traceSpan, ok := span.(oteltrace.Span); ok {
+	if traceSpan := span; traceSpan != nil {
 		assert.True(t, traceSpan.IsRecording())
 	}
 
@@ -44,6 +45,8 @@ func TestOTelMetricsCollectorTracing(t *testing.T) {
 
 // TestTracingWithError проверяет запись ошибок в spans
 func TestTracingWithError(t *testing.T) {
+	t.Parallel()
+
 	setupTestTracing(t)
 
 	collector, err := NewOTelMetricsCollector("test-client")
@@ -63,6 +66,8 @@ func TestTracingWithError(t *testing.T) {
 
 // TestNestedSpans проверяет работу с вложенными spans
 func TestNestedSpans(t *testing.T) {
+	t.Parallel()
+
 	setupTestTracing(t)
 
 	collector, err := NewOTelMetricsCollector("test-client")
@@ -88,6 +93,8 @@ func TestNestedSpans(t *testing.T) {
 
 // TestSpanAttributes проверяет установку атрибутов spans
 func TestSpanAttributes(t *testing.T) {
+	t.Parallel()
+
 	setupTestTracing(t)
 
 	collector, err := NewOTelMetricsCollector("test-client")
@@ -141,6 +148,7 @@ func TestSpanAttributes(t *testing.T) {
 
 // TestTracingIntegrationWithClient проверяет интеграцию трейсинга с HTTP клиентом
 func TestTracingIntegrationWithClient(t *testing.T) {
+	// НЕ parallel - тест с HTTP запросами к реальному API
 	setupTestTracing(t)
 
 	// Создаем клиент с трейсингом
@@ -172,6 +180,8 @@ func TestTracingIntegrationWithClient(t *testing.T) {
 
 // TestOTelCollectorMetrics проверяет что трейсинг не влияет на сбор метрик
 func TestOTelCollectorMetrics(t *testing.T) {
+	t.Parallel()
+
 	setupTestTracing(t)
 
 	collector, err := NewOTelMetricsCollector("metrics-test")

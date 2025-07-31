@@ -13,6 +13,8 @@ import (
 // TestSimpleCircuitBreakerDefaultConfig проверяет создание автоматического выключателя с настройками по умолчанию
 // Проверяет что начальное состояние - "закрытое" (пропускает запросы)
 func TestSimpleCircuitBreakerDefaultConfig(t *testing.T) {
+	t.Parallel()
+
 	cb := NewSimpleCircuitBreaker()
 
 	assert.Equal(t, CircuitBreakerClosed, cb.State())
@@ -21,6 +23,8 @@ func TestSimpleCircuitBreakerDefaultConfig(t *testing.T) {
 // TestSimpleCircuitBreakerWithConfig проверяет создание автоматического выключателя с пользовательской конфигурацией
 // Проверяет что callback функция для отслеживания изменений состояний работает корректно
 func TestSimpleCircuitBreakerWithConfig(t *testing.T) {
+	t.Parallel()
+
 	var stateChanges []string
 
 	config := CircuitBreakerConfig{
@@ -42,6 +46,7 @@ func TestSimpleCircuitBreakerWithConfig(t *testing.T) {
 // Тестирует полный цикл: Закрыт -> Открыт -> Полуоткрыт -> Закрыт
 // Проверяет что callback функции вызываются при каждом переходе состояния
 func TestCircuitBreakerStateTransitions(t *testing.T) {
+	// НЕ parallel - тест с time.Sleep и state changes
 	var stateChanges []string
 
 	config := CircuitBreakerConfig{
@@ -98,6 +103,7 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 // Тестирует что выключатель требует несколько успешных запросов для перехода в закрытое состояние
 // когда порог успеха больше 1
 func TestCircuitBreakerFailureRecovery(t *testing.T) {
+	// НЕ parallel - тест с time.Sleep
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -134,6 +140,7 @@ func TestCircuitBreakerFailureRecovery(t *testing.T) {
 // TestCircuitBreakerHalfOpenFailure проверяет поведение при сбое в полуоткрытом состоянии
 // Проверяет что сбой в полуоткрытом состоянии возвращает выключатель в открытое состояние
 func TestCircuitBreakerHalfOpenFailure(t *testing.T) {
+	// НЕ parallel - тест с time.Sleep
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
@@ -162,6 +169,8 @@ func TestCircuitBreakerHalfOpenFailure(t *testing.T) {
 // TestCircuitBreakerReset проверяет принудительный сброс выключателя
 // Проверяет что метод Reset() возвращает выключатель в закрытое состояние
 func TestCircuitBreakerReset(t *testing.T) {
+	t.Parallel()
+
 	cb := NewSimpleCircuitBreaker()
 
 	// Открываем выключатель
@@ -187,6 +196,8 @@ func TestCircuitBreakerReset(t *testing.T) {
 // TestCircuitBreakerIsSuccess проверяет определение успешности ответа
 // Проверяет что 2xx и 4xx коды считаются успешными, а 5xx - нет
 func TestCircuitBreakerIsSuccess(t *testing.T) {
+	t.Parallel()
+
 	cb := NewSimpleCircuitBreaker()
 
 	tests := []struct {
@@ -245,6 +256,7 @@ func TestCircuitBreakerIsSuccess(t *testing.T) {
 }
 
 func TestCircuitBreakerConcurrency(t *testing.T) {
+	// НЕ parallel - тест concurrency
 	config := CircuitBreakerConfig{
 		FailureThreshold: 5,
 		SuccessThreshold: 3,
@@ -282,6 +294,8 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 }
 
 func TestCircuitBreakerMiddleware(t *testing.T) {
+	t.Parallel()
+
 	cb := NewSimpleCircuitBreaker()
 	middleware := NewCircuitBreakerMiddleware(cb)
 
@@ -300,6 +314,8 @@ func TestCircuitBreakerMiddleware(t *testing.T) {
 }
 
 func TestCircuitBreakerMiddlewareWithOpenCircuit(t *testing.T) {
+	t.Parallel()
+
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 1,
@@ -331,6 +347,8 @@ func TestCircuitBreakerMiddlewareWithOpenCircuit(t *testing.T) {
 }
 
 func TestCircuitBreakerStateString(t *testing.T) {
+	t.Parallel()
+
 	tests := []struct {
 		state    CircuitBreakerState
 		expected string
@@ -350,6 +368,8 @@ func TestCircuitBreakerStateString(t *testing.T) {
 }
 
 func TestCircuitBreakerExecuteWithPanic(t *testing.T) {
+	t.Parallel()
+
 	cb := NewSimpleCircuitBreaker()
 
 	// Test that panics in executed functions don't break the circuit breaker
@@ -370,6 +390,7 @@ func TestCircuitBreakerExecuteWithPanic(t *testing.T) {
 }
 
 func TestCircuitBreakerTimeoutPrecision(t *testing.T) {
+	// НЕ parallel - тест с time.Sleep
 	timeout := 10 * time.Millisecond
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
@@ -441,6 +462,8 @@ func BenchmarkCircuitBreakerState(b *testing.B) {
 }
 
 func TestCircuitBreakerConfigValidation(t *testing.T) {
+	t.Parallel()
+
 	// Test with edge case configurations
 	t.Run("zero thresholds", func(t *testing.T) {
 		config := CircuitBreakerConfig{
