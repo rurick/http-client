@@ -35,6 +35,39 @@ The library supports all standard HTTP methods, JSON/XML handling, streaming for
 - ✓ Code formatted and all tests passing
 - ✓ Project now uses modern Go syntax throughout
 
+### 2025-01-31: Added Comprehensive Prometheus Metrics Documentation
+- ✓ Created detailed docs/metrics.md with all Prometheus metric types
+- ✓ Documented all metric names, types, labels, and bucket configurations
+- ✓ Added metric examples with realistic values and PromQL queries
+- ✓ Included Grafana dashboard recommendations and alert configurations
+- ✓ Added performance troubleshooting guide using metrics
+- ✓ Updated documentation navigation to highlight metrics section
+
+### 2025-01-31: Added WithMetricsName() Method for Custom Metric Prefixes
+- ✓ Implemented WithMetricsName(string) method for custom Prometheus metric prefixes
+- ✓ Added MetricsPrefix field to ClientOptions with default "httpclient"
+- ✓ Added empty string validation with automatic fallback to default
+- ✓ Created comprehensive tests covering normal usage, edge cases, and combinations
+- ✓ Updated all metrics documentation to show {prefix} placeholder format
+- ✓ Added examples for different services (API Gateway, User Service, Payment)
+- ✓ Updated PromQL queries and alerts to use configurable prefixes
+
+### 2025-01-31: Refactored Metrics Constants
+- ✓ Extracted all metric names into constants in metrics.go file
+- ✓ Added 16 metric constants covering all Prometheus metric types
+- ✓ Updated OpenTelemetry metric creation to use constants
+- ✓ Created comprehensive tests for metric constants validation
+- ✓ Added documentation section explaining constants usage
+- ✓ Ensured naming follows Prometheus conventions (_total, _seconds, _bytes)
+
+### 2025-01-31: Fixed MetricsName Implementation  
+- ✓ Renamed MetricsPrefix to MetricsName throughout the codebase
+- ✓ Fixed client.go to use options.MetricsName instead of options.MetricsPrefix
+- ✓ Updated NewOTelMetricsCollector to use MetricsName for meter/tracer identification
+- ✓ Removed prefix concatenation from metric names (prefix only used in otel.Meter/Tracer)
+- ✓ Updated documentation to reflect standard metric names without prefixes
+- ✓ All tests passing with proper OpenTelemetry instrument naming
+
 # User Preferences
 
 Preferred communication style: Simple, everyday language.

@@ -2,7 +2,7 @@ apiVersion: backstage.io/v1alpha1
 kind: Component
 metadata:
   name: http-client
-  description: пакет для работы с http клиентом
+  description: Универсальная библиотека HTTP клиента для Go с встроенными механизмами надежности и наблюдаемости.
   annotations:
     gitlab.com/project-slug: backend/go/pkg/http-client
     backstage.io/techdocs-ref: dir:.

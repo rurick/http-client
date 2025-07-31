@@ -102,7 +102,7 @@ func TestWithMultipleMiddleware(t *testing.T) {
 	opts := DefaultOptions()
 	middleware1 := NewHeaderMiddleware(map[string]string{"X-Test-1": "value1"})
 	middleware2 := NewHeaderMiddleware(map[string]string{"X-Test-2": "value2"})
-	
+
 	WithMultipleMiddleware(middleware1, middleware2)(opts)
 
 	assert.Len(t, opts.Middlewares, 2)
@@ -117,10 +117,10 @@ func TestCloneMiddlewares(t *testing.T) {
 	WithMiddleware(middleware)(opts)
 
 	cloned := opts.CloneMiddlewares()
-	
+
 	assert.Len(t, cloned, 1)
 	assert.Equal(t, middleware, cloned[0])
-	
+
 	// Проверяем что это копия, а не ссылка
 	opts.Middlewares = append(opts.Middlewares, NewHeaderMiddleware(map[string]string{"X-Test-2": "value2"}))
 	assert.Len(t, cloned, 1) // Клон не должен измениться
@@ -133,7 +133,7 @@ func TestHasMiddleware(t *testing.T) {
 	WithMiddleware(middleware)(opts)
 
 	assert.True(t, opts.HasMiddleware(middleware))
-	
+
 	otherMiddleware := NewHeaderMiddleware(map[string]string{"X-Other": "value"})
 	assert.False(t, opts.HasMiddleware(otherMiddleware))
 }
@@ -143,7 +143,7 @@ func TestWithLogger(t *testing.T) {
 	opts := DefaultOptions()
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
-	
+
 	WithLogger(logger)(opts)
 
 	assert.Equal(t, logger, opts.Logger)
@@ -152,24 +152,49 @@ func TestWithLogger(t *testing.T) {
 // TestWithMetrics проверяет включение/отключение метрик
 func TestWithMetrics(t *testing.T) {
 	opts := DefaultOptions()
-	
+
 	// Отключаем метрики
 	WithMetrics(false)(opts)
 	assert.False(t, opts.MetricsEnabled)
-	
+
 	// Включаем метрики
 	WithMetrics(true)(opts)
 	assert.True(t, opts.MetricsEnabled)
 }
 
+// TestWithMetricsName проверяет установку префикса метрик
+func TestWithMetricsName(t *testing.T) {
+	opts := DefaultOptions()
+
+	// Устанавливаем пользовательский префикс
+	WithMetricsMeterName("myapp")(opts)
+	assert.Equal(t, "myapp", opts.MetricsMeterName)
+
+	// Тестируем с другим префиксом
+	WithMetricsMeterName("api_service")(opts)
+	assert.Equal(t, "api_service", opts.MetricsMeterName)
+}
+
+// TestWithMetricsName_EmptyPrefix проверяет обработку пустого префикса
+func TestWithMetricsName_EmptyPrefix(t *testing.T) {
+	opts := DefaultOptions()
+
+	// Пустой префикс должен установить значение по умолчанию
+	WithMetricsMeterName("")(opts)
+	assert.Equal(t, defaultMetricMeterName, opts.MetricsMeterName)
+
+	// Проверяем что значение по умолчанию уже установлено
+	assert.Equal(t, defaultMetricMeterName, DefaultOptions().MetricsMeterName)
+}
+
 // TestWithTracing проверяет включение/отключение трейсинга
 func TestWithTracing(t *testing.T) {
 	opts := DefaultOptions()
-	
+
 	// Отключаем трейсинг
 	WithTracing(false)(opts)
 	assert.False(t, opts.TracingEnabled)
-	
+
 	// Включаем трейсинг
 	WithTracing(true)(opts)
 	assert.True(t, opts.TracingEnabled)
@@ -181,7 +206,7 @@ func TestWithHTTPClient(t *testing.T) {
 	customClient := &http.Client{
 		Timeout: 60 * time.Second,
 	}
-	
+
 	WithHTTPClient(customClient)(opts)
 
 	assert.Equal(t, customClient, opts.HTTPClient)
@@ -191,11 +216,11 @@ func TestWithHTTPClient(t *testing.T) {
 func TestChainedOptions(t *testing.T) {
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
-	
+
 	middleware := NewHeaderMiddleware(map[string]string{"X-Test": "value"})
-	
+
 	opts := DefaultOptions()
-	
+
 	// Применяем несколько опций подряд
 	WithTimeout(45 * time.Second)(opts)
 	WithMaxIdleConns(200)(opts)
@@ -211,4 +236,40 @@ func TestChainedOptions(t *testing.T) {
 	assert.Equal(t, logger, opts.Logger)
 	assert.Len(t, opts.Middlewares, 1)
 	assert.False(t, opts.MetricsEnabled)
+}
+
+// TestMetricsNameInDefaultOptions проверяет что префикс метрик включен в значения по умолчанию
+func TestMetricsNameInDefaultOptions(t *testing.T) {
+	opts := DefaultOptions()
+
+	assert.Equal(t, defaultMetricMeterName, opts.MetricsMeterName)
+	assert.True(t, opts.MetricsEnabled)
+	assert.True(t, opts.TracingEnabled)
+}
+
+// TestWithMetricsName_SpecialCharacters проверяет работу с специальными символами
+func TestWithMetricsName_SpecialCharacters(t *testing.T) {
+	opts := DefaultOptions()
+
+	// Префикс с подчеркиваниями (стандарт Prometheus)
+	WithMetricsMeterName("my_app_service")(opts)
+	assert.Equal(t, "my_app_service", opts.MetricsMeterName)
+
+	// Префикс с точками (может использоваться в неймспейсах)
+	WithMetricsMeterName("com.example.service")(opts)
+	assert.Equal(t, "com.example.service", opts.MetricsMeterName)
+}
+
+// TestCombinedMetricsOptions проверяет сочетание опций метрик
+func TestCombinedMetricsOptions(t *testing.T) {
+	opts := DefaultOptions()
+
+	// Применяем несколько опций метрик
+	WithMetrics(true)(opts)
+	WithMetricsMeterName("custom_app")(opts)
+	WithTracing(false)(opts)
+
+	assert.True(t, opts.MetricsEnabled)
+	assert.Equal(t, "custom_app", opts.MetricsMeterName)
+	assert.False(t, opts.TracingEnabled)
 }
