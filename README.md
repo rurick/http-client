@@ -39,8 +39,14 @@ go get gitlab.citydrive.tech/back-end/go/pkg/http-client
 
 ### Простое использование
 
+> **⚠️ ВАЖНО: Всегда используйте контекстные методы (GetCtx, PostCtx и т.д.) для лучшего контроля запросов!**
+
 ```go
-import httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+import (
+    "context"
+    "time"
+    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+)
 
 // Создание клиента
 client, err := httpclient.NewClient()
@@ -48,12 +54,16 @@ if err != nil {
     log.Fatal(err)
 }
 
-// HTTP запрос
-resp, err := client.Get("https://api.example.com/data")
+// Создание контекста с таймаутом (РЕКОМЕНДУЕТСЯ)
+ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+defer cancel()
 
-// JSON запрос
+// HTTP запрос с контекстом (ЛУЧШАЯ ПРАКТИКА)
+resp, err := client.GetCtx(ctx, "https://api.example.com/data")
+
+// JSON запрос с контекстом (РЕКОМЕНДУЕТСЯ)
 var result MyStruct
-err = client.GetJSON(context.Background(), "https://api.example.com/json", &result)
+err = client.GetJSON(ctx, "https://api.example.com/json", &result)
 ```
 
 ### Продакшн конфигурация
@@ -90,6 +100,9 @@ client, err := httpclient.NewClient(
 
 ### Основные разделы
 - [Быстрый старт](docs/quick-start.md) - Первые шаги с библиотекой
+- [Настройки по умолчанию](docs/default-settings.md) - Стандартные параметры клиента
+- [Пул соединений](docs/connection-pool.md) - Конфигурация и оптимизация соединений
+- [Контекстные методы](docs/context-methods.md) - HTTP методы с поддержкой контекста
 - [Конфигурация](docs/configuration.md) - Все опции настройки
 - [Стратегии повтора](docs/retry-strategies.md) - Настройка механизмов повтора
 - [Circuit Breaker](docs/circuit-breaker.md) - Защита от каскадных сбоев

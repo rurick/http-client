@@ -174,7 +174,7 @@ func (mrb *MockResponseBuilder) WithBody(body string) *MockResponseBuilder {
 }
 
 // WithJSONBody sets a JSON response body
-func (mrb *MockResponseBuilder) WithJSONBody(data interface{}) *MockResponseBuilder {
+func (mrb *MockResponseBuilder) WithJSONBody(data any) *MockResponseBuilder {
 	jsonBytes, _ := json.Marshal(data)
 	mrb.body = jsonBytes
 	mrb.headers.Set("Content-Type", "application/json")
@@ -182,7 +182,7 @@ func (mrb *MockResponseBuilder) WithJSONBody(data interface{}) *MockResponseBuil
 }
 
 // WithXMLBody sets an XML response body
-func (mrb *MockResponseBuilder) WithXMLBody(data interface{}) *MockResponseBuilder {
+func (mrb *MockResponseBuilder) WithXMLBody(data any) *MockResponseBuilder {
 	xmlBytes, _ := xml.Marshal(data)
 	mrb.body = xmlBytes
 	mrb.headers.Set("Content-Type", "application/xml")

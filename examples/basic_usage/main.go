@@ -87,7 +87,7 @@ func jsonExample() {
 	ctx := context.Background()
 
 	// GET JSON
-	var getResult map[string]interface{}
+	var getResult map[string]any
 	err = client.GetJSON(ctx, "https://httpbin.org/json", &getResult)
 	if err != nil {
 		log.Printf("GET JSON failed: %v", err)
@@ -97,13 +97,13 @@ func jsonExample() {
 	fmt.Printf("GET JSON result: %+v\n", getResult)
 
 	// POST JSON
-	postData := map[string]interface{}{
+	postData := map[string]any{
 		"name":  "John Doe",
 		"email": "john@example.com",
 		"age":   30,
 	}
 
-	var postResult map[string]interface{}
+	var postResult map[string]any
 	err = client.PostJSON(ctx, "https://httpbin.org/post", postData, &postResult)
 	if err != nil {
 		log.Printf("POST JSON failed: %v", err)

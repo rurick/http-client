@@ -1,9 +1,9 @@
 package httpclient
 
 import (
-	"slices"
 	"math"
 	"net/http"
+	"slices"
 	"time"
 )
 

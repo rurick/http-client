@@ -148,7 +148,7 @@ func TestClientPostForm(t *testing.T) {
 func TestClientGetJSON(t *testing.T) {
 	t.Parallel()
 
-	expectedData := map[string]interface{}{
+	expectedData := map[string]any{
 		"name":   "John Doe",
 		"age":    float64(30),
 		"active": true,
@@ -167,7 +167,7 @@ func TestClientGetJSON(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = client.GetJSON(context.Background(), server.URL, &result)
 	require.NoError(t, err)
 
@@ -179,12 +179,12 @@ func TestClientGetJSON(t *testing.T) {
 func TestClientPostJSON(t *testing.T) {
 	t.Parallel()
 
-	requestData := map[string]interface{}{
+	requestData := map[string]any{
 		"name":  "Jane Doe",
 		"email": "jane@example.com",
 	}
 
-	responseData := map[string]interface{}{
+	responseData := map[string]any{
 		"id":      float64(123),
 		"created": true,
 	}
@@ -203,7 +203,7 @@ func TestClientPostJSON(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = client.PostJSON(context.Background(), server.URL, requestData, &result)
 	require.NoError(t, err)
 
@@ -351,7 +351,7 @@ func TestClientHTTPErrorStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test GetJSON with error status
-	var result map[string]interface{}
+	var result map[string]any
 	err = client.GetJSON(context.Background(), server.URL, &result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "404")

@@ -7,82 +7,208 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
-// TestClientGetMetricsCollectorOption проверяет получение коллектора метрик
-func TestClientGetMetricsCollectorOption(t *testing.T) {
-	t.Parallel()
+// TestDefaultOptions проверяет значения опций по умолчанию
+func TestDefaultOptions(t *testing.T) {
+	opts := DefaultOptions()
 
-	client, err := NewClient()
-	require.NoError(t, err)
-
-	collector := client.GetMetricsCollector()
-	assert.NotNil(t, collector)
+	assert.Equal(t, 30*time.Second, opts.Timeout)
+	assert.Equal(t, 100, opts.MaxIdleConns)
+	assert.Equal(t, 10, opts.MaxConnsPerHost)
+	assert.Equal(t, 0, opts.RetryMax)
+	assert.Equal(t, 1*time.Second, opts.RetryWaitMin)
+	assert.Equal(t, 10*time.Second, opts.RetryWaitMax)
+	assert.Nil(t, opts.RetryStrategy)
+	assert.True(t, opts.MetricsEnabled)
+	assert.True(t, opts.TracingEnabled)
+	assert.NotNil(t, opts.Logger)
+	assert.Empty(t, opts.Middlewares)
 }
 
-// TestClientGetOptionsMethod проверяет получение опций клиента
-func TestClientGetOptionsMethod(t *testing.T) {
-	t.Parallel()
+// TestWithTimeout проверяет установку таймаута
+func TestWithTimeout(t *testing.T) {
+	opts := DefaultOptions()
+	WithTimeout(45 * time.Second)(opts)
 
-	client, err := NewClient(
-		WithTimeout(5*time.Second),
-		WithRetryMax(3),
-	)
-	require.NoError(t, err)
-
-	options := client.GetOptions()
-	assert.Equal(t, 5*time.Second, options.Timeout)
-	assert.Equal(t, 3, options.RetryMax)
+	assert.Equal(t, 45*time.Second, opts.Timeout)
 }
 
-// TestOptionsWithRetryStrategyConfig проверяет опцию WithRetryStrategy
-func TestOptionsWithRetryStrategyConfig(t *testing.T) {
-	t.Parallel()
+// TestWithMaxIdleConns проверяет установку максимального количества неактивных соединений
+func TestWithMaxIdleConns(t *testing.T) {
+	opts := DefaultOptions()
+	WithMaxIdleConns(200)(opts)
 
-	strategy := NewFixedDelayStrategy(3, time.Second)
-
-	client, err := NewClient(WithRetryStrategy(strategy))
-	require.NoError(t, err)
-
-	options := client.GetOptions()
-	assert.NotNil(t, options.RetryStrategy)
+	assert.Equal(t, 200, opts.MaxIdleConns)
 }
 
-// TestOptionsWithRetryWaitConfig проверяет опцию WithRetryWait
-func TestOptionsWithRetryWaitConfig(t *testing.T) {
-	t.Parallel()
+// TestWithMaxConnsPerHost проверяет установку максимального количества соединений на хост
+func TestWithMaxConnsPerHost(t *testing.T) {
+	opts := DefaultOptions()
+	WithMaxConnsPerHost(25)(opts)
 
-	minWait := time.Second
-	maxWait := 2 * time.Second
-
-	client, err := NewClient(WithRetryWait(minWait, maxWait))
-	require.NoError(t, err)
-
-	options := client.GetOptions()
-	assert.Equal(t, minWait, options.RetryWaitMin)
-	assert.Equal(t, maxWait, options.RetryWaitMax)
+	assert.Equal(t, 25, opts.MaxConnsPerHost)
 }
 
-// TestOptionsWithTracingConfig проверяет опцию WithTracing
-func TestOptionsWithTracingConfig(t *testing.T) {
-	t.Parallel()
+// TestWithRetryMax проверяет установку максимального количества повторов
+func TestWithRetryMax(t *testing.T) {
+	opts := DefaultOptions()
+	WithRetryMax(5)(opts)
 
-	client, err := NewClient(WithTracing(true))
-	require.NoError(t, err)
-
-	options := client.GetOptions()
-	assert.True(t, options.TracingEnabled)
+	assert.Equal(t, 5, opts.RetryMax)
 }
 
-// TestOptionsWithHTTPClientConfig проверяет опцию WithHTTPClient
-func TestOptionsWithHTTPClientConfig(t *testing.T) {
-	t.Parallel()
+// TestWithRetryWait проверяет установку времени ожидания повторов
+func TestWithRetryWait(t *testing.T) {
+	opts := DefaultOptions()
+	WithRetryWait(500*time.Millisecond, 30*time.Second)(opts)
 
-	customClient := &http.Client{Timeout: 10 * time.Second}
+	assert.Equal(t, 500*time.Millisecond, opts.RetryWaitMin)
+	assert.Equal(t, 30*time.Second, opts.RetryWaitMax)
+}
 
-	client, err := NewClient(WithHTTPClient(customClient))
+// TestWithRetryStrategy проверяет установку стратегии повторов
+func TestWithRetryStrategy(t *testing.T) {
+	opts := DefaultOptions()
+	strategy := NewExponentialBackoffStrategy(3, 1*time.Second, 30*time.Second)
+	WithRetryStrategy(strategy)(opts)
+
+	assert.Equal(t, strategy, opts.RetryStrategy)
+	assert.Equal(t, 3, opts.RetryMax)
+}
+
+// TestWithCircuitBreaker проверяет установку circuit breaker
+func TestWithCircuitBreaker(t *testing.T) {
+	opts := DefaultOptions()
+	cb := NewSimpleCircuitBreaker()
+	WithCircuitBreaker(cb)(opts)
+
+	assert.Equal(t, cb, opts.CircuitBreaker)
+}
+
+// TestWithMiddleware проверяет добавление middleware
+func TestWithMiddleware(t *testing.T) {
+	opts := DefaultOptions()
+	middleware := NewHeaderMiddleware(map[string]string{"X-Test": "value"})
+	WithMiddleware(middleware)(opts)
+
+	assert.Len(t, opts.Middlewares, 1)
+	assert.Equal(t, middleware, opts.Middlewares[0])
+}
+
+// TestWithMultipleMiddleware проверяет добавление нескольких middleware
+func TestWithMultipleMiddleware(t *testing.T) {
+	opts := DefaultOptions()
+	middleware1 := NewHeaderMiddleware(map[string]string{"X-Test-1": "value1"})
+	middleware2 := NewHeaderMiddleware(map[string]string{"X-Test-2": "value2"})
+	
+	WithMultipleMiddleware(middleware1, middleware2)(opts)
+
+	assert.Len(t, opts.Middlewares, 2)
+	assert.Equal(t, middleware1, opts.Middlewares[0])
+	assert.Equal(t, middleware2, opts.Middlewares[1])
+}
+
+// TestCloneMiddlewares проверяет клонирование middleware
+func TestCloneMiddlewares(t *testing.T) {
+	opts := DefaultOptions()
+	middleware := NewHeaderMiddleware(map[string]string{"X-Test": "value"})
+	WithMiddleware(middleware)(opts)
+
+	cloned := opts.CloneMiddlewares()
+	
+	assert.Len(t, cloned, 1)
+	assert.Equal(t, middleware, cloned[0])
+	
+	// Проверяем что это копия, а не ссылка
+	opts.Middlewares = append(opts.Middlewares, NewHeaderMiddleware(map[string]string{"X-Test-2": "value2"}))
+	assert.Len(t, cloned, 1) // Клон не должен измениться
+}
+
+// TestHasMiddleware проверяет проверку наличия middleware
+func TestHasMiddleware(t *testing.T) {
+	opts := DefaultOptions()
+	middleware := NewHeaderMiddleware(map[string]string{"X-Test": "value"})
+	WithMiddleware(middleware)(opts)
+
+	assert.True(t, opts.HasMiddleware(middleware))
+	
+	otherMiddleware := NewHeaderMiddleware(map[string]string{"X-Other": "value"})
+	assert.False(t, opts.HasMiddleware(otherMiddleware))
+}
+
+// TestWithLogger проверяет установку логгера
+func TestWithLogger(t *testing.T) {
+	opts := DefaultOptions()
+	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
+	
+	WithLogger(logger)(opts)
 
-	options := client.GetOptions()
-	assert.Equal(t, customClient, options.HTTPClient)
+	assert.Equal(t, logger, opts.Logger)
+}
+
+// TestWithMetrics проверяет включение/отключение метрик
+func TestWithMetrics(t *testing.T) {
+	opts := DefaultOptions()
+	
+	// Отключаем метрики
+	WithMetrics(false)(opts)
+	assert.False(t, opts.MetricsEnabled)
+	
+	// Включаем метрики
+	WithMetrics(true)(opts)
+	assert.True(t, opts.MetricsEnabled)
+}
+
+// TestWithTracing проверяет включение/отключение трейсинга
+func TestWithTracing(t *testing.T) {
+	opts := DefaultOptions()
+	
+	// Отключаем трейсинг
+	WithTracing(false)(opts)
+	assert.False(t, opts.TracingEnabled)
+	
+	// Включаем трейсинг
+	WithTracing(true)(opts)
+	assert.True(t, opts.TracingEnabled)
+}
+
+// TestWithHTTPClient проверяет установку пользовательского HTTP клиента
+func TestWithHTTPClient(t *testing.T) {
+	opts := DefaultOptions()
+	customClient := &http.Client{
+		Timeout: 60 * time.Second,
+	}
+	
+	WithHTTPClient(customClient)(opts)
+
+	assert.Equal(t, customClient, opts.HTTPClient)
+}
+
+// TestChainedOptions проверяет цепочку опций
+func TestChainedOptions(t *testing.T) {
+	logger, err := zap.NewDevelopment()
+	require.NoError(t, err)
+	
+	middleware := NewHeaderMiddleware(map[string]string{"X-Test": "value"})
+	
+	opts := DefaultOptions()
+	
+	// Применяем несколько опций подряд
+	WithTimeout(45 * time.Second)(opts)
+	WithMaxIdleConns(200)(opts)
+	WithRetryMax(3)(opts)
+	WithLogger(logger)(opts)
+	WithMiddleware(middleware)(opts)
+	WithMetrics(false)(opts)
+
+	// Проверяем что все опции применились
+	assert.Equal(t, 45*time.Second, opts.Timeout)
+	assert.Equal(t, 200, opts.MaxIdleConns)
+	assert.Equal(t, 3, opts.RetryMax)
+	assert.Equal(t, logger, opts.Logger)
+	assert.Len(t, opts.Middlewares, 1)
+	assert.False(t, opts.MetricsEnabled)
 }

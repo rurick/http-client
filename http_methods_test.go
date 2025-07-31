@@ -37,7 +37,7 @@ func TestClientHeadMethod(t *testing.T) {
 func TestClientPutJSONMethod(t *testing.T) {
 	t.Parallel()
 
-	requestData := map[string]interface{}{
+	requestData := map[string]any{
 		"id":   123,
 		"name": "Updated Name",
 	}
@@ -54,7 +54,7 @@ func TestClientPutJSONMethod(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = client.PutJSON(context.Background(), server.URL, requestData, &result)
 	require.NoError(t, err)
 
@@ -65,7 +65,7 @@ func TestClientPutJSONMethod(t *testing.T) {
 func TestClientPatchJSONMethod(t *testing.T) {
 	t.Parallel()
 
-	requestData := map[string]interface{}{
+	requestData := map[string]any{
 		"name": "Patched Name",
 	}
 
@@ -81,7 +81,7 @@ func TestClientPatchJSONMethod(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = client.PatchJSON(context.Background(), server.URL, requestData, &result)
 	require.NoError(t, err)
 
@@ -104,7 +104,7 @@ func TestClientDeleteJSONMethod(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]interface{}
+	var result map[string]any
 	err = client.DeleteJSON(context.Background(), server.URL, &result)
 	require.NoError(t, err)
 

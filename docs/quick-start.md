@@ -8,14 +8,18 @@ go get gitlab.citydrive.tech/back-end/go/pkg/http-client
 
 ## Базовое использование
 
-### Создание простого клиента
+### Создание простого клиента (РЕКОМЕНДУЕМЫЙ способ)
+
+**Всегда используйте контекстные методы для лучшего контроля!**
 
 ```go
 package main
 
 import (
+    "context"
     "fmt"
     "log"
+    "time"
     
     httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
@@ -27,8 +31,12 @@ func main() {
         log.Fatal(err)
     }
     
-    // Выполнение простого GET запроса
-    resp, err := client.Get("https://api.example.com/data")
+    // Создание контекста с таймаутом (ОБЯЗАТЕЛЬНО!)
+    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer cancel()
+    
+    // Выполнение GET запроса с контекстом (РЕКОМЕНДУЕТСЯ)
+    resp, err := client.GetCtx(ctx, "https://api.example.com/data")
     if err != nil {
         log.Fatal(err)
     }
@@ -36,6 +44,13 @@ func main() {
     
     fmt.Printf("Статус: %s\n", resp.Status)
 }
+```
+
+### Устаревший способ (НЕ рекомендуется)
+
+```go
+// Старый способ без контекста - используйте только для legacy кода
+resp, err := client.Get("https://api.example.com/data")
 ```
 
 ### Клиент с пользовательской конфигурацией
@@ -49,30 +64,52 @@ client, err := httpclient.NewClient(
 )
 ```
 
-### JSON запросы
+### JSON запросы (с контекстом)
 
 ```go
+// Создание контекста с таймаутом
+ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
+defer cancel()
+
 // GET JSON
-var result map[string]interface{}
-err := client.GetJSON(context.Background(), "https://api.example.com/data", &result)
+var result map[string]any
+err := client.GetJSON(ctx, "https://api.example.com/data", &result)
 
 // POST JSON
 data := map[string]string{"key": "value"}
-var response map[string]interface{}
-err := client.PostJSON(context.Background(), "https://api.example.com/submit", data, &response)
+var response map[string]any
+err := client.PostJSON(ctx, "https://api.example.com/submit", data, &response)
 ```
 
-## Основные HTTP методы
+## Основные HTTP методы (с контекстом - РЕКОМЕНДУЕТСЯ)
 
 ```go
+ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+defer cancel()
+
 // GET запрос
-resp, err := client.Get("https://api.example.com/users")
+resp, err := client.GetCtx(ctx, "https://api.example.com/users")
 
 // POST запрос
-resp, err := client.Post("https://api.example.com/users", "application/json", body)
+resp, err := client.PostCtx(ctx, "https://api.example.com/users", "application/json", body)
 
-// PUT запрос
-resp, err := client.Put("https://api.example.com/users/1", "application/json", body)
+// POST форма
+formData := map[string][]string{
+    "name": {"John Doe"},
+    "email": {"john@example.com"},
+}
+resp, err := client.PostFormCtx(ctx, "https://api.example.com/users", formData)
+
+// HEAD запрос
+resp, err := client.HeadCtx(ctx, "https://api.example.com/users/1")
+```
+
+### Устаревшие методы (используйте только для legacy кода)
+
+```go
+// Старые методы без контекста - НЕ рекомендуются
+resp, err := client.Get("https://api.example.com/users")
+resp, err := client.Post("https://api.example.com/users", "application/json", body)
 
 // DELETE запрос
 resp, err := client.Delete("https://api.example.com/users/1")

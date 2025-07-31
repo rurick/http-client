@@ -14,12 +14,29 @@ type HTTPClient interface {
     Get(url string) (*http.Response, error)
     Head(url string) (*http.Response, error)
     Post(url, contentType string, body io.Reader) (*http.Response, error)
-    PostForm(url string, data url.Values) (*http.Response, error)
-    Put(url, contentType string, body io.Reader) (*http.Response, error)
-    Patch(url, contentType string, body io.Reader) (*http.Response, error)
-    Delete(url string) (*http.Response, error)
+    PostForm(url string, data map[string][]string) (*http.Response, error)
 }
 ```
+
+### CtxHTTPClient (РЕКОМЕНДУЕТСЯ)
+
+**Основной интерфейс для всех HTTP операций!** Всегда используйте эти методы вместо обычных для лучшего контроля запросов.
+
+```go
+type CtxHTTPClient interface {
+    DoCtx(context.Context, *http.Request) (*http.Response, error)
+    GetCtx(ctx context.Context, url string) (*http.Response, error)
+    PostCtx(ctx context.Context, url, contentType string, body io.Reader) (*http.Response, error)
+    PostFormCtx(ctx context.Context, url string, data map[string][]string) (*http.Response, error)
+    HeadCtx(ctx context.Context, url string) (*http.Response, error)
+}
+```
+
+**Преимущества контекстных методов:**
+- Управление таймаутами запросов
+- Возможность отмены запросов
+- Распространение трейсинг информации
+- Лучшая интеграция с Go ecosystem
 
 ### ExtendedHTTPClient
 
@@ -43,8 +60,8 @@ type ExtendedHTTPClient interface {
     // Потоковые методы
     Stream(ctx context.Context, req *http.Request) (StreamResponse, error)
 
-    // Методы с контекстом
-    DoWithContext(ctx context.Context, req *http.Request) (*http.Response, error)
+    // Поддержка контекстных методов
+    CtxHTTPClient
 
     // Доступ к метрикам
     GetMetrics() *ClientMetrics
@@ -96,7 +113,12 @@ func WithHTTPClient(client *http.Client) Option
 ```go
 func WithMaxIdleConns(maxIdleConns int) Option
 ```
-Устанавливает максимальное количество неактивных соединений.
+Устанавливает максимальное количество неактивных соединений в пуле.
+
+**Значение по умолчанию**: 100
+**Рекомендации**: 20-500 в зависимости от нагрузки
+
+См. подробнее: [Пул соединений](connection-pool.md)
 
 #### WithMaxConnsPerHost
 ```go
@@ -104,11 +126,10 @@ func WithMaxConnsPerHost(maxConnsPerHost int) Option
 ```
 Устанавливает максимальное количество соединений на хост.
 
-#### WithIdleConnTimeout
-```go
-func WithIdleConnTimeout(timeout time.Duration) Option
-```
-Устанавливает таймаут для неактивных соединений.
+**Значение по умолчанию**: 10
+**Рекомендации**: 5-50 в зависимости от нагрузки
+
+См. подробнее: [Пул соединений](connection-pool.md)
 
 ### Опции повторов
 
