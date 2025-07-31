@@ -5,6 +5,7 @@ metadata:
   description: пакет для работы с http клиентом
   annotations:
     gitlab.com/project-slug: backend/go/pkg/http-client
+    backstage.io/techdocs-ref: dir:.
   tags:
     - golang
     - http
