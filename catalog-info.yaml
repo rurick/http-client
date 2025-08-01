@@ -20,4 +20,4 @@ spec:
   type: library
   system: Dev-tools
   owner: teams-backend-products
-  lifecycle: experimental
+  lifecycle: active
