@@ -122,7 +122,7 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 	}
 
 	// Start tracing if enabled
-	var span interface{}
+	var span any
 	if c.metricsCollector != nil && c.options.TracingEnabled {
 		if collector, ok := c.metricsCollector.(*OTelMetricsCollector); ok {
 			ctx, span = collector.StartSpan(ctx, req.Method, req.URL.String())
@@ -211,7 +211,7 @@ func (c *Client) Head(url string) (*http.Response, error) {
 }
 
 // GetJSON performs a GET request and decodes JSON response
-func (c *Client) GetJSON(ctx context.Context, url string, result interface{}) error {
+func (c *Client) GetJSON(ctx context.Context, url string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -232,22 +232,22 @@ func (c *Client) GetJSON(ctx context.Context, url string, result interface{}) er
 }
 
 // PostJSON performs a POST request with JSON body and decodes JSON response
-func (c *Client) PostJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
+func (c *Client) PostJSON(ctx context.Context, url string, body any, result any) error {
 	return c.sendJSON(ctx, http.MethodPost, url, body, result)
 }
 
 // PutJSON performs a PUT request with JSON body and decodes JSON response
-func (c *Client) PutJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
+func (c *Client) PutJSON(ctx context.Context, url string, body any, result any) error {
 	return c.sendJSON(ctx, http.MethodPut, url, body, result)
 }
 
 // PatchJSON performs a PATCH request with JSON body and decodes JSON response
-func (c *Client) PatchJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
+func (c *Client) PatchJSON(ctx context.Context, url string, body any, result any) error {
 	return c.sendJSON(ctx, http.MethodPatch, url, body, result)
 }
 
 // DeleteJSON performs a DELETE request and decodes JSON response
-func (c *Client) DeleteJSON(ctx context.Context, url string, result interface{}) error {
+func (c *Client) DeleteJSON(ctx context.Context, url string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
@@ -272,7 +272,7 @@ func (c *Client) DeleteJSON(ctx context.Context, url string, result interface{})
 }
 
 // sendJSON is a helper method for sending JSON requests
-func (c *Client) sendJSON(ctx context.Context, method, url string, body interface{}, result interface{}) error {
+func (c *Client) sendJSON(ctx context.Context, method, url string, body any, result any) error {
 	var bodyReader io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
@@ -308,7 +308,7 @@ func (c *Client) sendJSON(ctx context.Context, method, url string, body interfac
 }
 
 // GetXML performs a GET request and decodes XML response
-func (c *Client) GetXML(ctx context.Context, url string, result interface{}) error {
+func (c *Client) GetXML(ctx context.Context, url string, result any) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -329,7 +329,7 @@ func (c *Client) GetXML(ctx context.Context, url string, result interface{}) err
 }
 
 // PostXML performs a POST request with XML body and decodes XML response
-func (c *Client) PostXML(ctx context.Context, url string, body interface{}, result interface{}) error {
+func (c *Client) PostXML(ctx context.Context, url string, body any, result any) error {
 	var bodyReader io.Reader
 	if body != nil {
 		xmlBody, err := xml.Marshal(body)

@@ -33,15 +33,15 @@ type ExtendedHTTPClient interface {
 	CtxHTTPClient
 
 	// JSON методы
-	GetJSON(ctx context.Context, url string, result interface{}) error
-	PostJSON(ctx context.Context, url string, body interface{}, result interface{}) error
-	PutJSON(ctx context.Context, url string, body interface{}, result interface{}) error
-	PatchJSON(ctx context.Context, url string, body interface{}, result interface{}) error
-	DeleteJSON(ctx context.Context, url string, result interface{}) error
+	GetJSON(ctx context.Context, url string, result any) error
+	PostJSON(ctx context.Context, url string, body any, result any) error
+	PutJSON(ctx context.Context, url string, body any, result any) error
+	PatchJSON(ctx context.Context, url string, body any, result any) error
+	DeleteJSON(ctx context.Context, url string, result any) error
 
 	// XML методы
-	GetXML(ctx context.Context, url string, result interface{}) error
-	PostXML(ctx context.Context, url string, body interface{}, result interface{}) error
+	GetXML(ctx context.Context, url string, result any) error
+	PostXML(ctx context.Context, url string, body any, result any) error
 
 	// Методы с контекстом
 	DoWithContext(ctx context.Context, req *http.Request) (*http.Response, error)

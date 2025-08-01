@@ -274,8 +274,8 @@ func (mc *MockClient) cloneResponse(resp *http.Response) *http.Response {
 // MockExtendedClient implements ExtendedHTTPClient for testing
 type MockExtendedClient struct {
 	*MockClient
-	jsonResponses map[string]interface{}
-	xmlResponses  map[string]interface{}
+	jsonResponses map[string]any
+	xmlResponses  map[string]any
 	metrics       *httpclient.ClientMetrics
 }
 
@@ -283,24 +283,24 @@ type MockExtendedClient struct {
 func NewMockExtendedClient() *MockExtendedClient {
 	return &MockExtendedClient{
 		MockClient:    NewMockClient(),
-		jsonResponses: make(map[string]interface{}),
-		xmlResponses:  make(map[string]interface{}),
+		jsonResponses: make(map[string]any),
+		xmlResponses:  make(map[string]any),
 		metrics:       httpclient.NewClientMetrics(),
 	}
 }
 
 // SetJSONResponse sets a JSON response for a specific URL
-func (mec *MockExtendedClient) SetJSONResponse(url string, data interface{}) {
+func (mec *MockExtendedClient) SetJSONResponse(url string, data any) {
 	mec.jsonResponses[url] = data
 }
 
 // SetXMLResponse sets an XML response for a specific URL
-func (mec *MockExtendedClient) SetXMLResponse(url string, data interface{}) {
+func (mec *MockExtendedClient) SetXMLResponse(url string, data any) {
 	mec.xmlResponses[url] = data
 }
 
 // GetJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) GetJSON(_ context.Context, url string, result interface{}) error {
+func (mec *MockExtendedClient) GetJSON(_ context.Context, url string, result any) error {
 	if data, exists := mec.jsonResponses[url]; exists {
 		// Simulate JSON unmarshaling by copying data
 		return mec.copyInterface(data, result)
@@ -309,27 +309,27 @@ func (mec *MockExtendedClient) GetJSON(_ context.Context, url string, result int
 }
 
 // PostJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PostJSON(ctx context.Context, url string, _ interface{}, result interface{}) error {
+func (mec *MockExtendedClient) PostJSON(ctx context.Context, url string, _ any, result any) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // PutJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PutJSON(ctx context.Context, url string, _ interface{}, result interface{}) error {
+func (mec *MockExtendedClient) PutJSON(ctx context.Context, url string, _ any, result any) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // PatchJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PatchJSON(ctx context.Context, url string, _ interface{}, result interface{}) error {
+func (mec *MockExtendedClient) PatchJSON(ctx context.Context, url string, _ any, result any) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // DeleteJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) DeleteJSON(ctx context.Context, url string, result interface{}) error {
+func (mec *MockExtendedClient) DeleteJSON(ctx context.Context, url string, result any) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // GetXML implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) GetXML(_ context.Context, url string, result interface{}) error {
+func (mec *MockExtendedClient) GetXML(_ context.Context, url string, result any) error {
 	if data, exists := mec.xmlResponses[url]; exists {
 		return mec.copyInterface(data, result)
 	}
@@ -337,7 +337,7 @@ func (mec *MockExtendedClient) GetXML(_ context.Context, url string, result inte
 }
 
 // PostXML implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PostXML(ctx context.Context, url string, _ interface{}, result interface{}) error {
+func (mec *MockExtendedClient) PostXML(ctx context.Context, url string, _ any, result any) error {
 	return mec.GetXML(ctx, url, result)
 }
 
@@ -352,7 +352,7 @@ func (mec *MockExtendedClient) GetMetrics() *httpclient.ClientMetrics {
 }
 
 // copyInterface is a simple interface copier for testing
-func (mec *MockExtendedClient) copyInterface(_, _ interface{}) error {
+func (mec *MockExtendedClient) copyInterface(_, _ any) error {
 	// This is a simplified implementation for testing
 	// In real scenarios, you'd use JSON marshal/unmarshal or reflection
 	return nil
