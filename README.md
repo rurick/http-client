@@ -109,7 +109,7 @@ client, err := httpclient.NewClient(
 - [Middleware](docs/middleware.md) - Система промежуточного ПО
 - [Метрики](docs/metrics.md) - Сбор и экспорт метрик
 - [Трейсинг](docs/tracing.md) - Распределенная трассировка
-- [Потоковые запросы](docs/streaming.md) - Работа с большими данными
+
 - [Тестирование](docs/testing.md) - Mock объекты и утилиты
 - [API Reference](docs/api-reference.md) - Полное описание API
 - [Примеры](docs/examples.md) - Практические примеры использования
