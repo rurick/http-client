@@ -364,17 +364,6 @@ func (c *Client) PostXML(ctx context.Context, url string, body any, result any) 
 	return nil
 }
 
-// Stream performs a streaming request
-func (c *Client) Stream(ctx context.Context, req *http.Request) (StreamResponse, error) {
-	req = req.WithContext(ctx)
-	resp, err := c.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	return NewStreamResponse(resp), nil
-}
-
 // DoCtx performs an HTTP request with context support
 func (c *Client) DoCtx(ctx context.Context, req *http.Request) (*http.Response, error) {
 	return c.Do(req.WithContext(ctx))

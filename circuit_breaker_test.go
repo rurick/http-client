@@ -30,7 +30,7 @@ func TestSimpleCircuitBreakerWithConfig(t *testing.T) {
 	config := CircuitBreakerConfig{
 		FailureThreshold: 3,
 		SuccessThreshold: 2,
-		Timeout:          1 * time.Second,
+		Timeout:          10 * time.Millisecond,
 		OnStateChange: func(from, to CircuitBreakerState) {
 			stateChanges = append(stateChanges, from.String()+"->"+to.String())
 		},
@@ -52,7 +52,7 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 	config := CircuitBreakerConfig{
 		FailureThreshold: 2,
 		SuccessThreshold: 1,
-		Timeout:          100 * time.Millisecond,
+		Timeout:          10 * time.Millisecond,
 		OnStateChange: func(from, to CircuitBreakerState) {
 			stateChanges = append(stateChanges, from.String()+"->"+to.String())
 		},
@@ -85,7 +85,7 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 	assert.Equal(t, ErrCircuitBreakerOpen, err)
 
 	// Ждем истечения таймаута
-	time.Sleep(150 * time.Millisecond)
+	time.Sleep(15 * time.Millisecond)
 
 	// Должен перейти в полуоткрытое состояние при следующем вызове
 	_, err = cb.Execute(func() (*http.Response, error) {
@@ -107,7 +107,7 @@ func TestCircuitBreakerFailureRecovery(t *testing.T) {
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
-		Timeout:          50 * time.Millisecond,
+		Timeout:          100 * time.Millisecond,
 	}
 
 	cb := NewCircuitBreakerWithConfig(config)
@@ -120,7 +120,7 @@ func TestCircuitBreakerFailureRecovery(t *testing.T) {
 	assert.Equal(t, CircuitBreakerOpen, cb.State())
 
 	// Ждем истечения таймаута
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(110 * time.Millisecond)
 
 	// Первый успех в полуоткрытом состоянии - должен остаться полуоткрытым
 	_, err = cb.Execute(func() (*http.Response, error) {
@@ -144,7 +144,7 @@ func TestCircuitBreakerHalfOpenFailure(t *testing.T) {
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 2,
-		Timeout:          50 * time.Millisecond,
+		Timeout:          100 * time.Millisecond,
 	}
 
 	cb := NewCircuitBreakerWithConfig(config)
@@ -156,7 +156,7 @@ func TestCircuitBreakerHalfOpenFailure(t *testing.T) {
 	assert.Equal(t, CircuitBreakerOpen, cb.State())
 
 	// Ждем истечения таймаута
-	time.Sleep(60 * time.Millisecond)
+	time.Sleep(110 * time.Millisecond)
 
 	// Сбой в полуоткрытом состоянии - должен вернуться в открытое
 	_, err := cb.Execute(func() (*http.Response, error) {
@@ -260,7 +260,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 	config := CircuitBreakerConfig{
 		FailureThreshold: 5,
 		SuccessThreshold: 3,
-		Timeout:          100 * time.Millisecond,
+		Timeout:          10 * time.Millisecond,
 	}
 
 	cb := NewCircuitBreakerWithConfig(config)
@@ -319,7 +319,7 @@ func TestCircuitBreakerMiddlewareWithOpenCircuit(t *testing.T) {
 	config := CircuitBreakerConfig{
 		FailureThreshold: 1,
 		SuccessThreshold: 1,
-		Timeout:          1 * time.Second,
+		Timeout:          10 * time.Millisecond,
 	}
 
 	cb := NewCircuitBreakerWithConfig(config)
@@ -415,7 +415,7 @@ func TestCircuitBreakerTimeoutPrecision(t *testing.T) {
 	assert.True(t, time.Since(start) < timeout/2)
 
 	// Wait for timeout
-	time.Sleep(timeout + 5*time.Millisecond)
+	time.Sleep(timeout + 1*time.Millisecond)
 
 	// Should transition to half-open
 	_, err = cb.Execute(func() (*http.Response, error) {
@@ -469,7 +469,7 @@ func TestCircuitBreakerConfigValidation(t *testing.T) {
 		config := CircuitBreakerConfig{
 			FailureThreshold: 0,
 			SuccessThreshold: 0,
-			Timeout:          1 * time.Second,
+			Timeout:          10 * time.Millisecond,
 		}
 
 		cb := NewCircuitBreakerWithConfig(config)

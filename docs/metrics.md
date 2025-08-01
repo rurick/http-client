@@ -175,15 +175,15 @@ client, err := httpclient.NewClient(
 )
 ```
 
-### Настройка префикса метрик
+### Настройка имени для OpenTelemetry инструментов
 ```go
 client, err := httpclient.NewClient(
     httpclient.WithMetrics(true),
-    httpclient.WithMetricsName("myapp"), // Установить префикс для метрик
+    httpclient.WithMetricsMeterName("myapp"), // Установить имя для OpenTelemetry meter/tracer
 )
 ```
 
-При установке префикса "myapp" он будет использоваться как имя инструмента в OpenTelemetry (meter/tracer), а имена метрик останутся стандартными:
+При установке имени "myapp" оно будет использоваться для идентификации OpenTelemetry meter и tracer, а имена метрик остаются стандартными:
 - `http_requests_total` 
 - `http_request_duration_seconds`
 - `circuit_breaker_state`
@@ -192,23 +192,23 @@ client, err := httpclient.NewClient(
 
 **Важно:** Префикс передается в `otel.Meter(metricsName)` и `otel.Tracer(metricsName)` для идентификации источника метрик.
 
-**По умолчанию:** префикс "httpclient"
+**По умолчанию:** имя "httpclient"
 
-### Примеры настройки префиксов для разных сервисов
+### Примеры настройки имен для разных сервисов
 ```go
 // API Gateway
 apiClient, _ := httpclient.NewClient(
-    httpclient.WithMetricsName("api_gateway"),
+    httpclient.WithMetricsMeterName("api_gateway"), // Имя для OpenTelemetry инструментов
 )
 
 // User Service
 userClient, _ := httpclient.NewClient(
-    httpclient.WithMetricsName("user_service"),
+    httpclient.WithMetricsMeterName("user_service"), // Имя для OpenTelemetry инструментов
 )
 
 // Payment Service
 paymentClient, _ := httpclient.NewClient(
-    httpclient.WithMetricsName("payment_svc"),
+    httpclient.WithMetricsMeterName("payment_svc"), // Имя для OpenTelemetry инструментов
 )
 ```
 

@@ -57,8 +57,8 @@ type ExtendedHTTPClient interface {
     GetXML(ctx context.Context, url string, result interface{}) error
     PostXML(ctx context.Context, url string, body interface{}, result interface{}) error
 
-    // Потоковые методы
-    Stream(ctx context.Context, req *http.Request) (StreamResponse, error)
+
+
 
     // Поддержка контекстных методов
     CtxHTTPClient
@@ -358,34 +358,7 @@ func NewTimeoutMiddleware(timeout time.Duration) Middleware
 func NewUserAgentMiddleware(userAgent string) Middleware
 ```
 
-## Потоковые операции
 
-### StreamResponse интерфейс
-
-```go
-type StreamResponse interface {
-    Body() io.ReadCloser
-    Header() http.Header
-    StatusCode() int
-    Close() error
-}
-```
-
-### Stream метод
-
-```go
-func (c *Client) Stream(ctx context.Context, req *http.Request) (StreamResponse, error)
-```
-
-Выполняет потоковый HTTP запрос.
-
-**Параметры:**
-- `ctx` - контекст запроса
-- `req` - HTTP запрос
-
-**Возвращает:**
-- `StreamResponse` - потоковый ответ
-- `error` - ошибка выполнения
 
 ## Метрики
 

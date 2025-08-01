@@ -9,7 +9,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const defaultMetricMeterName = "default"
+const defaultMetricsMeterName = "httpclient"
 
 // ClientOptions содержит параметры конфигурации для HTTP клиента
 type ClientOptions struct {
@@ -57,7 +57,7 @@ func DefaultOptions() *ClientOptions {
 		RetryWaitMax:     10 * time.Second,
 		RetryStrategy:    nil,
 		MetricsEnabled:   true,
-		MetricsMeterName: defaultMetricMeterName,
+		MetricsMeterName: defaultMetricsMeterName,
 		TracingEnabled:   true,
 		Logger:           zap.NewNop(),
 	}
@@ -154,11 +154,11 @@ func WithMetrics(enabled bool) ClientOption {
 	}
 }
 
-// WithMetricsName sets a custom meterName for Prometheus metrics names
+// WithMetricsMeterName sets a custom meter name for OpenTelemetry meter and tracer identification
 func WithMetricsMeterName(meterName string) ClientOption {
 	return func(opts *ClientOptions) {
 		if meterName == "" {
-			meterName = defaultMetricMeterName // Default name if empty
+			meterName = defaultMetricsMeterName // Default name if empty
 		}
 		opts.MetricsMeterName = meterName
 	}
