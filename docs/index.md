@@ -68,7 +68,3 @@
 | Собирать метрики | [Метрики](metrics.md) |
 | Настроить circuit breaker | [Circuit Breaker](circuit-breaker.md) |
 | Тестировать код | [Тестирование](testing.md) |
-
-## Лицензия
-
-Этот проект разработан для внутреннего использования в CityDrive.
