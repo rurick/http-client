@@ -130,7 +130,3 @@ gitlab.citydrive.tech/back-end/go/pkg/http-client
 - Следуйте принципам conventional commits
 - Все изменения проходят через merge requests
 - CI/CD автоматически запускает тесты и проверки качества
-
-## Лицензия
-
-Внутренний проект CityDrive. Использование ограничено рамками организации.
