@@ -31,7 +31,19 @@ http_requests_total{method="GET",status_code="404",host="api.example.com"} 12
 - `status_code` - HTTP код ответа
 - `host` - Хост назначения
 
-**Бакеты:** 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10
+**Бакеты:** 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 (явно определены в коде)
+
+**Диапазоны:**
+- 0.001s (1мс) - очень быстрые запросы
+- 0.005s (5мс) - быстрые запросы  
+- 0.01s (10мс) - нормальные локальные запросы
+- 0.025s (25мс) - приемлемые запросы
+- 0.05s (50мс) - медленные запросы
+- 0.1s (100мс) - очень медленные запросы
+- 0.25s (250мс) - критически медленные
+- 0.5s (500мс) - неприемлемо медленные
+- 1.0s (1сек) - таймаут-кандидаты
+- 2.5s, 5.0s, 10.0s - сверхмедленные запросы
 
 ```prometheus
 # Примеры значений
@@ -64,108 +76,107 @@ http_request_duration_seconds_count{method="GET",status_code="200",host="api.exa
 
 #### `http_retries_total` (Counter)
 **Тип:** Counter  
-**Описание:** Общее количество попыток повтора запросов  
+**Описание:** Общее количество попыток повтора запросов (записывается автоматически)  
 **Лейблы:**
-- `method` - HTTP метод
-- `host` - Хост назначения
-- `retry_reason` - Причина повтора (timeout, server_error, network_error)
+- `method` - HTTP метод  
+- `url` - URL запроса
+- `attempt` - Номер попытки (2, 3, 4...)
+- `success` - Успешность попытки (true/false)
 
-```prometheus
+**🔄 Автоматическая запись:** Эта метрика записывается автоматически при каждой retry попытке без необходимости ручного вызова `RecordRetry`.
+
+```prometheus  
 # Примеры значений
-http_retries_total{method="POST",host="api.example.com",retry_reason="timeout"} 23
+http_retries_total{method="GET",url="https://api.example.com/users",attempt="2",success="false"} 15
+http_retries_total{method="POST",url="https://api.example.com/orders",attempt="3",success="true"} 8
 http_retries_total{method="GET",host="api.example.com",retry_reason="server_error"} 7
 ```
 
 #### `http_retry_attempts` (Histogram)
 **Тип:** Histogram  
-**Описание:** Количество попыток для каждого запроса  
+**Описание:** Количество попыток для каждого запроса (записывается автоматически)  
 **Лейблы:**
 - `method` - HTTP метод
 - `host` - Хост назначения
 
 **Бакеты:** 1, 2, 3, 4, 5, 10
 
-### Метрики Circuit Breaker
-
-#### `circuit_breaker_state` (Gauge)
-**Тип:** Gauge  
-**Описание:** Текущее состояние автоматического выключателя  
-**Значения:** 0 = Closed, 1 = Open, 2 = Half-Open  
-**Лейблы:**
-- `circuit_name` - Имя circuit breaker
-- `host` - Хост назначения
+**🔄 Автоматическая запись:** Количество retry попыток записывается автоматически при каждой retry операции.
 
 ```prometheus
 # Примеры значений
-circuit_breaker_state{circuit_name="api_circuit",host="api.example.com"} 0
+http_retry_attempts_bucket{method="GET",host="api.example.com",le="2"} 892
+http_retry_attempts_bucket{method="GET",host="api.example.com",le="3"} 945
+http_retry_attempts_sum{method="GET",host="api.example.com"} 1756
+http_retry_attempts_count{method="GET",host="api.example.com"} 856
 ```
 
-#### `circuit_breaker_failures_total` (Counter)
-**Тип:** Counter  
-**Описание:** Общее количество неудачных запросов через circuit breaker  
-**Лейблы:**
-- `circuit_name` - Имя circuit breaker
-- `host` - Хост назначения
-
-#### `circuit_breaker_successes_total` (Counter)
-**Тип:** Counter  
-**Описание:** Общее количество успешных запросов через circuit breaker  
-**Лейблы:**
-- `circuit_name` - Имя circuit breaker
-- `host` - Хост назначения
-
-#### `circuit_breaker_state_changes_total` (Counter)
-**Тип:** Counter  
-**Описание:** Количество изменений состояния circuit breaker  
-**Лейблы:**
-- `circuit_name` - Имя circuit breaker
-- `from_state` - Предыдущее состояние
-- `to_state` - Новое состояние
-- `host` - Хост назначения
-
-### Метрики соединений
+### Метрики соединений (Connection Pool)
 
 #### `http_connections_active` (Gauge)
 **Тип:** Gauge  
-**Описание:** Количество активных HTTP соединений  
+**Описание:** Количество активных HTTP соединений (записывается автоматически)  
 **Лейблы:**
 - `host` - Хост назначения
 
+**🔄 Автоматическая запись:** Эта метрика записывается автоматически при каждом запросе без необходимости ручного вызова.
+
 #### `http_connections_idle` (Gauge)
 **Тип:** Gauge  
-**Описание:** Количество неактивных HTTP соединений в пуле  
+**Описание:** Количество неактивных HTTP соединений в пуле (записывается автоматически)  
 **Лейблы:**
 - `host` - Хост назначения
 
 #### `http_connection_pool_hits_total` (Counter)
 **Тип:** Counter  
-**Описание:** Количество повторного использования соединений из пула  
+**Описание:** Количество повторного использования соединений из пула (записывается автоматически)  
 **Лейблы:**
 - `host` - Хост назначения
+
+**🔄 Автоматическая запись:** Записывается при успешных запросах (status code < 500).
 
 #### `http_connection_pool_misses_total` (Counter)
 **Тип:** Counter  
-**Описание:** Количество случаев создания новых соединений (промах пула)  
+**Описание:** Количество случаев создания новых соединений (записывается автоматически)  
 **Лейблы:**
 - `host` - Хост назначения
 
-### Метрики middleware
+**🔄 Автоматическая запись:** Записывается при неуспешных запросах (status code >= 500).
+
+### Метрики middleware (Промежуточное ПО)
 
 #### `middleware_duration_seconds` (Histogram)
 **Тип:** Histogram  
-**Описание:** Время выполнения middleware в секундах  
+**Описание:** Время выполнения middleware в секундах (записывается автоматически)  
 **Лейблы:**
-- `middleware_name` - Имя middleware (auth, logging, rate_limit, etc.)
+- `middleware_name` - Имя middleware (logging, auth, rate_limit, etc.)
 - `method` - HTTP метод
 
 **Бакеты:** 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1
 
+**🔄 Автоматическая запись:** Время выполнения записывается автоматически для всех middleware в цепочке.
+
+```prometheus
+# Примеры значений
+middleware_duration_seconds_bucket{middleware_name="logging",method="GET",le="0.001"} 245
+middleware_duration_seconds_sum{middleware_name="logging",method="GET"} 2.567
+middleware_duration_seconds_count{middleware_name="logging",method="GET"} 1000
+```
+
 #### `middleware_errors_total` (Counter)
 **Тип:** Counter  
-**Описание:** Количество ошибок в middleware  
+**Описание:** Количество ошибок в middleware (записывается автоматически)  
 **Лейблы:**
 - `middleware_name` - Имя middleware
-- `error_type` - Тип ошибки
+- `error_type` - Тип ошибки (request_failed, etc.)
+
+**🔄 Автоматическая запись:** Ошибки записываются автоматически при возникновении ошибок в middleware.
+
+```prometheus
+# Примеры значений
+middleware_errors_total{middleware_name="logging",error_type="request_failed"} 12
+middleware_errors_total{middleware_name="auth",error_type="token_expired"} 5
+```
 
 ## 🔧 Конфигурация метрик
 
@@ -235,13 +246,13 @@ rate(http_requests_total[5m])
 rate(http_requests_total{status_code!~"2.."}[5m]) / rate(http_requests_total[5m]) * 100
 ```
 
-### Circuit Breaker мониторинг
+### Retry и Connection Pool мониторинг
 ```promql
-# Количество открытых circuit breaker
-sum(circuit_breaker_state == 1) by (circuit_name)
+# Частота retry попыток
+rate(http_retries_total[5m])
 
-# Частота изменения состояний
-rate(circuit_breaker_state_changes_total[5m])
+# Средние попытки retry
+rate(http_retry_attempts_sum[5m]) / rate(http_retry_attempts_count[5m])
 ```
 
 ### Производительность соединений
@@ -278,15 +289,6 @@ rate(http_connection_pool_hits_total[5m]) / (rate(http_connection_pool_hits_tota
 
 ### Предупреждающие алерты
 ```yaml
-# Circuit breaker открыт
-- alert: CircuitBreakerOpen
-  expr: circuit_breaker_state == 1
-  for: 1m
-  labels:
-    severity: warning
-  annotations:
-    summary: "Circuit breaker открыт для {{ $labels.host }}"
-
 # Много повторов
 - alert: HighRetryRate
   expr: rate(http_retries_total[5m]) > 10
@@ -295,6 +297,24 @@ rate(http_connection_pool_hits_total[5m]) / (rate(http_connection_pool_hits_tota
     severity: warning
   annotations:
     summary: "Высокая частота повторов запросов"
+
+# Низкая эффективность connection pool
+- alert: LowConnectionPoolEfficiency
+  expr: rate(http_connection_pool_hits_total[5m]) / (rate(http_connection_pool_hits_total[5m]) + rate(http_connection_pool_misses_total[5m])) < 0.8
+  for: 5m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Низкая эффективность пула соединений"
+
+# Медленные middleware
+- alert: SlowMiddleware
+  expr: histogram_quantile(0.95, rate(middleware_duration_seconds_bucket[5m])) > 0.1
+  for: 3m
+  labels:
+    severity: warning
+  annotations:
+    summary: "Медленное выполнение middleware"
 ```
 
 ## 📊 Дашборд Grafana
@@ -342,11 +362,9 @@ const (
     MetricHTTPRetriesTotal         = "http_retries_total"
     MetricHTTPRetryAttempts        = "http_retry_attempts"
     
-    // Метрики Circuit Breaker
-    MetricCircuitBreakerState      = "circuit_breaker_state"
-    MetricCircuitBreakerFailures   = "circuit_breaker_failures_total"
-    MetricCircuitBreakerSuccesses  = "circuit_breaker_successes_total"
-    MetricCircuitBreakerStateChanges = "circuit_breaker_state_changes_total"
+    // УДАЛЕНО: Circuit Breaker метрики больше не используются
+    // MetricCircuitBreakerState, MetricCircuitBreakerFailures, 
+    // MetricCircuitBreakerSuccesses, MetricCircuitBreakerStateChanges
     
     // Метрики соединений
     MetricHTTPConnectionsActive    = "http_connections_active"

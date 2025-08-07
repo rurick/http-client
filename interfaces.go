@@ -48,6 +48,10 @@ type ExtendedHTTPClient interface {
 
 	// Доступ к метрикам
 	GetMetrics() *ClientMetrics
+
+	// Анализ ошибок с ИИ рекомендациями
+	AnalyzeLastError(ctx context.Context) *ErrorInsight
+	GetErrorInsightsAnalyzer() *ErrorInsightsAnalyzer
 }
 
 // RetryStrategy определяет различные стратегии повтора
