@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"time"
+
+	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
 // MockClient implements a mock HTTP client for testing
@@ -272,31 +274,33 @@ func (mc *MockClient) cloneResponse(resp *http.Response) *http.Response {
 // MockExtendedClient implements ExtendedHTTPClient for testing
 type MockExtendedClient struct {
 	*MockClient
-	jsonResponses map[string]any
-	xmlResponses  map[string]any
+	jsonResponses map[string]interface{}
+	xmlResponses  map[string]interface{}
+	metrics       *httpclient.ClientMetrics
 }
 
 // NewMockExtendedClient creates a new mock extended HTTP client
 func NewMockExtendedClient() *MockExtendedClient {
 	return &MockExtendedClient{
 		MockClient:    NewMockClient(),
-		jsonResponses: make(map[string]any),
-		xmlResponses:  make(map[string]any),
+		jsonResponses: make(map[string]interface{}),
+		xmlResponses:  make(map[string]interface{}),
+		metrics:       httpclient.NewClientMetrics(),
 	}
 }
 
 // SetJSONResponse sets a JSON response for a specific URL
-func (mec *MockExtendedClient) SetJSONResponse(url string, data any) {
+func (mec *MockExtendedClient) SetJSONResponse(url string, data interface{}) {
 	mec.jsonResponses[url] = data
 }
 
 // SetXMLResponse sets an XML response for a specific URL
-func (mec *MockExtendedClient) SetXMLResponse(url string, data any) {
+func (mec *MockExtendedClient) SetXMLResponse(url string, data interface{}) {
 	mec.xmlResponses[url] = data
 }
 
 // GetJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) GetJSON(_ context.Context, url string, result any) error {
+func (mec *MockExtendedClient) GetJSON(ctx context.Context, url string, result interface{}) error {
 	if data, exists := mec.jsonResponses[url]; exists {
 		// Simulate JSON unmarshaling by copying data
 		return mec.copyInterface(data, result)
@@ -305,27 +309,27 @@ func (mec *MockExtendedClient) GetJSON(_ context.Context, url string, result any
 }
 
 // PostJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PostJSON(ctx context.Context, url string, _ any, result any) error {
+func (mec *MockExtendedClient) PostJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // PutJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PutJSON(ctx context.Context, url string, _ any, result any) error {
+func (mec *MockExtendedClient) PutJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // PatchJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PatchJSON(ctx context.Context, url string, _ any, result any) error {
+func (mec *MockExtendedClient) PatchJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // DeleteJSON implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) DeleteJSON(ctx context.Context, url string, result any) error {
+func (mec *MockExtendedClient) DeleteJSON(ctx context.Context, url string, result interface{}) error {
 	return mec.GetJSON(ctx, url, result)
 }
 
 // GetXML implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) GetXML(_ context.Context, url string, result any) error {
+func (mec *MockExtendedClient) GetXML(ctx context.Context, url string, result interface{}) error {
 	if data, exists := mec.xmlResponses[url]; exists {
 		return mec.copyInterface(data, result)
 	}
@@ -333,17 +337,22 @@ func (mec *MockExtendedClient) GetXML(_ context.Context, url string, result any)
 }
 
 // PostXML implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) PostXML(ctx context.Context, url string, _ any, result any) error {
+func (mec *MockExtendedClient) PostXML(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return mec.GetXML(ctx, url, result)
 }
 
 // DoWithContext implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) DoWithContext(_ context.Context, req *http.Request) (*http.Response, error) {
+func (mec *MockExtendedClient) DoWithContext(ctx context.Context, req *http.Request) (*http.Response, error) {
 	return mec.Do(req)
 }
 
+// GetMetrics implements ExtendedHTTPClient interface
+func (mec *MockExtendedClient) GetMetrics() *httpclient.ClientMetrics {
+	return mec.metrics
+}
+
 // copyInterface is a simple interface copier for testing
-func (mec *MockExtendedClient) copyInterface(_, _ any) error {
+func (mec *MockExtendedClient) copyInterface(src, dst interface{}) error {
 	// This is a simplified implementation for testing
 	// In real scenarios, you'd use JSON marshal/unmarshal or reflection
 	return nil

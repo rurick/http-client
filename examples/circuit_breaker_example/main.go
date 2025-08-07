@@ -205,8 +205,9 @@ func circuitBreakerRecoveryExample() {
 
 	// Helper function to show current state and metrics
 	showStatus := func(label string) {
+		metrics := client.GetMetrics()
 		fmt.Printf("%s - Circuit: %s, Failed: %d, Successful: %d\n",
-			label, circuitBreaker.State(), 0, 0) // Removed client.GetMetrics()
+			label, circuitBreaker.State(), metrics.FailedRequests, metrics.SuccessfulReqs)
 	}
 
 	showStatus("Initial state")
@@ -242,11 +243,10 @@ func circuitBreakerRecoveryExample() {
 	showStatus("After successful request")
 
 	// Final metrics
-	// finalMetrics := client.GetMetrics() // Removed client.GetMetrics()
+	finalMetrics := client.GetMetrics()
 	fmt.Printf("\n=== Final Metrics ===\n")
-	fmt.Printf("Total Requests: %d\n", 0)        // Removed finalMetrics.TotalRequests
-	fmt.Printf("Successful: %d\n", 0)            // Removed finalMetrics.SuccessfulReqs
-	fmt.Printf("Failed: %d\n", 0)                // Removed finalMetrics.FailedRequests
-	fmt.Printf("Circuit Breaker Trips: %d\n", 0) // Removed finalMetrics.CircuitBreakerTrips
-	fmt.Printf("Current State: %s\n", "N/A")     // Removed finalMetrics.CircuitBreakerState
+	fmt.Printf("Total Requests: %d\n", finalMetrics.TotalRequests)
+	fmt.Printf("Successful: %d\n", finalMetrics.SuccessfulReqs)
+	fmt.Printf("Failed: %d\n", finalMetrics.FailedRequests)
+	fmt.Printf("Circuit breaker состояние и статистика доступны в OpenTelemetry/Prometheus\n")
 }

@@ -38,7 +38,11 @@ func basicUsageExample() {
 	fmt.Printf("Status: %s\n", resp.Status)
 	fmt.Printf("Content-Type: %s\n", resp.Header.Get("Content-Type"))
 
-	// Remove or comment out: metrics := client.GetMetrics() and any usage of 'metrics'
+	// Получаем метрики
+	metrics := client.GetMetrics()
+	fmt.Printf("Total requests: %d\n", metrics.TotalRequests)
+	fmt.Printf("Successful requests: %d\n", metrics.SuccessfulReqs)
+	fmt.Printf("Average latency: %v\n", metrics.AverageLatency)
 }
 
 // retryExample демонстрирует функциональность повторов
@@ -65,7 +69,10 @@ func retryExample() {
 		fmt.Printf("Status: %s\n", resp.Status)
 	}
 
-	// Remove or comment out: metrics := client.GetMetrics() and any usage of 'metrics'
+	// Проверяем метрики повторов
+	metrics := client.GetMetrics()
+	fmt.Printf("Total requests: %d\n", metrics.TotalRequests)
+	fmt.Printf("Failed requests: %d\n", metrics.FailedRequests)
 }
 
 // jsonExample demonstrates JSON request/response handling
@@ -157,5 +164,12 @@ func customOptionsExample() {
 
 	fmt.Printf("Status: %s\n", resp.Status)
 
-	// Remove or comment out: metrics := client.GetMetrics() and any usage of 'metrics'
+	// Display comprehensive metrics
+	metrics := client.GetMetrics()
+	fmt.Printf("\n=== Metrics ===\n")
+	fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
+	fmt.Printf("Successful Requests: %d\n", metrics.SuccessfulReqs)
+	fmt.Printf("Failed Requests: %d\n", metrics.FailedRequests)
+	fmt.Printf("Average Latency: %v\n", metrics.AverageLatency)
+	fmt.Printf("Note: Detailed metrics (retries, sizes, status codes) available via OpenTelemetry/Prometheus\n")
 }

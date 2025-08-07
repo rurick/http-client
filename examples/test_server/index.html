@@ -3,275 +3,345 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HTTP Client Test Server</title>
+    <title>Тестовый HTTP Клиент</title>
     <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
-            margin: 0 auto;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             padding: 20px;
-            background-color: #f5f5f5;
         }
+
         .container {
-            background-color: white;
+            max-width: 1000px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
             padding: 30px;
-            border-radius: 8px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-        }
-        h1 {
-            color: #333;
             text-align: center;
-            margin-bottom: 30px;
         }
-        .server-info {
-            background-color: #e7f3ff;
-            padding: 15px;
-            border-radius: 4px;
-            margin-bottom: 25px;
-            border-left: 4px solid #007bff;
+
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
         }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 1.1em;
+        }
+
+        .content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0;
+        }
+
+        .form-section {
+            padding: 40px;
+            border-right: 1px solid #eee;
+        }
+
+        .result-section {
+            padding: 40px;
+            background: #f8f9fa;
+        }
+
         .form-group {
-            margin-bottom: 20px;
+            margin-bottom: 25px;
         }
+
         label {
             display: block;
             margin-bottom: 8px;
-            font-weight: bold;
-            color: #555;
+            font-weight: 600;
+            color: #333;
         }
-        input, textarea, select {
+
+        select, input[type="text"], textarea {
             width: 100%;
             padding: 12px;
-            border: 1px solid #ddd;
-            border-radius: 4px;
+            border: 2px solid #e1e5e9;
+            border-radius: 8px;
             font-size: 14px;
-            box-sizing: border-box;
+            transition: border-color 0.3s ease;
         }
-        button {
-            background-color: #007bff;
+
+        select:focus, input[type="text"]:focus, textarea:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
+        }
+
+        textarea {
+            height: 120px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             color: white;
-            padding: 12px 25px;
             border: none;
-            border-radius: 4px;
-            cursor: pointer;
+            padding: 15px 30px;
+            border-radius: 8px;
             font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s ease;
             width: 100%;
         }
-        button:hover {
-            background-color: #0056b3;
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
         }
-        button:active {
-            transform: translateY(1px);
+
+        .btn:disabled {
+            opacity: 0.6;
+            transform: none;
+            cursor: not-allowed;
         }
-        .response {
-            margin-top: 25px;
+
+        .result {
+            background: white;
+            border-radius: 8px;
             padding: 20px;
-            background-color: #f8f9fa;
-            border-radius: 4px;
-            border-left: 4px solid #007bff;
-            font-family: monospace;
+            margin-top: 20px;
+            border-left: 4px solid #4facfe;
+        }
+
+        .result h3 {
+            color: #333;
+            margin-bottom: 15px;
+        }
+
+        .result-content {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 13px;
             white-space: pre-wrap;
             max-height: 400px;
             overflow-y: auto;
         }
-        .error {
-            border-left-color: #dc3545;
-            background-color: #f8d7da;
-            color: #721c24;
+
+        .status-success {
+            color: #28a745;
+            font-weight: bold;
         }
-        .success {
-            border-left-color: #28a745;
-            background-color: #d4edda;
-            color: #155724;
+
+        .status-error {
+            color: #dc3545;
+            font-weight: bold;
         }
-        .endpoints {
-            background-color: #f8f9fa;
-            padding: 20px;
-            border-radius: 4px;
-            margin-top: 30px;
-        }
-        .endpoints h2 {
-            margin-top: 0;
-            color: #333;
-        }
-        .endpoints ul {
-            list-style-type: none;
-            padding: 0;
-        }
-        .endpoints li {
-            padding: 8px 0;
-            border-bottom: 1px solid #dee2e6;
-        }
-        .endpoints li:last-child {
-            border-bottom: none;
-        }
-        .endpoint-method {
-            background-color: #007bff;
-            color: white;
-            padding: 2px 8px;
-            border-radius: 3px;
-            font-size: 12px;
-            margin-right: 10px;
-        }
+
         .loading {
-            opacity: 0.6;
-            pointer-events: none;
+            display: none;
+            text-align: center;
+            padding: 20px;
+        }
+
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4facfe;
+            border-radius: 50%;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 10px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .metrics-link {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .metrics-link a {
+            color: #4facfe;
+            text-decoration: none;
+            font-weight: 600;
+        }
+
+        .metrics-link a:hover {
+            text-decoration: underline;
+        }
+
+        @media (max-width: 768px) {
+            .content {
+                grid-template-columns: 1fr;
+            }
+            
+            .form-section {
+                border-right: none;
+                border-bottom: 1px solid #eee;
+            }
         }
     </style>
 </head>
 <body>
-<div class="container">
-    <h1>🚀 HTTP Client Test Server</h1>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 Тестовый HTTP Клиент</h1>
+            <p>Демонстрация возможностей HTTP клиента с OpenTelemetry метриками</p>
+        </div>
 
-    <div class="server-info">
-        <strong>Сервер запущен на порту {{.Port}}</strong><br>
-        Используйте форму ниже для тестирования HTTP запросов или обратитесь к API напрямую.
+        <div class="content">
+            <div class="form-section">
+                <h2>Параметры запроса</h2>
+                <form id="requestForm">
+                    <div class="form-group">
+                        <label for="method">Метод запроса:</label>
+                        <select id="method" name="method">
+                            <option value="GET">GET</option>
+                            <option value="POST">POST</option>
+                            <option value="PUT">PUT</option>
+                            <option value="PATCH">PATCH</option>
+                            <option value="DELETE">DELETE</option>
+                            <option value="HEAD">HEAD</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="url">URL:</label>
+                        <input type="text" id="url" name="url" placeholder="https://jsonplaceholder.typicode.com/posts/1" value="https://jsonplaceholder.typicode.com/posts/1">
+                    </div>
+
+                    <div class="form-group">
+                        <label for="body">Тело запроса (JSON):</label>
+                        <textarea id="body" name="body" placeholder='{"title": "foo", "body": "bar", "userId": 1}'></textarea>
+                    </div>
+
+                    <button type="submit" class="btn">Выполнить запрос</button>
+                </form>
+
+                <div class="metrics-link">
+                    <a href="/metrics" target="_blank">📊 Просмотреть метрики Prometheus</a>
+                </div>
+            </div>
+
+            <div class="result-section">
+                <h2>Результат</h2>
+                
+                <div class="loading" id="loading">
+                    <div class="spinner"></div>
+                    <p>Выполняется запрос...</p>
+                </div>
+
+                <div id="result" style="display: none;">
+                    <div class="result">
+                        <h3>Ответ сервера:</h3>
+                        <div class="result-content" id="resultContent"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 
-    <form id="testForm">
-        <div class="form-group">
-            <label for="method">HTTP метод:</label>
-            <select id="method" name="method">
-                <option value="GET">GET</option>
-                <option value="POST">POST</option>
-            </select>
-        </div>
-
-        <div class="form-group">
-            <label for="endpoint">Endpoint:</label>
-            <input type="text" id="endpoint" name="endpoint" value="/api/test" placeholder="/api/test">
-        </div>
-
-        <div class="form-group">
-            <label for="message">Сообщение:</label>
-            <input type="text" id="message" name="message" placeholder="Тестовое сообщение" value="Привет из браузера!">
-        </div>
-
-        <div class="form-group">
-            <label for="data">JSON данные (необязательно):</label>
-            <textarea id="data" name="data" rows="4" placeholder='{"key": "value", "number": 123}'>{"user_id": 1, "action": "test"}</textarea>
-        </div>
-
-        <button type="submit" id="submitBtn">Отправить запрос</button>
-    </form>
-
-    <div id="response" class="response" style="display: none;"></div>
-
-    <div class="endpoints">
-        <h2>📚 Доступные endpoints:</h2>
-        <ul>
-            <li><span class="endpoint-method">GET/POST</span><strong>/api/test</strong> - Тестовые запросы с произвольными данными</li>
-            <li><span class="endpoint-method">GET</span><strong>/api/echo</strong> - Эхо параметров запроса</li>
-            <li><span class="endpoint-method">GET</span><strong>/api/status</strong> - Статус сервера и метрики HTTP клиента</li>
-            <li><span class="endpoint-method">GET</span><strong>/metrics</strong> - Метрики в формате Prometheus</li>
-        </ul>
-    </div>
-</div>
-
-<script>
-    document.getElementById('testForm').addEventListener('submit', async (e) => {
-        e.preventDefault();
-
-        const submitBtn = document.getElementById('submitBtn');
-        const responseDiv = document.getElementById('response');
-        const form = document.getElementById('testForm');
-
-        // Показываем состояние загрузки
-        submitBtn.textContent = 'Отправляется...';
-        submitBtn.disabled = true;
-        form.classList.add('loading');
-
-        const formData = new FormData(e.target);
-        const method = formData.get('method');
-        const endpoint = formData.get('endpoint');
-        const message = formData.get('message');
-        const dataStr = formData.get('data');
-
-        let requestBody = { message: message };
-        if (dataStr.trim()) {
+    <script>
+        document.getElementById('requestForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const method = document.getElementById('method').value;
+            const url = document.getElementById('url').value;
+            const body = document.getElementById('body').value;
+            
+            // Показываем индикатор загрузки
+            document.getElementById('loading').style.display = 'block';
+            document.getElementById('result').style.display = 'none';
+            
             try {
-                requestBody.data = JSON.parse(dataStr);
-            } catch (err) {
-                showResponse('❌ Ошибка парсинга JSON: ' + err.message, 'error');
-                resetForm();
-                return;
+                const response = await fetch('/api/test', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        method: method,
+                        url: url,
+                        body: body
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Скрываем индикатор загрузки
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+                
+                // Форматируем и показываем результат
+                const resultContent = document.getElementById('resultContent');
+                
+                let formattedResult = '';
+                
+                if (result.status === 'success') {
+                    formattedResult += `Статус: ✅ ${result.status.toUpperCase()}\n`;
+                    formattedResult += `HTTP код: ${result.status_code}\n`;
+                    formattedResult += `Время выполнения: ${result.duration}\n\n`;
+                    
+                    formattedResult += `Заголовки ответа:\n`;
+                    for (const [key, value] of Object.entries(result.headers)) {
+                        formattedResult += `  ${key}: ${value}\n`;
+                    }
+                    
+                    formattedResult += `\nТело ответа:\n`;
+                    
+                    // Пытаемся отформатировать JSON
+                    try {
+                        const jsonBody = JSON.parse(result.body);
+                        formattedResult += JSON.stringify(jsonBody, null, 2);
+                    } catch {
+                        formattedResult += result.body;
+                    }
+                } else {
+                    formattedResult += `Статус: ❌ ОШИБКА\n`;
+                    formattedResult += `Время выполнения: ${result.duration}\n`;
+                    if (result.status_code) {
+                        formattedResult += `HTTP код: ${result.status_code}\n`;
+                    }
+                    formattedResult += `\nОшибка:\n${result.error}`;
+                }
+                
+                resultContent.textContent = formattedResult;
+                
+            } catch (error) {
+                // Скрываем индикатор загрузки
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+                
+                document.getElementById('resultContent').textContent = `Ошибка: ${error.message}`;
             }
-        }
+        });
 
-        try {
-            const options = {
-                method: method,
-                headers: { 'Content-Type': 'application/json' }
-            };
-
-            if (method === 'POST') {
-                options.body = JSON.stringify(requestBody);
+        // Показываем/скрываем поле тела запроса в зависимости от метода
+        document.getElementById('method').addEventListener('change', function() {
+            const bodyGroup = document.getElementById('body').closest('.form-group');
+            if (['GET', 'HEAD', 'DELETE'].includes(this.value)) {
+                bodyGroup.style.display = 'none';
+                document.getElementById('body').value = '';
+            } else {
+                bodyGroup.style.display = 'block';
             }
-
-            const startTime = Date.now();
-            const response = await fetch(endpoint, options);
-            const endTime = Date.now();
-            const duration = endTime - startTime;
-
-            const result = await response.json();
-
-            // Добавляем информацию о запросе
-            const responseText = JSON.stringify({
-                request: {
-                    method: method,
-                    endpoint: endpoint,
-                    duration_ms: duration,
-                    status: response.status
-                },
-                response: result
-            }, null, 2);
-
-            showResponse('✅ Запрос выполнен за ' + duration + 'мс:\n\n' + responseText,
-                response.ok ? 'success' : 'error');
-        } catch (err) {
-            showResponse('❌ Ошибка сети: ' + err.message, 'error');
-        } finally {
-            resetForm();
-        }
-    });
-
-    function showResponse(text, type) {
-        const responseDiv = document.getElementById('response');
-        responseDiv.textContent = text;
-        responseDiv.className = 'response ' + type;
-        responseDiv.style.display = 'block';
-        responseDiv.scrollIntoView({ behavior: 'smooth' });
-    }
-
-    function resetForm() {
-        const submitBtn = document.getElementById('submitBtn');
-        const form = document.getElementById('testForm');
-
-        submitBtn.textContent = 'Отправить запрос';
-        submitBtn.disabled = false;
-        form.classList.remove('loading');
-    }
-
-    // Автозаполнение примеров для разных endpoints
-    document.getElementById('endpoint').addEventListener('change', function() {
-        const endpoint = this.value;
-        const messageField = document.getElementById('message');
-        const dataField = document.getElementById('data');
-
-        switch(endpoint) {
-            case '/api/echo':
-                messageField.value = 'Эхо тест';
-                dataField.value = '{"param1": "value1", "param2": "value2"}';
-                break;
-            case '/api/status':
-                messageField.value = 'Статус запрос';
-                dataField.value = '{}';
-                break;
-            default:
-                messageField.value = 'Привет из браузера!';
-                dataField.value = '{"user_id": 1, "action": "test"}';
-        }
-    });
-</script>
+        });
+    </script>
 </body>
 </html>

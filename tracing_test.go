@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestOTelMetricsCollectorTracing проверяет создание и завершение spans
-func TestOTelMetricsCollectorTracing(t *testing.T) {
+// TestOTelTracingIntegration проверяет создание и завершение spans
+func TestOTelTracingIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Настройка трейсинга для тестов
@@ -191,7 +191,13 @@ func TestOTelCollectorMetrics(t *testing.T) {
 	collector.RecordRequest("GET", "https://example.com", 200, time.Second, 100, 500)
 	collector.RecordRetry("GET", "https://example.com", 500, assert.AnError)
 
-	// Метрики теперь доступны только через Prometheus/OTel. Удалены проверки локальных метрик.
+	// Получаем метрики
+	metrics := collector.GetMetrics()
+
+	// Проверяем базовые метрики (детальные метрики только в OpenTelemetry)
+	assert.Equal(t, int64(1), metrics.TotalRequests)
+	assert.Equal(t, int64(1), metrics.SuccessfulReqs)
+	assert.True(t, metrics.AverageLatency > 0)
 }
 
 // setupTestTracing настраивает OpenTelemetry для тестов

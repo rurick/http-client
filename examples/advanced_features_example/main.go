@@ -3,6 +3,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"time"
 
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
@@ -66,19 +67,25 @@ func slicesExample() {
 func mapsExample() {
 	fmt.Println("3. Эффективная работа с метриками:")
 
-	// В функции mapsExample удалить объявление client, если он не используется.
+	client, err := httpclient.NewClient(
+		httpclient.WithTimeout(10*time.Second),
+		httpclient.WithRetryMax(3),
+	)
+	if err != nil {
+		log.Printf("Ошибка создания клиента: %v", err)
+		return
+	}
+
+	// Получаем метрики клиента напрямую
+	metrics := client.GetMetrics()
 
 	fmt.Println("Текущие метрики клиента:")
-	// fmt.Printf("  - Всего запросов: %d\n", metrics.TotalRequests)
-	// fmt.Printf("  - Успешных: %d\n", metrics.SuccessfulReqs)
-	// fmt.Printf("  - Неудачных: %d\n", metrics.FailedRequests)
+	fmt.Printf("  - Всего запросов: %d\n", metrics.TotalRequests)
+	fmt.Printf("  - Успешных: %d\n", metrics.SuccessfulReqs)
+	fmt.Printf("  - Неудачных: %d\n", metrics.FailedRequests)
 
-	// Получаем статус коды
-	fmt.Println("  - Статус коды:")
-	// statusCodes := metrics.GetStatusCodes()
-	// for code, count := range statusCodes {
-	// 	fmt.Printf("    %d: %d раз\n", code, count)
-	// }
+	// Статус коды и детальные метрики доступны в OpenTelemetry/Prometheus
+	fmt.Println("  - Детальные метрики доступны в OpenTelemetry/Prometheus")
 	fmt.Println()
 }
 

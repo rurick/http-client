@@ -39,10 +39,25 @@ const (
 	MetricMiddlewareErrors   = "middleware_errors_total"
 )
 
+// ClientMetrics holds basic metrics interface
+// All detailed metrics are collected via OpenTelemetry
+type ClientMetrics struct {
+	TotalRequests  int64
+	SuccessfulReqs int64
+	FailedRequests int64
+	AverageLatency time.Duration
+}
+
+// NewClientMetrics creates a new ClientMetrics instance
+func NewClientMetrics() *ClientMetrics {
+	return &ClientMetrics{}
+}
+
 // OTelMetricsCollector implements MetricsCollector using OpenTelemetry
 type OTelMetricsCollector struct {
-	meter  metric.Meter
-	tracer trace.Tracer
+	meter   metric.Meter
+	tracer  trace.Tracer
+	metrics *ClientMetrics
 
 	// OpenTelemetry instruments
 	requestCounter      metric.Int64Counter
@@ -70,6 +85,7 @@ func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
 		MetricHTTPRequestDuration,
 		metric.WithDescription("HTTP request duration in seconds"),
 		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60),
 	)
 	if err != nil {
 		return nil, err
@@ -104,6 +120,7 @@ func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
 	return &OTelMetricsCollector{
 		meter:               meter,
 		tracer:              tracer,
+		metrics:             NewClientMetrics(),
 		requestCounter:      requestCounter,
 		requestDuration:     requestDuration,
 		requestSizeCounter:  requestSizeCounter,
@@ -112,9 +129,27 @@ func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
 	}, nil
 }
 
+// GetMeter returns the OpenTelemetry meter for external use
+func (omc *OTelMetricsCollector) GetMeter() metric.Meter {
+	return omc.meter
+}
+
 // RecordRequest records metrics for an HTTP request
 func (omc *OTelMetricsCollector) RecordRequest(method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64) {
 	ctx := context.Background()
+
+	// Update basic internal metrics
+	omc.metrics.TotalRequests++
+	if statusCode >= 200 && statusCode < 400 {
+		omc.metrics.SuccessfulReqs++
+	} else {
+		omc.metrics.FailedRequests++
+	}
+
+	// Simple average calculation
+	if omc.metrics.TotalRequests > 0 {
+		omc.metrics.AverageLatency = (omc.metrics.AverageLatency*time.Duration(omc.metrics.TotalRequests-1) + duration) / time.Duration(omc.metrics.TotalRequests)
+	}
 
 	// Record OpenTelemetry metrics
 	attrs := []attribute.KeyValue{
@@ -139,7 +174,7 @@ func (omc *OTelMetricsCollector) RecordRequest(method, url string, statusCode in
 func (omc *OTelMetricsCollector) RecordRetry(method, url string, attempt int, err error) {
 	ctx := context.Background()
 
-	// Record OpenTelemetry metrics
+	// Record OpenTelemetry metrics only
 	attrs := []attribute.KeyValue{
 		attribute.String("method", method),
 		attribute.String("url", url),
@@ -152,8 +187,17 @@ func (omc *OTelMetricsCollector) RecordRetry(method, url string, attempt int, er
 
 // RecordCircuitBreakerState records circuit breaker state changes
 func (omc *OTelMetricsCollector) RecordCircuitBreakerState(state CircuitBreakerState) {
-	// This function is no longer needed as ClientMetrics is removed.
-	// The state changes are no longer tracked.
+	// OpenTelemetry only - no internal state tracking
+}
+
+// GetMetrics returns a copy of the current metrics
+func (omc *OTelMetricsCollector) GetMetrics() *ClientMetrics {
+	return &ClientMetrics{
+		TotalRequests:  omc.metrics.TotalRequests,
+		SuccessfulReqs: omc.metrics.SuccessfulReqs,
+		FailedRequests: omc.metrics.FailedRequests,
+		AverageLatency: omc.metrics.AverageLatency,
+	}
 }
 
 // StartSpan starts a new trace span for HTTP request
@@ -175,8 +219,4 @@ func (omc *OTelMetricsCollector) FinishSpan(span trace.Span, statusCode int, err
 	}
 
 	span.End()
-}
-
-func (omc *OTelMetricsCollector) GetMeter() metric.Meter {
-	return omc.meter
 }

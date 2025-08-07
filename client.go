@@ -12,19 +12,18 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
 // Client - основной HTTP клиент с поддержкой повтора, метрик и промежуточного ПО
 type Client struct {
-	httpClient       *http.Client
-	retryClient      *retryablehttp.Client
-	options          *ClientOptions
-	middlewareChain  *MiddlewareChain
-	metricsCollector *OTelMetricsCollector
-	logger           *zap.Logger
+	httpClient      *http.Client
+	retryClient     *retryablehttp.Client
+	options         *ClientOptions
+	middlewareChain *MiddlewareChain
+	otelCollector   *OTelMetricsCollector
+	logger          *zap.Logger
 }
 
 // NewClient создает новый HTTP клиент с заданными опциями
@@ -89,13 +88,13 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 
 	client.middlewareChain = NewMiddlewareChain(middlewares...)
 
-	// Setup metrics collector
+	// Setup OpenTelemetry metrics collector
 	if options.MetricsEnabled {
 		collector, err := NewOTelMetricsCollector(options.MetricsMeterName)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create metrics collector: %w", err)
 		}
-		client.metricsCollector = collector
+		client.otelCollector = collector
 	}
 
 	return client, nil
@@ -123,9 +122,9 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 	}
 
 	// Start tracing if enabled
-	var span any
-	if c.metricsCollector != nil && c.options.TracingEnabled {
-		ctx, span = c.metricsCollector.StartSpan(ctx, req.Method, req.URL.String())
+	var span interface{}
+	if c.otelCollector != nil && c.options.TracingEnabled {
+		ctx, span = c.otelCollector.StartSpan(ctx, req.Method, req.URL.String())
 		req = req.WithContext(ctx)
 	}
 
@@ -143,18 +142,26 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 	}
 
 	// Record metrics
-	if c.metricsCollector != nil {
-		c.metricsCollector.RecordRequest(req.Method, req.URL.String(), statusCode, duration, requestSize, responseSize)
+	if c.otelCollector != nil {
+		c.otelCollector.RecordRequest(req.Method, req.URL.String(), statusCode, duration, requestSize, responseSize)
 	}
 
 	// Finish tracing
 	if span != nil {
 		if traceSpan, ok := span.(trace.Span); ok {
-			c.metricsCollector.FinishSpan(traceSpan, statusCode, err)
+			c.otelCollector.FinishSpan(traceSpan, statusCode, err)
 		}
 	}
 
 	return resp, err
+}
+
+// GetMeter returns the OpenTelemetry meter from the client's metrics collector
+func (c *Client) GetMeter() interface{} {
+	if c.otelCollector != nil {
+		return c.otelCollector.GetMeter()
+	}
+	return nil
 }
 
 // executeRequest is the final handler that executes the HTTP request
@@ -208,7 +215,7 @@ func (c *Client) Head(url string) (*http.Response, error) {
 }
 
 // GetJSON performs a GET request and decodes JSON response
-func (c *Client) GetJSON(ctx context.Context, url string, result any) error {
+func (c *Client) GetJSON(ctx context.Context, url string, result interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -229,22 +236,22 @@ func (c *Client) GetJSON(ctx context.Context, url string, result any) error {
 }
 
 // PostJSON performs a POST request with JSON body and decodes JSON response
-func (c *Client) PostJSON(ctx context.Context, url string, body any, result any) error {
+func (c *Client) PostJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return c.sendJSON(ctx, http.MethodPost, url, body, result)
 }
 
 // PutJSON performs a PUT request with JSON body and decodes JSON response
-func (c *Client) PutJSON(ctx context.Context, url string, body any, result any) error {
+func (c *Client) PutJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return c.sendJSON(ctx, http.MethodPut, url, body, result)
 }
 
 // PatchJSON performs a PATCH request with JSON body and decodes JSON response
-func (c *Client) PatchJSON(ctx context.Context, url string, body any, result any) error {
+func (c *Client) PatchJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
 	return c.sendJSON(ctx, http.MethodPatch, url, body, result)
 }
 
 // DeleteJSON performs a DELETE request and decodes JSON response
-func (c *Client) DeleteJSON(ctx context.Context, url string, result any) error {
+func (c *Client) DeleteJSON(ctx context.Context, url string, result interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return err
@@ -269,7 +276,7 @@ func (c *Client) DeleteJSON(ctx context.Context, url string, result any) error {
 }
 
 // sendJSON is a helper method for sending JSON requests
-func (c *Client) sendJSON(ctx context.Context, method, url string, body any, result any) error {
+func (c *Client) sendJSON(ctx context.Context, method, url string, body interface{}, result interface{}) error {
 	var bodyReader io.Reader
 	if body != nil {
 		jsonBody, err := json.Marshal(body)
@@ -305,7 +312,7 @@ func (c *Client) sendJSON(ctx context.Context, method, url string, body any, res
 }
 
 // GetXML performs a GET request and decodes XML response
-func (c *Client) GetXML(ctx context.Context, url string, result any) error {
+func (c *Client) GetXML(ctx context.Context, url string, result interface{}) error {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return err
@@ -326,7 +333,7 @@ func (c *Client) GetXML(ctx context.Context, url string, result any) error {
 }
 
 // PostXML performs a POST request with XML body and decodes XML response
-func (c *Client) PostXML(ctx context.Context, url string, body any, result any) error {
+func (c *Client) PostXML(ctx context.Context, url string, body interface{}, result interface{}) error {
 	var bodyReader io.Reader
 	if body != nil {
 		xmlBody, err := xml.Marshal(body)
@@ -405,20 +412,15 @@ func (c *Client) HeadCtx(ctx context.Context, url string) (*http.Response, error
 	return c.Do(req)
 }
 
-// GetMetricsCollector возвращает коллектор метрик клиента
-func (c *Client) GetMetricsCollector() *OTelMetricsCollector {
-	return c.metricsCollector
-}
-
 // GetOptions возвращает копию настроек клиента
 func (c *Client) GetOptions() *ClientOptions {
 	return c.options
 }
 
-// GetOTelMeter возвращает OTel метр клиента
-func (c *Client) GetOTelMeter() metric.Meter {
-	if c.metricsCollector != nil {
-		return c.metricsCollector.GetMeter()
+// GetMetrics returns the current metrics
+func (c *Client) GetMetrics() *ClientMetrics {
+	if c.otelCollector != nil {
+		return c.otelCollector.GetMetrics()
 	}
-	return nil
+	return NewClientMetrics()
 }
