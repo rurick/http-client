@@ -477,6 +477,50 @@ func main() {
 }
 ```
 
+### Автоматические Retry Метрики
+
+```go
+package main
+
+import (
+    "fmt"
+    "log"
+    "time"
+    
+    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+)
+
+func main() {
+    // Создание клиента с retry стратегией и автоматическими метриками
+    retryStrategy := httpclient.NewExponentialBackoffStrategy(3, 100*time.Millisecond, 2*time.Second)
+    
+    client, err := httpclient.NewClient(
+        httpclient.WithRetryStrategy(retryStrategy),
+        httpclient.WithMetrics(true),
+        httpclient.WithMetricsMeterName("demo-client"),
+    )
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // Выполняем запрос который может потребовать retry
+    // Retry метрики записываются автоматически!
+    resp, err := client.Get("https://httpbin.org/status/500")
+    if err != nil {
+        fmt.Printf("Request failed: %v\n", err)
+    } else {
+        defer resp.Body.Close()
+        fmt.Printf("Final response status: %d\n", resp.StatusCode)
+    }
+
+    // Автоматические retry метрики теперь доступны в Prometheus:
+    // http_retries_total{method="GET",url="...",attempt="2",success="false"} 1
+    // http_retries_total{method="GET",url="...",attempt="3",success="true"} 1
+    
+    fmt.Println("Retry metrics recorded automatically in OpenTelemetry/Prometheus")
+}
+```
+
 ### Периодический мониторинг
 
 ```go
@@ -498,6 +542,9 @@ func startMetricsMonitoring(client httpclient.ExtendedHTTPClient) {
             log.Printf("  Avg Latency: %v", metrics.AverageLatency)
             log.Printf("  Data: %d bytes sent, %d bytes received", 
                 metrics.TotalRequestSize, metrics.TotalResponseSize)
+            
+            // Retry метрики автоматически экспортируются в Prometheus
+            // и не требуют дополнительного кода для мониторинга
             
             // Алерты
             if successRate < 95 && metrics.TotalRequests > 10 {

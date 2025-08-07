@@ -22,19 +22,6 @@ const (
 	MetricHTTPRetriesTotal  = "http_retries_total"
 	MetricHTTPRetryAttempts = "http_retry_attempts"
 
-	// Метрики Circuit Breaker
-	MetricCircuitBreakerState            = "circuit_breaker_state"
-	MetricCircuitBreakerFailures         = "circuit_breaker_failures_total"
-	MetricCircuitBreakerSuccesses        = "circuit_breaker_successes_total"
-	MetricCircuitBreakerStateChanges     = "circuit_breaker_state_changes_total"
-	MetricCircuitBreakerStateGauge       = "circuit_breaker_state"
-	MetricCircuitBreakerOpenTotal        = "circuit_breaker_open_total"
-	MetricCircuitBreakerCloseTotal       = "circuit_breaker_close_total"
-	MetricCircuitBreakerHalfOpenAttempts = "circuit_breaker_half_open_attempts_total"
-	MetricCircuitBreakerStateDuration    = "circuit_breaker_state_duration_seconds"
-	MetricCircuitBreakerRejectedTotal    = "circuit_breaker_rejected_requests_total"
-	MetricCircuitBreakerFailureTotal     = "circuit_breaker_failure_total"
-
 	// Метрики соединений
 	MetricHTTPConnectionsActive    = "http_connections_active"
 	MetricHTTPConnectionsIdle      = "http_connections_idle"
@@ -67,17 +54,18 @@ type OTelMetricsCollector struct {
 	metrics *ClientMetrics
 
 	// OpenTelemetry instruments
-	requestCounter      metric.Int64Counter
-	requestDuration     metric.Float64Histogram
-	requestSizeCounter  metric.Int64Counter
-	responseSizeCounter metric.Int64Counter
-	retryCounter        metric.Int64Counter
-	cbStateGauge        metric.Int64Gauge
-	cbOpenCounter       metric.Int64Counter
-	cbCloseCounter      metric.Int64Counter
-	cbHalfOpenCounter   metric.Int64Counter
-	cbRejectedCounter   metric.Int64Counter
-	cbFailureCounter    metric.Int64Counter
+	requestCounter          metric.Int64Counter
+	requestDuration         metric.Float64Histogram
+	requestSizeCounter      metric.Int64Counter
+	responseSizeCounter     metric.Int64Counter
+	retryCounter            metric.Int64Counter
+	retryAttemptsCounter    metric.Int64Counter
+	connectionsActiveGauge  metric.Int64Gauge
+	connectionsIdleGauge    metric.Int64Gauge
+	poolHitsCounter         metric.Int64Counter
+	poolMissesCounter       metric.Int64Counter
+	middlewareDuration      metric.Float64Histogram
+	middlewareErrorsCounter metric.Int64Counter
 }
 
 // NewOTelMetricsCollector creates a new OpenTelemetry metrics collector
@@ -130,67 +118,80 @@ func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
 		return nil, err
 	}
 
-	cbStateGauge, err := meter.Int64Gauge(
-		MetricCircuitBreakerStateGauge,
-		metric.WithDescription("Current state of the circuit breaker (0=closed, 1=open, 2=half-open)"),
+	retryAttemptsCounter, err := meter.Int64Counter(
+		MetricHTTPRetryAttempts,
+		metric.WithDescription("Number of retry attempts for HTTP requests"),
 	)
 	if err != nil {
 		return nil, err
 	}
-	cbOpenCounter, err := meter.Int64Counter(
-		MetricCircuitBreakerOpenTotal,
-		metric.WithDescription("Total number of times the circuit breaker opened"),
+
+	connectionsActiveGauge, err := meter.Int64Gauge(
+		MetricHTTPConnectionsActive,
+		metric.WithDescription("Number of active HTTP connections"),
 	)
 	if err != nil {
 		return nil, err
 	}
-	cbCloseCounter, err := meter.Int64Counter(
-		MetricCircuitBreakerCloseTotal,
-		metric.WithDescription("Total number of times the circuit breaker closed"),
+
+	connectionsIdleGauge, err := meter.Int64Gauge(
+		MetricHTTPConnectionsIdle,
+		metric.WithDescription("Number of idle HTTP connections"),
 	)
 	if err != nil {
 		return nil, err
 	}
-	cbHalfOpenCounter, err := meter.Int64Counter(
-		MetricCircuitBreakerHalfOpenAttempts,
-		metric.WithDescription("Total number of half-open attempts"),
+
+	poolHitsCounter, err := meter.Int64Counter(
+		MetricHTTPConnectionPoolHits,
+		metric.WithDescription("Total number of connection pool hits"),
 	)
 	if err != nil {
 		return nil, err
 	}
-	if err != nil {
-		return nil, err
-	}
-	cbRejectedCounter, err := meter.Int64Counter(
-		MetricCircuitBreakerRejectedTotal,
-		metric.WithDescription("Total number of requests rejected by the circuit breaker"),
+
+	poolMissesCounter, err := meter.Int64Counter(
+		MetricHTTPConnectionPoolMisses,
+		metric.WithDescription("Total number of connection pool misses"),
 	)
 	if err != nil {
 		return nil, err
 	}
-	cbFailureCounter, err := meter.Int64Counter(
-		MetricCircuitBreakerFailureTotal,
-		metric.WithDescription("Total number of failures that contributed to circuit breaker state changes"),
+
+	middlewareDuration, err := meter.Float64Histogram(
+		MetricMiddlewareDuration,
+		metric.WithDescription("Middleware processing duration in seconds"),
+		metric.WithUnit("s"),
+		metric.WithExplicitBucketBoundaries(0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	middlewareErrorsCounter, err := meter.Int64Counter(
+		MetricMiddlewareErrors,
+		metric.WithDescription("Total number of middleware errors"),
 	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &OTelMetricsCollector{
-		meter:               meter,
-		tracer:              tracer,
-		metrics:             NewClientMetrics(),
-		requestCounter:      requestCounter,
-		requestDuration:     requestDuration,
-		requestSizeCounter:  requestSizeCounter,
-		responseSizeCounter: responseSizeCounter,
-		retryCounter:        retryCounter,
-		cbStateGauge:        cbStateGauge,
-		cbOpenCounter:       cbOpenCounter,
-		cbCloseCounter:      cbCloseCounter,
-		cbHalfOpenCounter:   cbHalfOpenCounter,
-		cbRejectedCounter:   cbRejectedCounter,
-		cbFailureCounter:    cbFailureCounter,
+		meter:                   meter,
+		tracer:                  tracer,
+		metrics:                 NewClientMetrics(),
+		requestCounter:          requestCounter,
+		requestDuration:         requestDuration,
+		requestSizeCounter:      requestSizeCounter,
+		responseSizeCounter:     responseSizeCounter,
+		retryCounter:            retryCounter,
+		retryAttemptsCounter:    retryAttemptsCounter,
+		connectionsActiveGauge:  connectionsActiveGauge,
+		connectionsIdleGauge:    connectionsIdleGauge,
+		poolHitsCounter:         poolHitsCounter,
+		poolMissesCounter:       poolMissesCounter,
+		middlewareDuration:      middlewareDuration,
+		middlewareErrorsCounter: middlewareErrorsCounter,
 	}, nil
 }
 
@@ -200,8 +201,7 @@ func (omc *OTelMetricsCollector) GetMeter() metric.Meter {
 }
 
 // RecordRequest records metrics for an HTTP request
-func (omc *OTelMetricsCollector) RecordRequest(method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64) {
-	ctx := context.Background()
+func (omc *OTelMetricsCollector) RecordRequest(ctx context.Context, method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64) {
 
 	// Update basic internal metrics
 	omc.metrics.TotalRequests++
@@ -236,8 +236,7 @@ func (omc *OTelMetricsCollector) RecordRequest(method, url string, statusCode in
 }
 
 // RecordRetry records metrics for retry attempts
-func (omc *OTelMetricsCollector) RecordRetry(method, url string, attempt int, err error) {
-	ctx := context.Background()
+func (omc *OTelMetricsCollector) RecordRetry(ctx context.Context, method, url string, attempt int, err error) {
 
 	// Record OpenTelemetry metrics only
 	attrs := []attribute.KeyValue{
@@ -250,23 +249,53 @@ func (omc *OTelMetricsCollector) RecordRetry(method, url string, attempt int, er
 	omc.retryCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
-// RecordCircuitBreakerState records circuit breaker state changes
-func (omc *OTelMetricsCollector) RecordCircuitBreakerState(state CircuitBreakerState) {
-	ctx := context.Background()
-
-	omc.cbStateGauge.Record(ctx, int64(state))
-
+// RecordRetryAttempts records individual retry attempts
+func (omc *OTelMetricsCollector) RecordRetryAttempts(ctx context.Context, method, url string, attempts int) {
 	attrs := []attribute.KeyValue{
-		attribute.Int("state", int(state)),
+		attribute.String("method", method),
+		attribute.String("url", url),
+		attribute.Int("attempts", attempts),
 	}
-	switch state {
-	case CircuitBreakerClosed:
-		omc.cbCloseCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-	case CircuitBreakerOpen:
-		omc.cbOpenCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-	case CircuitBreakerHalfOpen:
-		omc.cbHalfOpenCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	omc.retryAttemptsCounter.Add(ctx, int64(attempts), metric.WithAttributes(attrs...))
+}
+
+// RecordConnectionStats records connection pool statistics
+func (omc *OTelMetricsCollector) RecordConnectionStats(ctx context.Context, active, idle int64) {
+	omc.connectionsActiveGauge.Record(ctx, active)
+	omc.connectionsIdleGauge.Record(ctx, idle)
+}
+
+// RecordConnectionPoolHit records a connection pool hit
+func (omc *OTelMetricsCollector) RecordConnectionPoolHit(ctx context.Context, url string) {
+	attrs := []attribute.KeyValue{
+		attribute.String("url", url),
 	}
+	omc.poolHitsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+}
+
+// RecordConnectionPoolMiss records a connection pool miss
+func (omc *OTelMetricsCollector) RecordConnectionPoolMiss(ctx context.Context, url string) {
+	attrs := []attribute.KeyValue{
+		attribute.String("url", url),
+	}
+	omc.poolMissesCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+}
+
+// RecordMiddlewareDuration records middleware processing time
+func (omc *OTelMetricsCollector) RecordMiddlewareDuration(ctx context.Context, middlewareName string, duration time.Duration) {
+	attrs := []attribute.KeyValue{
+		attribute.String("middleware", middlewareName),
+	}
+	omc.middlewareDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
+}
+
+// RecordMiddlewareError records middleware errors
+func (omc *OTelMetricsCollector) RecordMiddlewareError(ctx context.Context, middlewareName string, errorType string) {
+	attrs := []attribute.KeyValue{
+		attribute.String("middleware", middlewareName),
+		attribute.String("error_type", errorType),
+	}
+	omc.middlewareErrorsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
 // GetMetrics returns a copy of the current metrics

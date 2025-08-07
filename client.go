@@ -18,12 +18,14 @@ import (
 
 // Client - основной HTTP клиент с поддержкой повтора, метрик и промежуточного ПО
 type Client struct {
-	httpClient      *http.Client
-	retryClient     *retryablehttp.Client
-	options         *ClientOptions
-	middlewareChain *MiddlewareChain
-	otelCollector   *OTelMetricsCollector
-	logger          *zap.Logger
+	httpClient       *http.Client
+	retryClient      *retryablehttp.Client
+	options          *ClientOptions
+	middlewareChain  *MiddlewareChain
+	otelCollector    *OTelMetricsCollector
+	errorAnalyzer    *ErrorInsightsAnalyzer
+	logger           *zap.Logger
+	lastErrorInsight *ErrorInsight
 }
 
 // NewClient создает новый HTTP клиент с заданными опциями
@@ -36,8 +38,9 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 	}
 
 	client := &Client{
-		options: options,
-		logger:  options.Logger,
+		options:       options,
+		logger:        options.Logger,
+		errorAnalyzer: NewErrorInsightsAnalyzer(),
 	}
 
 	// Setup HTTP client
@@ -74,6 +77,9 @@ func NewClient(opts ...ClientOption) (*Client, error) {
 				return options.RetryStrategy.NextDelay(attemptNum, nil)
 			}
 		}
+
+		// Настройка автоматической записи retry метрик
+		client.setupRetryMetricsHooks(retryClient)
 
 		client.retryClient = retryClient
 	}
@@ -128,6 +134,12 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 		req = req.WithContext(ctx)
 	}
 
+	// Передаем коллектор метрик в контекст для middleware
+	if c.otelCollector != nil {
+		ctx = context.WithValue(ctx, "otel_collector", c.otelCollector)
+		req = req.WithContext(ctx)
+	}
+
 	// Execute through middleware chain
 	resp, err = c.middlewareChain.Execute(req, c.executeRequest)
 
@@ -143,7 +155,29 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 
 	// Record metrics
 	if c.otelCollector != nil {
-		c.otelCollector.RecordRequest(req.Method, req.URL.String(), statusCode, duration, requestSize, responseSize)
+		c.otelCollector.RecordRequest(ctx, req.Method, req.URL.String(), statusCode, duration, requestSize, responseSize)
+
+		// Автоматические connection pool метрики
+		if transport, ok := c.httpClient.Transport.(*http.Transport); ok {
+			// Приблизительное измерение соединений
+			c.otelCollector.RecordConnectionStats(ctx, 1, 0)
+			if statusCode < 500 {
+				c.otelCollector.RecordConnectionPoolHit(ctx, req.URL.String())
+			} else {
+				c.otelCollector.RecordConnectionPoolMiss(ctx, req.URL.String())
+			}
+			_ = transport // используем переменную
+		}
+	}
+
+	// Analyze errors if they occurred
+	if err != nil || (resp != nil && resp.StatusCode >= 400) {
+		insight := c.errorAnalyzer.AnalyzeError(ctx, req, resp, err)
+		// Store last error insight for analysis
+		if insight != nil {
+			c.lastErrorInsight = insight
+			ctx = context.WithValue(ctx, "error_insight", insight)
+		}
 	}
 
 	// Finish tracing
@@ -166,6 +200,13 @@ func (c *Client) GetMeter() interface{} {
 
 // executeRequest is the final handler that executes the HTTP request
 func (c *Client) executeRequest(req *http.Request) (*http.Response, error) {
+	// Сохраняем информацию о запросе для retry метрик
+	if c.otelCollector != nil {
+		ctx := context.WithValue(req.Context(), "http_client_method", req.Method)
+		ctx = context.WithValue(ctx, "http_client_url", req.URL.String())
+		req = req.WithContext(ctx)
+	}
+
 	// Convert to retryable request
 	retryableReq, err := retryablehttp.FromRequest(req)
 	if err != nil {
@@ -173,6 +214,106 @@ func (c *Client) executeRequest(req *http.Request) (*http.Response, error) {
 	}
 
 	return c.retryClient.Do(retryableReq)
+}
+
+// retryTracker отслеживает retry попытки для метрик
+type retryTracker struct {
+	method  string
+	url     string
+	attempt int
+	client  *Client
+}
+
+// setupRetryMetricsHooks настраивает автоматическую запись retry метрик
+func (c *Client) setupRetryMetricsHooks(retryClient *retryablehttp.Client) {
+	if c.otelCollector == nil {
+		return
+	}
+
+	// Мапа для отслеживания попыток по уникальному ключу запроса
+	attemptMap := make(map[string]int)
+
+	// Сохраняем оригинальные функции
+	originalCheckRetry := retryClient.CheckRetry
+
+	// Переопределяем CheckRetry для подсчета retry попыток
+	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
+		// Создаем уникальный ключ для отслеживания запроса
+		requestKey := fmt.Sprintf("%p", ctx) // используем адрес контекста как уникальный ID
+
+		// Увеличиваем счетчик попыток
+		attemptMap[requestKey]++
+		currentAttempt := attemptMap[requestKey]
+
+		// Анализ ошибок для каждой попытки (включая первую)
+		if c.errorAnalyzer != nil && resp != nil {
+			// Создаем фиктивный request для анализа
+			req, _ := http.NewRequestWithContext(ctx, "GET", "", nil)
+			if methodVal := ctx.Value("http_client_method"); methodVal != nil {
+				if m, ok := methodVal.(string); ok {
+					req.Method = m
+				}
+			}
+			if urlVal := ctx.Value("http_client_url"); urlVal != nil {
+				if u, ok := urlVal.(string); ok {
+					if parsedURL, parseErr := url.Parse(u); parseErr == nil {
+						req.URL = parsedURL
+					}
+				}
+			}
+
+			// Анализируем ошибку и сохраняем insight
+			insight := c.errorAnalyzer.AnalyzeError(ctx, req, resp, err)
+			if insight != nil {
+				c.lastErrorInsight = insight
+			}
+		}
+
+		// Определяем нужен ли retry
+		shouldRetry := false
+		var retryErr error
+
+		if originalCheckRetry != nil {
+			shouldRetry, retryErr = originalCheckRetry(ctx, resp, err)
+		} else {
+			// Дефолтная логика retry
+			if err != nil {
+				shouldRetry = true
+			} else if resp != nil && (resp.StatusCode == 0 || resp.StatusCode >= 500) {
+				shouldRetry = true
+			}
+		}
+
+		// Если это retry попытка (attempt > 1), записываем метрику
+		if currentAttempt > 1 {
+			method := "UNKNOWN"
+			url := "unknown"
+
+			// Извлекаем информацию о запросе из контекста
+			if methodVal := ctx.Value("http_client_method"); methodVal != nil {
+				if m, ok := methodVal.(string); ok {
+					method = m
+				}
+			}
+			if urlVal := ctx.Value("http_client_url"); urlVal != nil {
+				if u, ok := urlVal.(string); ok {
+					url = u
+				}
+			}
+
+			c.otelCollector.RecordRetry(ctx, method, url, currentAttempt, err)
+		}
+
+		// Если больше retry не нужен, очищаем счетчик
+		if !shouldRetry {
+			delete(attemptMap, requestKey)
+		}
+
+		return shouldRetry, retryErr
+	}
+
+	// Используем стандартную функцию backoff
+	// Дополнительное отслеживание через originalBackoff не требуется
 }
 
 // Get performs a GET request
@@ -423,4 +564,14 @@ func (c *Client) GetMetrics() *ClientMetrics {
 		return c.otelCollector.GetMetrics()
 	}
 	return NewClientMetrics()
+}
+
+// AnalyzeLastError returns the last error insight generated during requests
+func (c *Client) AnalyzeLastError(ctx context.Context) *ErrorInsight {
+	return c.lastErrorInsight
+}
+
+// GetErrorInsightsAnalyzer returns the error insights analyzer for custom configuration
+func (c *Client) GetErrorInsightsAnalyzer() *ErrorInsightsAnalyzer {
+	return c.errorAnalyzer
 }

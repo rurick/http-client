@@ -188,8 +188,9 @@ func TestOTelCollectorMetrics(t *testing.T) {
 	require.NoError(t, err)
 
 	// Записываем метрики
-	collector.RecordRequest("GET", "https://example.com", 200, time.Second, 100, 500)
-	collector.RecordRetry("GET", "https://example.com", 500, assert.AnError)
+	ctx := context.Background()
+	collector.RecordRequest(ctx, "GET", "https://example.com", 200, time.Second, 100, 500)
+	collector.RecordRetry(ctx, "GET", "https://example.com", 2, assert.AnError)
 
 	// Получаем метрики
 	metrics := collector.GetMetrics()

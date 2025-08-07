@@ -123,6 +123,11 @@ clean: ## Очистить временные файлы
 	rm -f coverage.out coverage.html
 	rm -f *.prof
 	rm -f *.test
+	rm -f test_coverage
+	rm -f vet_output
+	rm -f format_check
+	rm -f final_coverage.out
+	rm -f examples/test_server/test_server
 
 clean-tools: ## Удалить установленные инструменты
 	@echo "Удаление инструментов..."
