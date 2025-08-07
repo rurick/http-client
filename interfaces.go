@@ -47,7 +47,6 @@ type ExtendedHTTPClient interface {
 	DoWithContext(ctx context.Context, req *http.Request) (*http.Response, error)
 
 	// Доступ к метрикам
-	GetMetrics() *ClientMetrics
 }
 
 // RetryStrategy определяет различные стратегии повтора
@@ -67,14 +66,6 @@ type CircuitBreaker interface {
 	Execute(fn func() (*http.Response, error)) (*http.Response, error)
 	State() CircuitBreakerState
 	Reset()
-}
-
-// MetricsCollector определяет интерфейс для сбора метрик HTTP клиента
-type MetricsCollector interface {
-	RecordRequest(method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64)
-	RecordRetry(method, url string, attempt int, err error)
-	RecordCircuitBreakerState(state CircuitBreakerState)
-	GetMetrics() *ClientMetrics
 }
 
 // CircuitBreakerState represents the state of a circuit breaker

@@ -6,8 +6,6 @@ import (
 	"io"
 	"net/http"
 	"time"
-
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
 // MockClient implements a mock HTTP client for testing
@@ -276,7 +274,6 @@ type MockExtendedClient struct {
 	*MockClient
 	jsonResponses map[string]any
 	xmlResponses  map[string]any
-	metrics       *httpclient.ClientMetrics
 }
 
 // NewMockExtendedClient creates a new mock extended HTTP client
@@ -285,7 +282,6 @@ func NewMockExtendedClient() *MockExtendedClient {
 		MockClient:    NewMockClient(),
 		jsonResponses: make(map[string]any),
 		xmlResponses:  make(map[string]any),
-		metrics:       httpclient.NewClientMetrics(),
 	}
 }
 
@@ -344,11 +340,6 @@ func (mec *MockExtendedClient) PostXML(ctx context.Context, url string, _ any, r
 // DoWithContext implements ExtendedHTTPClient interface
 func (mec *MockExtendedClient) DoWithContext(_ context.Context, req *http.Request) (*http.Response, error) {
 	return mec.Do(req)
-}
-
-// GetMetrics implements ExtendedHTTPClient interface
-func (mec *MockExtendedClient) GetMetrics() *httpclient.ClientMetrics {
-	return mec.metrics
 }
 
 // copyInterface is a simple interface copier for testing

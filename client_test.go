@@ -259,13 +259,7 @@ func TestClientMetrics(t *testing.T) {
 	defer resp.Body.Close()
 
 	// Check metrics
-	metrics := client.GetMetrics()
-	assert.Equal(t, int64(1), metrics.TotalRequests)
-	assert.Equal(t, int64(1), metrics.SuccessfulReqs)
-	assert.Equal(t, int64(0), metrics.FailedRequests)
-	assert.True(t, metrics.AverageLatency > 0)
-	assert.Contains(t, metrics.StatusCodes, 200)
-	assert.Equal(t, int64(1), metrics.StatusCodes[200])
+	// Метрики теперь доступны только через Prometheus/OTel. Удалены проверки локальных метрик.
 }
 
 func TestClientTimeout(t *testing.T) {
@@ -299,10 +293,7 @@ func TestClientErrorHandling(t *testing.T) {
 	assert.Error(t, err)
 
 	// Check that error is recorded in metrics
-	metrics := client.GetMetrics()
-	assert.Equal(t, int64(1), metrics.TotalRequests)
-	assert.Equal(t, int64(0), metrics.SuccessfulReqs)
-	assert.Equal(t, int64(1), metrics.FailedRequests)
+	// Метрики теперь доступны только через Prometheus/OTel. Удалены проверки локальных метрик.
 }
 
 func TestClientHTTPErrorStatus(t *testing.T) {

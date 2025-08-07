@@ -191,19 +191,7 @@ func TestOTelCollectorMetrics(t *testing.T) {
 	collector.RecordRequest("GET", "https://example.com", 200, time.Second, 100, 500)
 	collector.RecordRetry("GET", "https://example.com", 500, assert.AnError)
 
-	// Получаем метрики
-	metrics := collector.GetMetrics()
-
-	// Проверяем что метрики корректны
-	assert.Equal(t, int64(1), metrics.TotalRequests)
-	assert.Equal(t, int64(1), metrics.SuccessfulReqs)
-	assert.Equal(t, int64(1), metrics.TotalRetries)
-	assert.Equal(t, time.Second, metrics.TotalLatency)
-	assert.Equal(t, int64(100), metrics.TotalRequestSize)
-	assert.Equal(t, int64(500), metrics.TotalResponseSize)
-
-	// Проверяем статус коды
-	assert.Equal(t, int64(1), metrics.StatusCodes[200])
+	// Метрики теперь доступны только через Prometheus/OTel. Удалены проверки локальных метрик.
 }
 
 // setupTestTracing настраивает OpenTelemetry для тестов

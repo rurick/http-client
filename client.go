@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/hashicorp/go-retryablehttp"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
@@ -22,7 +23,7 @@ type Client struct {
 	retryClient      *retryablehttp.Client
 	options          *ClientOptions
 	middlewareChain  *MiddlewareChain
-	metricsCollector MetricsCollector
+	metricsCollector *OTelMetricsCollector
 	logger           *zap.Logger
 }
 
@@ -124,10 +125,8 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 	// Start tracing if enabled
 	var span any
 	if c.metricsCollector != nil && c.options.TracingEnabled {
-		if collector, ok := c.metricsCollector.(*OTelMetricsCollector); ok {
-			ctx, span = collector.StartSpan(ctx, req.Method, req.URL.String())
-			req = req.WithContext(ctx)
-		}
+		ctx, span = c.metricsCollector.StartSpan(ctx, req.Method, req.URL.String())
+		req = req.WithContext(ctx)
 	}
 
 	// Execute through middleware chain
@@ -150,10 +149,8 @@ func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Re
 
 	// Finish tracing
 	if span != nil {
-		if collector, ok := c.metricsCollector.(*OTelMetricsCollector); ok {
-			if traceSpan, ok := span.(trace.Span); ok {
-				collector.FinishSpan(traceSpan, statusCode, err)
-			}
+		if traceSpan, ok := span.(trace.Span); ok {
+			c.metricsCollector.FinishSpan(traceSpan, statusCode, err)
 		}
 	}
 
@@ -409,7 +406,7 @@ func (c *Client) HeadCtx(ctx context.Context, url string) (*http.Response, error
 }
 
 // GetMetricsCollector возвращает коллектор метрик клиента
-func (c *Client) GetMetricsCollector() MetricsCollector {
+func (c *Client) GetMetricsCollector() *OTelMetricsCollector {
 	return c.metricsCollector
 }
 
@@ -418,10 +415,10 @@ func (c *Client) GetOptions() *ClientOptions {
 	return c.options
 }
 
-// GetMetrics returns the current metrics
-func (c *Client) GetMetrics() *ClientMetrics {
+// GetOTelMeter возвращает OTel метр клиента
+func (c *Client) GetOTelMeter() metric.Meter {
 	if c.metricsCollector != nil {
-		return c.metricsCollector.GetMetrics()
+		return c.metricsCollector.GetMeter()
 	}
-	return NewClientMetrics()
+	return nil
 }

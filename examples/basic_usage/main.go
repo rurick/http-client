@@ -38,11 +38,7 @@ func basicUsageExample() {
 	fmt.Printf("Status: %s\n", resp.Status)
 	fmt.Printf("Content-Type: %s\n", resp.Header.Get("Content-Type"))
 
-	// Получаем метрики
-	metrics := client.GetMetrics()
-	fmt.Printf("Total requests: %d\n", metrics.TotalRequests)
-	fmt.Printf("Successful requests: %d\n", metrics.SuccessfulReqs)
-	fmt.Printf("Average latency: %v\n", metrics.AverageLatency)
+	// Remove or comment out: metrics := client.GetMetrics() and any usage of 'metrics'
 }
 
 // retryExample демонстрирует функциональность повторов
@@ -69,10 +65,7 @@ func retryExample() {
 		fmt.Printf("Status: %s\n", resp.Status)
 	}
 
-	// Проверяем метрики повторов
-	metrics := client.GetMetrics()
-	fmt.Printf("Total retries: %d\n", metrics.TotalRetries)
-	fmt.Printf("Retry failures: %d\n", metrics.RetryFailures)
+	// Remove or comment out: metrics := client.GetMetrics() and any usage of 'metrics'
 }
 
 // jsonExample demonstrates JSON request/response handling
@@ -164,23 +157,5 @@ func customOptionsExample() {
 
 	fmt.Printf("Status: %s\n", resp.Status)
 
-	// Display comprehensive metrics
-	metrics := client.GetMetrics()
-	fmt.Printf("\n=== Metrics ===\n")
-	fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
-	fmt.Printf("Successful Requests: %d\n", metrics.SuccessfulReqs)
-	fmt.Printf("Failed Requests: %d\n", metrics.FailedRequests)
-	fmt.Printf("Total Retries: %d\n", metrics.TotalRetries)
-	fmt.Printf("Average Latency: %v\n", metrics.AverageLatency)
-	fmt.Printf("Min Latency: %v\n", metrics.MinLatency)
-	fmt.Printf("Max Latency: %v\n", metrics.MaxLatency)
-	fmt.Printf("Total Request Size: %d bytes\n", metrics.TotalRequestSize)
-	fmt.Printf("Total Response Size: %d bytes\n", metrics.TotalResponseSize)
-
-	if len(metrics.StatusCodes) > 0 {
-		fmt.Printf("Status Code Distribution:\n")
-		for code, count := range metrics.StatusCodes {
-			fmt.Printf("  %d: %d requests\n", code, count)
-		}
-	}
+	// Remove or comment out: metrics := client.GetMetrics() and any usage of 'metrics'
 }
