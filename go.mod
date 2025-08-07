@@ -2,8 +2,6 @@ module gitlab.citydrive.tech/back-end/go/pkg/http-client
 
 go 1.23.0
 
-toolchain go1.24.4
-
 require (
 	github.com/hashicorp/go-retryablehttp v0.7.8
 	github.com/stretchr/testify v1.10.0
