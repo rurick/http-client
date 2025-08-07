@@ -23,10 +23,17 @@ const (
 	MetricHTTPRetryAttempts = "http_retry_attempts"
 
 	// Метрики Circuit Breaker
-	MetricCircuitBreakerState        = "circuit_breaker_state"
-	MetricCircuitBreakerFailures     = "circuit_breaker_failures_total"
-	MetricCircuitBreakerSuccesses    = "circuit_breaker_successes_total"
-	MetricCircuitBreakerStateChanges = "circuit_breaker_state_changes_total"
+	MetricCircuitBreakerState            = "circuit_breaker_state"
+	MetricCircuitBreakerFailures         = "circuit_breaker_failures_total"
+	MetricCircuitBreakerSuccesses        = "circuit_breaker_successes_total"
+	MetricCircuitBreakerStateChanges     = "circuit_breaker_state_changes_total"
+	MetricCircuitBreakerStateGauge       = "circuit_breaker_state"
+	MetricCircuitBreakerOpenTotal        = "circuit_breaker_open_total"
+	MetricCircuitBreakerCloseTotal       = "circuit_breaker_close_total"
+	MetricCircuitBreakerHalfOpenAttempts = "circuit_breaker_half_open_attempts_total"
+	MetricCircuitBreakerStateDuration    = "circuit_breaker_state_duration_seconds"
+	MetricCircuitBreakerRejectedTotal    = "circuit_breaker_rejected_requests_total"
+	MetricCircuitBreakerFailureTotal     = "circuit_breaker_failure_total"
 
 	// Метрики соединений
 	MetricHTTPConnectionsActive    = "http_connections_active"
@@ -65,6 +72,12 @@ type OTelMetricsCollector struct {
 	requestSizeCounter  metric.Int64Counter
 	responseSizeCounter metric.Int64Counter
 	retryCounter        metric.Int64Counter
+	cbStateGauge        metric.Int64Gauge
+	cbOpenCounter       metric.Int64Counter
+	cbCloseCounter      metric.Int64Counter
+	cbHalfOpenCounter   metric.Int64Counter
+	cbRejectedCounter   metric.Int64Counter
+	cbFailureCounter    metric.Int64Counter
 }
 
 // NewOTelMetricsCollector creates a new OpenTelemetry metrics collector
@@ -117,6 +130,52 @@ func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
 		return nil, err
 	}
 
+	cbStateGauge, err := meter.Int64Gauge(
+		MetricCircuitBreakerStateGauge,
+		metric.WithDescription("Current state of the circuit breaker (0=closed, 1=open, 2=half-open)"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	cbOpenCounter, err := meter.Int64Counter(
+		MetricCircuitBreakerOpenTotal,
+		metric.WithDescription("Total number of times the circuit breaker opened"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	cbCloseCounter, err := meter.Int64Counter(
+		MetricCircuitBreakerCloseTotal,
+		metric.WithDescription("Total number of times the circuit breaker closed"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	cbHalfOpenCounter, err := meter.Int64Counter(
+		MetricCircuitBreakerHalfOpenAttempts,
+		metric.WithDescription("Total number of half-open attempts"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	if err != nil {
+		return nil, err
+	}
+	cbRejectedCounter, err := meter.Int64Counter(
+		MetricCircuitBreakerRejectedTotal,
+		metric.WithDescription("Total number of requests rejected by the circuit breaker"),
+	)
+	if err != nil {
+		return nil, err
+	}
+	cbFailureCounter, err := meter.Int64Counter(
+		MetricCircuitBreakerFailureTotal,
+		metric.WithDescription("Total number of failures that contributed to circuit breaker state changes"),
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	return &OTelMetricsCollector{
 		meter:               meter,
 		tracer:              tracer,
@@ -126,6 +185,12 @@ func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
 		requestSizeCounter:  requestSizeCounter,
 		responseSizeCounter: responseSizeCounter,
 		retryCounter:        retryCounter,
+		cbStateGauge:        cbStateGauge,
+		cbOpenCounter:       cbOpenCounter,
+		cbCloseCounter:      cbCloseCounter,
+		cbHalfOpenCounter:   cbHalfOpenCounter,
+		cbRejectedCounter:   cbRejectedCounter,
+		cbFailureCounter:    cbFailureCounter,
 	}, nil
 }
 
@@ -187,7 +252,21 @@ func (omc *OTelMetricsCollector) RecordRetry(method, url string, attempt int, er
 
 // RecordCircuitBreakerState records circuit breaker state changes
 func (omc *OTelMetricsCollector) RecordCircuitBreakerState(state CircuitBreakerState) {
-	// OpenTelemetry only - no internal state tracking
+	ctx := context.Background()
+
+	omc.cbStateGauge.Record(ctx, int64(state))
+
+	attrs := []attribute.KeyValue{
+		attribute.Int("state", int(state)),
+	}
+	switch state {
+	case CircuitBreakerClosed:
+		omc.cbCloseCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	case CircuitBreakerOpen:
+		omc.cbOpenCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	case CircuitBreakerHalfOpen:
+		omc.cbHalfOpenCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
+	}
 }
 
 // GetMetrics returns a copy of the current metrics
