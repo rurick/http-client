@@ -71,8 +71,8 @@ func retryExample() {
 
 	// Проверяем метрики повторов
 	metrics := client.GetMetrics()
-	fmt.Printf("Total retries: %d\n", metrics.TotalRetries)
-	fmt.Printf("Retry failures: %d\n", metrics.RetryFailures)
+	fmt.Printf("Total requests: %d\n", metrics.TotalRequests)
+	fmt.Printf("Failed requests: %d\n", metrics.FailedRequests)
 }
 
 // jsonExample demonstrates JSON request/response handling
@@ -170,17 +170,6 @@ func customOptionsExample() {
 	fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
 	fmt.Printf("Successful Requests: %d\n", metrics.SuccessfulReqs)
 	fmt.Printf("Failed Requests: %d\n", metrics.FailedRequests)
-	fmt.Printf("Total Retries: %d\n", metrics.TotalRetries)
 	fmt.Printf("Average Latency: %v\n", metrics.AverageLatency)
-	fmt.Printf("Min Latency: %v\n", metrics.MinLatency)
-	fmt.Printf("Max Latency: %v\n", metrics.MaxLatency)
-	fmt.Printf("Total Request Size: %d bytes\n", metrics.TotalRequestSize)
-	fmt.Printf("Total Response Size: %d bytes\n", metrics.TotalResponseSize)
-
-	if len(metrics.StatusCodes) > 0 {
-		fmt.Printf("Status Code Distribution:\n")
-		for code, count := range metrics.StatusCodes {
-			fmt.Printf("  %d: %d requests\n", code, count)
-		}
-	}
+	fmt.Printf("Note: Detailed metrics (retries, sizes, status codes) available via OpenTelemetry/Prometheus\n")
 }

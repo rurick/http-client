@@ -248,6 +248,5 @@ func circuitBreakerRecoveryExample() {
 	fmt.Printf("Total Requests: %d\n", finalMetrics.TotalRequests)
 	fmt.Printf("Successful: %d\n", finalMetrics.SuccessfulReqs)
 	fmt.Printf("Failed: %d\n", finalMetrics.FailedRequests)
-	fmt.Printf("Circuit Breaker Trips: %d\n", finalMetrics.CircuitBreakerTrips)
-	fmt.Printf("Current State: %s\n", finalMetrics.CircuitBreakerState)
+	fmt.Printf("Circuit breaker состояние и статистика доступны в OpenTelemetry/Prometheus\n")
 }

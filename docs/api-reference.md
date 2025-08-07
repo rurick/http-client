@@ -364,16 +364,26 @@ func NewUserAgentMiddleware(userAgent string) Middleware
 
 ### ClientMetrics структура
 
+> **📊 ВАЖНО:** Основные метрики теперь доступны через OpenTelemetry/Prometheus. ClientMetrics содержит только базовую статистику для совместимости.
+
 ```go
 type ClientMetrics struct {
-    TotalRequests       int64         // Общее количество запросов
-    SuccessfulRequests  int64         // Успешные запросы (2xx)
-    FailedRequests      int64         // Неудачные запросы (4xx, 5xx, errors)
-    AverageLatency      time.Duration // Средняя задержка
-    TotalRequestSize    int64         // Общий размер всех запросов
-    TotalResponseSize   int64         // Общий размер всех ответов
+    TotalRequests  int64         // Общее количество запросов
+    SuccessfulReqs int64         // Успешные запросы (2xx)
+    FailedRequests int64         // Неудачные запросы (4xx, 5xx, errors)
+    AverageLatency time.Duration // Средняя задержка
 }
 ```
+
+**Детальные метрики доступны в OpenTelemetry/Prometheus:**
+- `http_requests_total` - счетчик запросов с лейблами
+- `http_request_duration_seconds` - гистограмма времени выполнения
+- `http_request_size_bytes` - размеры запросов
+- `http_response_size_bytes` - размеры ответов
+- `http_retries_total` - статистика повторов
+- `circuit_breaker_state` - состояние circuit breaker
+
+Подробности в [документации метрик](metrics.md).
 
 ### Методы ClientMetrics
 
@@ -389,16 +399,7 @@ func (m *ClientMetrics) Reset()
 ```
 Сбрасывает все метрики.
 
-### MetricsCollector интерфейс
 
-```go
-type MetricsCollector interface {
-    RecordRequest(method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64)
-    RecordRetry(method, url string, attempt int, err error)
-    RecordCircuitBreakerState(state CircuitBreakerState)
-    GetMetrics() *ClientMetrics
-}
-```
 
 ## Утилитарные функции
 

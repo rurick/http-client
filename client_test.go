@@ -147,7 +147,7 @@ func TestClientPostForm(t *testing.T) {
 func TestClientGetJSON(t *testing.T) {
 	t.Parallel()
 
-	expectedData := map[string]any{
+	expectedData := map[string]interface{}{
 		"name":   "John Doe",
 		"age":    float64(30),
 		"active": true,
@@ -166,7 +166,7 @@ func TestClientGetJSON(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]any
+	var result map[string]interface{}
 	err = client.GetJSON(context.Background(), server.URL, &result)
 	require.NoError(t, err)
 
@@ -178,12 +178,12 @@ func TestClientGetJSON(t *testing.T) {
 func TestClientPostJSON(t *testing.T) {
 	t.Parallel()
 
-	requestData := map[string]any{
+	requestData := map[string]interface{}{
 		"name":  "Jane Doe",
 		"email": "jane@example.com",
 	}
 
-	responseData := map[string]any{
+	responseData := map[string]interface{}{
 		"id":      float64(123),
 		"created": true,
 	}
@@ -202,7 +202,7 @@ func TestClientPostJSON(t *testing.T) {
 	client, err := NewClient()
 	require.NoError(t, err)
 
-	var result map[string]any
+	var result map[string]interface{}
 	err = client.PostJSON(context.Background(), server.URL, requestData, &result)
 	require.NoError(t, err)
 
@@ -264,8 +264,7 @@ func TestClientMetrics(t *testing.T) {
 	assert.Equal(t, int64(1), metrics.SuccessfulReqs)
 	assert.Equal(t, int64(0), metrics.FailedRequests)
 	assert.True(t, metrics.AverageLatency > 0)
-	assert.Contains(t, metrics.StatusCodes, 200)
-	assert.Equal(t, int64(1), metrics.StatusCodes[200])
+	// StatusCodes больше не доступны - используем только базовые метрики
 }
 
 func TestClientTimeout(t *testing.T) {
@@ -318,7 +317,7 @@ func TestClientHTTPErrorStatus(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test GetJSON with error status
-	var result map[string]any
+	var result map[string]interface{}
 	err = client.GetJSON(context.Background(), server.URL, &result)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "404")

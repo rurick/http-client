@@ -33,15 +33,15 @@ type ExtendedHTTPClient interface {
 	CtxHTTPClient
 
 	// JSON методы
-	GetJSON(ctx context.Context, url string, result any) error
-	PostJSON(ctx context.Context, url string, body any, result any) error
-	PutJSON(ctx context.Context, url string, body any, result any) error
-	PatchJSON(ctx context.Context, url string, body any, result any) error
-	DeleteJSON(ctx context.Context, url string, result any) error
+	GetJSON(ctx context.Context, url string, result interface{}) error
+	PostJSON(ctx context.Context, url string, body interface{}, result interface{}) error
+	PutJSON(ctx context.Context, url string, body interface{}, result interface{}) error
+	PatchJSON(ctx context.Context, url string, body interface{}, result interface{}) error
+	DeleteJSON(ctx context.Context, url string, result interface{}) error
 
 	// XML методы
-	GetXML(ctx context.Context, url string, result any) error
-	PostXML(ctx context.Context, url string, body any, result any) error
+	GetXML(ctx context.Context, url string, result interface{}) error
+	PostXML(ctx context.Context, url string, body interface{}, result interface{}) error
 
 	// Методы с контекстом
 	DoWithContext(ctx context.Context, req *http.Request) (*http.Response, error)
@@ -67,14 +67,6 @@ type CircuitBreaker interface {
 	Execute(fn func() (*http.Response, error)) (*http.Response, error)
 	State() CircuitBreakerState
 	Reset()
-}
-
-// MetricsCollector определяет интерфейс для сбора метрик HTTP клиента
-type MetricsCollector interface {
-	RecordRequest(method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64)
-	RecordRetry(method, url string, attempt int, err error)
-	RecordCircuitBreakerState(state CircuitBreakerState)
-	GetMetrics() *ClientMetrics
 }
 
 // CircuitBreakerState represents the state of a circuit breaker

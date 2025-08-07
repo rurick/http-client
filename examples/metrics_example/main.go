@@ -54,24 +54,7 @@ func basicMetricsExample() {
 
 	fmt.Printf("\n--- Производительность ---\n")
 	fmt.Printf("Средняя задержка: %v\n", metrics.AverageLatency)
-	fmt.Printf("Минимальная задержка: %v\n", metrics.MinLatency)
-	fmt.Printf("Максимальная задержка: %v\n", metrics.MaxLatency)
-
-	fmt.Printf("\n--- Распределение по HTTP кодам ---\n")
-	for code, count := range metrics.StatusCodes {
-		fmt.Printf("HTTP %d: %d запросов\n", code, count)
-	}
-
-	fmt.Printf("\n--- Размеры данных ---\n")
-	fmt.Printf("Общий размер запросов: %d байт\n", metrics.TotalRequestSize)
-	fmt.Printf("Общий размер ответов: %d байт\n", metrics.TotalResponseSize)
-
-	if metrics.TotalRequests > 0 {
-		avgReqSize := metrics.TotalRequestSize / metrics.TotalRequests
-		avgRespSize := metrics.TotalResponseSize / metrics.TotalRequests
-		fmt.Printf("Средний размер запроса: %d байт\n", avgReqSize)
-		fmt.Printf("Средний размер ответа: %d байт\n", avgRespSize)
-	}
+	fmt.Printf("Детальные метрики (задержки, статус коды, размеры) доступны в OpenTelemetry/Prometheus\n")
 }
 
 // realTimeMonitoringExample показывает мониторинг в реальном времени

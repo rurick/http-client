@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestOTelMetricsCollectorTracing проверяет создание и завершение spans
-func TestOTelMetricsCollectorTracing(t *testing.T) {
+// TestOTelTracingIntegration проверяет создание и завершение spans
+func TestOTelTracingIntegration(t *testing.T) {
 	t.Parallel()
 
 	// Настройка трейсинга для тестов
@@ -194,16 +194,10 @@ func TestOTelCollectorMetrics(t *testing.T) {
 	// Получаем метрики
 	metrics := collector.GetMetrics()
 
-	// Проверяем что метрики корректны
+	// Проверяем базовые метрики (детальные метрики только в OpenTelemetry)
 	assert.Equal(t, int64(1), metrics.TotalRequests)
 	assert.Equal(t, int64(1), metrics.SuccessfulReqs)
-	assert.Equal(t, int64(1), metrics.TotalRetries)
-	assert.Equal(t, time.Second, metrics.TotalLatency)
-	assert.Equal(t, int64(100), metrics.TotalRequestSize)
-	assert.Equal(t, int64(500), metrics.TotalResponseSize)
-
-	// Проверяем статус коды
-	assert.Equal(t, int64(1), metrics.StatusCodes[200])
+	assert.True(t, metrics.AverageLatency > 0)
 }
 
 // setupTestTracing настраивает OpenTelemetry для тестов

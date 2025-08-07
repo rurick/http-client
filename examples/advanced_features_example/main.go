@@ -84,12 +84,8 @@ func mapsExample() {
 	fmt.Printf("  - Успешных: %d\n", metrics.SuccessfulReqs)
 	fmt.Printf("  - Неудачных: %d\n", metrics.FailedRequests)
 
-	// Получаем статус коды
-	fmt.Println("  - Статус коды:")
-	statusCodes := metrics.GetStatusCodes()
-	for code, count := range statusCodes {
-		fmt.Printf("    %d: %d раз\n", code, count)
-	}
+	// Статус коды и детальные метрики доступны в OpenTelemetry/Prometheus
+	fmt.Println("  - Детальные метрики доступны в OpenTelemetry/Prometheus")
 	fmt.Println()
 }
 
