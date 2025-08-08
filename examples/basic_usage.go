@@ -44,7 +44,7 @@ func main() {
 	}
 
 	// Запуск HTTP сервера для /metrics endpoint
-	startMetricsServer()
+	startMetricsServerBasic()
 }
 
 // initializeMetrics инициализирует OpenTelemetry MeterProvider с Prometheus exporter
@@ -112,8 +112,8 @@ func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 	return nil
 }
 
-// startMetricsServer запускает HTTP сервер для метрик на порту 2112
-func startMetricsServer() {
+// startMetricsServerBasic запускает HTTP сервер для метрик на порту 2112
+func startMetricsServerBasic() {
 	fmt.Println("Starting metrics server on :2112/metrics")
 
 	http.Handle("/metrics", promhttp.Handler())
