@@ -24,6 +24,11 @@ func New(config Config, meterName string) *Client {
 	// Применяем значения по умолчанию
 	config = config.withDefaults()
 
+	// Устанавливаем имя метера по умолчанию если не задано
+	if meterName == "" {
+		meterName = "http-client"
+	}
+
 	// Инициализируем метрики
 	metrics := NewMetrics(meterName)
 
@@ -52,6 +57,7 @@ func New(config Config, meterName string) *Client {
 		config:     config,
 		metrics:    metrics,
 		tracer:     tracer,
+		name:       meterName,
 	}
 }
 

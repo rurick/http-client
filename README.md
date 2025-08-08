@@ -1,28 +1,52 @@
-# HTTP-клиент с автоматическими метриками и retry-механизмом
+# HTTP Client Package
 
-HTTP-клиент на базе кастомного RoundTripper с опциональным retry-механизмом и автоматическим сбором метрик Prometheus через OpenTelemetry. Разработан для production-окружений микросервисной архитектуры с упором на надёжность и наблюдаемость.
+Комплексный Go HTTP клиент с автоматическими retry механизмами, Prometheus метриками через OpenTelemetry и политиками идемпотентности.
 
-Клиент автоматически собирает детальные метрики каждого HTTP-запроса без явных вызовов со стороны пользователя, обеспечивая полную прозрачность сетевых взаимодействий в кластере Kubernetes.
+## Основные возможности
 
-## Возможности
+- **Умные повторы** с экспоненциальным backoff и джиттером
+- **Автоматические Prometheus метрики** через OpenTelemetry  
+- **Политики идемпотентности** для безопасных повторов POST/PATCH
+- **Distributed tracing** с полной поддержкой OpenTelemetry
+- **Настраиваемые таймауты** и стратегии backoff
+- **Testing utilities** для unit и integration тестов
 
-- Кастомный RoundTripper с полной совместимостью с http.Client
-- Опциональный retry-механизм с exponential backoff + full jitter
-- Автоматический сбор 6 типов Prometheus метрик через OpenTelemetry
-- Политика идемпотентности для безопасных retry операций
-- Поддержка Idempotency-Key для неидемпотентных операций
-- Конфигурируемые таймауты (общий и per-try)
-- Уважение заголовка Retry-After
-- Опциональная OpenTelemetry трассировка
-- Поддержка TLS, proxy, connection pooling
+## Быстрый старт
 
-## Архитектурные принципы
+```go
+package main
 
-**SOLID**: Интерфейс RoundTripper обеспечивает единую ответственность; клиент открыт для расширения через опции; компоненты слабо связаны через интерфейсы.
+import (
+    "context"
+    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+)
 
-**YAGNI**: Реализованы только необходимые для production функции; retry по умолчанию отключён.
+func main() {
+    client := httpclient.New(httpclient.Config{}, "my-service")
+    defer client.Close()
+    
+    resp, err := client.Get(context.Background(), "https://api.example.com/data")
+    if err != nil {
+        // обработка ошибки
+    }
+    defer resp.Body.Close()
+}
+```
 
-**DRY**: Общий код метрик и retry вынесен в переиспользуемые компоненты; конфигурация централизована.
+## Документация
 
-## Структура репозитория
+**Полная документация:** [docs/index.md](docs/index.md)
 
+**Основные разделы:**
+- [Быстрый старт](docs/quick-start.md) - Примеры использования  
+- [Конфигурация](docs/configuration.md) - Настройки клиента
+- [Метрики](docs/metrics.md) - Мониторинг и алерты
+- [API справочник](docs/api-reference.md) - Полное описание функций
+- [Лучшие практики](docs/best-practices.md) - Рекомендации
+- [Тестирование](docs/testing.md) - Утилиты и примеры
+- [Troubleshooting](docs/troubleshooting.md) - Решение проблем
+- [Примеры](docs/examples.md) - Готовые code snippets
+
+## Поддержка
+
+Для вопросов обращайтесь к команде Backend разработки CityDrive Tech.

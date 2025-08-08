@@ -16,7 +16,7 @@ func TestClient_New(t *testing.T) {
 		PerTryTimeout: 3 * time.Second,
 	}
 
-	client := New(config)
+	client := New(config, "test-client")
 
 	if client == nil {
 		t.Fatal("expected client to be created")
@@ -32,7 +32,7 @@ func TestClient_New(t *testing.T) {
 }
 
 func TestClient_NewWithDefaults(t *testing.T) {
-	client := New(Config{})
+	client := New(Config{}, "test-client")
 
 	if client.config.Timeout != 5*time.Second {
 		t.Errorf("expected default timeout to be 5s, got %v", client.config.Timeout)
@@ -57,7 +57,7 @@ func TestClient_Get(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{})
+	client := New(Config{}, "test-client")
 
 	ctx := context.Background()
 	resp, err := client.Get(ctx, server.URL)
@@ -105,7 +105,7 @@ func TestClient_Post(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{})
+	client := New(Config{}, "test-client")
 
 	ctx := context.Background()
 	resp, err := client.Post(ctx, server.URL, "application/json", strings.NewReader("test data"))
@@ -144,7 +144,7 @@ func TestClient_WithRetry(t *testing.T) {
 		},
 	}
 
-	client := New(config)
+	client := New(config, "test-client")
 
 	ctx := context.Background()
 	resp, err := client.Get(ctx, server.URL)
@@ -169,7 +169,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 	}))
 	defer server.Close()
 
-	client := New(Config{})
+	client := New(Config{}, "test-client")
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -185,7 +185,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 }
 
 func TestClient_Close(t *testing.T) {
-	client := New(Config{})
+	client := New(Config{}, "test-client")
 
 	err := client.Close()
 	if err != nil {
@@ -200,7 +200,7 @@ func TestClient_GetConfig(t *testing.T) {
 		RetryEnabled:  true,
 	}
 
-	client := New(originalConfig)
+	client := New(originalConfig, "test-client")
 	retrievedConfig := client.GetConfig()
 
 	if retrievedConfig.Timeout != originalConfig.Timeout {
