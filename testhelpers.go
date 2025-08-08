@@ -128,6 +128,7 @@ func (ts *TestServer) Reset() {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 	ts.currentResponse = 0
+	ts.responses = ts.responses[:0]
 	ts.RequestLog = ts.RequestLog[:0]
 }
 

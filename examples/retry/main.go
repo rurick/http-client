@@ -14,7 +14,8 @@ import (
 func main() {
 	// Конфигурация с агрессивными повторными попытками
 	config := httpclient.Config{
-		Timeout: 30 * time.Second,
+		Timeout:      30 * time.Second,
+		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
 			MaxAttempts: 5,                      // До 5 попыток
 			BaseDelay:   200 * time.Millisecond, // Базовая задержка
@@ -25,7 +26,7 @@ func main() {
 		Transport:      http.DefaultTransport,
 	}
 
-	client := httpclient.New(config, "httpclient")
+	client := httpclient.New(config, "retry-example")
 	defer client.Close()
 
 	ctx := context.Background()
@@ -35,8 +36,8 @@ func main() {
 
 	resp, err := client.Get(ctx, "https://httpbin.org/status/200,503,503,200")
 	if err != nil {
-		if retryableErr, ok := err.(*httpclient.RetryableError); ok {
-			log.Printf("Запрос не удался после %d попыток: %v", retryableErr.Attempts, retryableErr.Err)
+		if maxErr, ok := err.(*httpclient.MaxAttemptsExceededError); ok {
+			log.Printf("Запрос не удался после %d попыток: %v", maxErr.MaxAttempts, maxErr.LastError)
 		} else {
 			log.Printf("Не retriable ошибка: %v", err)
 		}

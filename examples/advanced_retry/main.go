@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -45,7 +44,7 @@ func main() {
 	ctx := context.Background()
 
 	// Демонстрация различных retry сценариев
-	fmt.Println("=== Advanced Retry Examples ===\n")
+	fmt.Println("=== Advanced Retry Examples ===")
 
 	// 1. Retry на 500 ошибку
 	fmt.Println("1. Testing retry on 5xx errors...")

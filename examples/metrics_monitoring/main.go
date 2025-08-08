@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"os"
@@ -11,6 +12,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/exporters/prometheus"
@@ -47,17 +49,17 @@ func main() {
 	metricsServer := startMetricsServer()
 	defer metricsServer.Close()
 
-	fmt.Println("=== Metrics Monitoring Demo ===\n")
+	fmt.Println("=== Metrics Monitoring Demo ===")
 	fmt.Println("This example demonstrates all 6 types of metrics collected by the HTTP client:")
 	fmt.Println("1. http_client_requests_total (counter)")
 	fmt.Println("2. http_client_request_duration_seconds (histogram)")
 	fmt.Println("3. http_client_retries_total (counter)")
 	fmt.Println("4. http_client_inflight_requests (gauge)")
 	fmt.Println("5. http_client_request_size_bytes (histogram)")
-	fmt.Println("6. http_client_response_size_bytes (histogram)\n")
+	fmt.Println("6. http_client_response_size_bytes (histogram)")
 
 	fmt.Println("Metrics endpoint: http://localhost:2112/metrics")
-	fmt.Println("Press Ctrl+C to stop\n")
+	fmt.Println("Press Ctrl+C to stop")
 
 	// Запускаём генерацию трафика в фоне
 	ctx, cancel := context.WithCancel(context.Background())
