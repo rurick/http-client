@@ -139,6 +139,9 @@ func TestMetricsWithIdempotency(t *testing.T) {
 	defer server.Close()
 
 	config := Config{
+		PerTryTimeout: 800 * time.Minute,
+		Timeout:       900 * time.Minute,
+		RetryEnabled:  true,
 		RetryConfig: RetryConfig{
 			MaxAttempts: 2,
 			BaseDelay:   10 * time.Millisecond,

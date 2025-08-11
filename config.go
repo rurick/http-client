@@ -120,6 +120,23 @@ func (rc RetryConfig) isMethodRetryable(method string) bool {
 	return slices.Contains(rc.RetryMethods, method)
 }
 
+// isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности
+func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
+	method := req.Method
+
+	// Проверяем основные идемпотентные методы
+	if slices.Contains(rc.RetryMethods, method) {
+		return true
+	}
+
+	// Для POST и PATCH проверяем наличие Idempotency-Key
+	if method == "POST" || method == "PATCH" {
+		return req.Header.Get("Idempotency-Key") != ""
+	}
+
+	return false
+}
+
 // isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса
 func (rc RetryConfig) isStatusRetryable(status int) bool {
 	return slices.Contains(rc.RetryStatusCodes, status)

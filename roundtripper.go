@@ -62,6 +62,19 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	var lastResponse *http.Response
 	var lastError error
 
+	// Сохраняем тело запроса ДО первого выполнения для возможных повторов
+	var originalBody []byte
+	if req.Body != nil && rt.config.RetryEnabled {
+		var err error
+		originalBody, err = io.ReadAll(req.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read request body: %w", err)
+		}
+		req.Body.Close()
+		// Восстанавливаем для первого запроса
+		req.Body = io.NopCloser(bytes.NewReader(originalBody))
+	}
+
 	// Определяем максимальное количество попыток
 	maxAttempts := 1
 	if rt.config.RetryEnabled {
@@ -73,14 +86,9 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		attemptCtx, cancel := context.WithTimeout(ctx, rt.config.PerTryTimeout)
 		attemptReq := req.WithContext(attemptCtx)
 
-		// Клонируем тело запроса для повторных попыток
-		if attempt > 1 && req.Body != nil {
-			clonedBody, err := cloneRequestBody(req)
-			if err != nil {
-				cancel()
-				return nil, fmt.Errorf("failed to clone request body for retry: %w", err)
-			}
-			attemptReq.Body = clonedBody
+		// Восстанавливаем тело запроса для повторных попыток
+		if attempt > 1 && originalBody != nil {
+			attemptReq.Body = io.NopCloser(bytes.NewReader(originalBody))
 		}
 
 		// Выполняем запрос
@@ -137,8 +145,8 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 			break
 		}
 
-		// Проверяем метод запроса
-		if !rt.config.RetryConfig.isMethodRetryable(req.Method) {
+		// Проверяем возможность retry для данного запроса (с учетом идемпотентности)
+		if !rt.config.RetryConfig.isRequestRetryable(req) {
 			break
 		}
 
