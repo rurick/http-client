@@ -195,3 +195,76 @@ func TestIdempotencyKeyValidation(t *testing.T) {
 		})
 	}
 }
+
+func TestRetryPreservesLastResponseStatus(t *testing.T) {
+	config := Config{
+		RetryEnabled: true,
+		RetryConfig: RetryConfig{
+			MaxAttempts:      3,
+			BaseDelay:        1 * time.Millisecond,
+			MaxDelay:         10 * time.Millisecond,
+			RetryMethods:     []string{"GET", "PUT", "DELETE"},
+			RetryStatusCodes: []int{500, 502, 503, 429},
+		},
+	}
+
+	ctx := context.Background()
+
+	t.Run("failed_retries_return_last_status", func(t *testing.T) {
+		// Сервер возвращает разные ошибки, последняя 502
+		server := NewTestServer(
+			TestResponse{StatusCode: 500, Body: "internal server error"},
+			TestResponse{StatusCode: 503, Body: "service unavailable"},
+			TestResponse{StatusCode: 502, Body: "bad gateway"},
+		)
+		defer server.Close()
+
+		client := New(config, "test-last-status")
+		defer client.Close()
+
+		resp, err := client.Get(ctx, server.URL)
+		if err != nil {
+			t.Fatalf("expected response despite retries, got error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Должен вернуть последний статус код (502)
+		if resp.StatusCode != 502 {
+			t.Errorf("expected final status 502 (last attempt), got %d", resp.StatusCode)
+		}
+
+		// Проверяем что все 3 попытки были сделаны
+		if server.GetRequestCount() != 3 {
+			t.Errorf("expected 3 requests, got %d", server.GetRequestCount())
+		}
+	})
+
+	t.Run("successful_retry_returns_success_status", func(t *testing.T) {
+		// Первые попытки ошибки, последняя успех
+		server := NewTestServer(
+			TestResponse{StatusCode: 503, Body: "service unavailable"},
+			TestResponse{StatusCode: 500, Body: "internal server error"},
+			TestResponse{StatusCode: 200, Body: "success"},
+		)
+		defer server.Close()
+
+		client := New(config, "test-success-status")
+		defer client.Close()
+
+		resp, err := client.Get(ctx, server.URL)
+		if err != nil {
+			t.Fatalf("expected success after retries, got error: %v", err)
+		}
+		defer resp.Body.Close()
+
+		// Должен вернуть успешный статус код (200)
+		if resp.StatusCode != 200 {
+			t.Errorf("expected final status 200 (successful retry), got %d", resp.StatusCode)
+		}
+
+		// Проверяем что все 3 попытки были сделаны
+		if server.GetRequestCount() != 3 {
+			t.Errorf("expected 3 requests, got %d", server.GetRequestCount())
+		}
+	})
+}

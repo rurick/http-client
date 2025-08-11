@@ -14,8 +14,7 @@ import (
 func main() {
 	// Конфигурация с агрессивными повторными попытками
 	config := httpclient.Config{
-		Timeout:      30 * time.Second,
-		RetryEnabled: true,
+		Timeout: 30 * time.Second,
 		RetryConfig: httpclient.RetryConfig{
 			MaxAttempts: 5,                      // До 5 попыток
 			BaseDelay:   200 * time.Millisecond, // Базовая задержка

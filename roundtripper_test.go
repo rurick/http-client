@@ -348,6 +348,95 @@ func TestRoundTripper_MaxAttemptsExceeded(t *testing.T) {
 	}
 }
 
+func TestRoundTripper_PreservesOriginalStatusCode(t *testing.T) {
+	testCases := []struct {
+		name                string
+		responses           []int
+		expectedFinalStatus int
+		expectedCalls       int
+	}{
+		{
+			name:                "mixed errors preserve last status",
+			responses:           []int{503, 502, 500},
+			expectedFinalStatus: 500,
+			expectedCalls:       3,
+		},
+		{
+			name:                "successful after retries preserves success status",
+			responses:           []int{500, 503, 200},
+			expectedFinalStatus: 200,
+			expectedCalls:       3,
+		},
+		{
+			name:                "single 400 error not retried",
+			responses:           []int{400},
+			expectedFinalStatus: 400,
+			expectedCalls:       1,
+		},
+		{
+			name:                "502 then 429 then success",
+			responses:           []int{502, 429, 201},
+			expectedFinalStatus: 201,
+			expectedCalls:       3,
+		},
+		{
+			name:                "all 429 errors exhaust retries",
+			responses:           []int{429, 429, 429},
+			expectedFinalStatus: 429,
+			expectedCalls:       3,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			var responses []*http.Response
+			for _, status := range tc.responses {
+				responses = append(responses, &http.Response{
+					StatusCode: status,
+					Header:     make(http.Header),
+				})
+			}
+
+			mock := &mockRoundTripper{responses: responses}
+
+			config := Config{
+				Transport:    mock,
+				RetryEnabled: true,
+				RetryConfig: RetryConfig{
+					MaxAttempts:      3,
+					BaseDelay:        1 * time.Millisecond,
+					RetryMethods:     []string{"GET"},
+					RetryStatusCodes: []int{429, 500, 502, 503},
+				},
+			}.withDefaults()
+
+			rt := &RoundTripper{
+				base:    mock,
+				config:  config,
+				metrics: NewMetrics("testhttpclient"),
+			}
+
+			req, _ := http.NewRequest("GET", "http://example.com", nil)
+			req = req.WithContext(context.Background())
+
+			result, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("unexpected error: %v", err)
+			}
+
+			// Проверяем, что возвращается именно последний статус код
+			if result.StatusCode != tc.expectedFinalStatus {
+				t.Errorf("expected final status code %d, got %d", tc.expectedFinalStatus, result.StatusCode)
+			}
+
+			// Проверяем количество вызовов
+			if mock.callCount != tc.expectedCalls {
+				t.Errorf("expected %d calls, got %d", tc.expectedCalls, mock.callCount)
+			}
+		})
+	}
+}
+
 // Вспомогательные типы для тестирования
 
 type mockNetworkError struct {
