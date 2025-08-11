@@ -3,173 +3,138 @@ package main
 import (
 	"context"
 	"fmt"
+	"io"
 	"log"
+	"net/http"
+	"strings"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
-	"go.uber.org/zap"
+	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/exporters/prometheus"
+	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func main() {
-	basicUsageExample()
-	retryExample()
-	jsonExample()
-	customOptionsExample()
-}
-
-// basicUsageExample демонстрирует базовое использование HTTP клиента
-func basicUsageExample() {
-	fmt.Println("=== Basic Usage Example ===")
-
-	// Создаем клиент с параметрами по умолчанию
-	client, err := httpclient.NewClient()
-	if err != nil {
-		log.Fatal(err)
+	// Инициализация OpenTelemetry с Prometheus exporter
+	if err := initializeMetr(); err != nil {
+		log.Fatalf("Failed to initialize metrics: %v", err)
 	}
 
-	// Выполняем простой GET запрос
-	resp, err := client.Get("https://httpbin.org/get")
-	if err != nil {
+	// Создание HTTP клиента с базовой конфигурацией (retry отключён)
+	config := httpclient.Config{
+		Timeout:       5 * time.Second,
+		PerTryTimeout: 2 * time.Second,
+		RetryEnabled:  false, // Retry по умолчанию отключён
+	}
+
+	client := httpclient.New(config, "httpclient")
+	defer client.Close()
+
+	// Выполнение GET запроса
+	ctx := context.Background()
+	if err := performGetRequest(ctx, client); err != nil {
 		log.Printf("GET request failed: %v", err)
-		return
+	}
+
+	// Выполнение POST запроса
+	if err := performPostRequest(ctx, client); err != nil {
+		log.Printf("POST request failed: %v", err)
+	}
+
+	// Запуск HTTP сервера для /metrics endpoint
+	startMetricsServerBasic()
+}
+
+// initializeMetrics инициализирует OpenTelemetry MeterProvider с Prometheus exporter
+func initializeMetr() error {
+	// Создаём Prometheus exporter
+	exporter, err := prometheus.New()
+	if err != nil {
+		return fmt.Errorf("failed to create prometheus exporter: %w", err)
+	}
+
+	// Создаём MeterProvider
+	provider := metric.NewMeterProvider(
+		metric.WithReader(exporter),
+	)
+
+	// Устанавливаем глобальный MeterProvider
+	otel.SetMeterProvider(provider)
+
+	return nil
+}
+
+// performGetRequest выполняет простой GET запрос
+func performGetRequest(ctx context.Context, client *httpclient.Client) error {
+	fmt.Println("Performing GET request...")
+
+	resp, err := client.Get(ctx, "https://httpbin.org/get")
+	if err != nil {
+		return fmt.Errorf("GET request failed: %w", err)
 	}
 	defer resp.Body.Close()
 
-	fmt.Printf("Status: %s\n", resp.Status)
-	fmt.Printf("Content-Type: %s\n", resp.Header.Get("Content-Type"))
+	fmt.Printf("GET Response Status: %s\n", resp.Status)
 
-	// Получаем метрики
-	metrics := client.GetMetrics()
-	fmt.Printf("Total requests: %d\n", metrics.TotalRequests)
-	fmt.Printf("Successful requests: %d\n", metrics.SuccessfulReqs)
-	fmt.Printf("Average latency: %v\n", metrics.AverageLatency)
+	// Читаем первые 200 символов ответа
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 200))
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	fmt.Printf("GET Response Body (first 200 chars): %s...\n", string(body))
+	return nil
 }
 
-// retryExample демонстрирует функциональность повторов
-func retryExample() {
-	fmt.Println("\n=== Retry Example ===")
+// performPostRequest выполняет простой POST запрос
+func performPostRequest(ctx context.Context, client *httpclient.Client) error {
+	fmt.Println("Performing POST request...")
 
-	// Создаем клиент с пользовательской стратегией повтора
-	retryStrategy := httpclient.NewExponentialBackoffStrategy(5, 1*time.Second, 30*time.Second)
-
-	client, err := httpclient.NewClient(
-		httpclient.WithRetryStrategy(retryStrategy),
-		httpclient.WithTimeout(10*time.Second),
-	)
+	jsonData := `{"key": "value", "message": "test from http-client"}`
+	resp, err := client.Post(ctx, "https://httpbin.org/post", "application/json",
+		strings.NewReader(jsonData))
 	if err != nil {
-		log.Fatal(err)
+		return fmt.Errorf("POST request failed: %w", err)
+	}
+	defer resp.Body.Close()
+
+	fmt.Printf("POST Response Status: %s\n", resp.Status)
+
+	// Читаем первые 200 символов ответа
+	body, err := io.ReadAll(io.LimitReader(resp.Body, 200))
+	if err != nil {
+		return fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Этот эндпоинт случайно возвращает ошибки 500
-	resp, err := client.Get("https://httpbin.org/status/500")
-	if err != nil {
-		log.Printf("Request failed after retries: %v", err)
-	} else {
-		defer resp.Body.Close()
-		fmt.Printf("Status: %s\n", resp.Status)
-	}
-
-	// Проверяем метрики повторов
-	metrics := client.GetMetrics()
-	fmt.Printf("Total requests: %d\n", metrics.TotalRequests)
-	fmt.Printf("Failed requests: %d\n", metrics.FailedRequests)
+	fmt.Printf("POST Response Body (first 200 chars): %s...\n", string(body))
+	return nil
 }
 
-// jsonExample demonstrates JSON request/response handling
-func jsonExample() {
-	fmt.Println("\n=== JSON Example ===")
+// startMetricsServerBasic запускает HTTP сервер для метрик на порту 2112
+func startMetricsServerBasic() {
+	fmt.Println("Starting metrics server on :2112/metrics")
 
-	client, err := httpclient.NewClient()
-	if err != nil {
-		log.Fatal(err)
+	http.Handle("/metrics", promhttp.Handler())
+
+	server := &http.Server{
+		Addr:    ":2112",
+		Handler: nil,
 	}
 
-	ctx := context.Background()
-
-	// GET JSON
-	var getResult map[string]any
-	err = client.GetJSON(ctx, "https://httpbin.org/json", &getResult)
-	if err != nil {
-		log.Printf("GET JSON failed: %v", err)
-		return
-	}
-
-	fmt.Printf("GET JSON result: %+v\n", getResult)
-
-	// POST JSON
-	postData := map[string]any{
-		"name":  "John Doe",
-		"email": "john@example.com",
-		"age":   30,
-	}
-
-	var postResult map[string]any
-	err = client.PostJSON(ctx, "https://httpbin.org/post", postData, &postResult)
-	if err != nil {
-		log.Printf("POST JSON failed: %v", err)
-		return
-	}
-
-	fmt.Printf("POST JSON successful\n")
-}
-
-// customOptionsExample demonstrates advanced client configuration
-func customOptionsExample() {
-	fmt.Println("\n=== Custom Options Example ===")
-
-	// Create logger
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		log.Printf("Failed to create logger: %v", err)
-		return
-	}
-	defer func() {
-		if err := logger.Sync(); err != nil {
-			log.Printf("Failed to sync logger: %v", err)
+	// Запускаем сервер в отдельной горутине
+	go func() {
+		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Printf("Metrics server error: %v", err)
 		}
 	}()
 
-	// Create client with custom options
-	client, err := httpclient.NewClient(
-		httpclient.WithTimeout(30*time.Second),
-		httpclient.WithMaxIdleConns(50),
-		httpclient.WithMaxConnsPerHost(5),
-		httpclient.WithRetryMax(3),
-		httpclient.WithRetryWait(500*time.Millisecond, 5*time.Second),
-		httpclient.WithLogger(logger),
-		httpclient.WithMetrics(true),
-		httpclient.WithTracing(true),
-		// Add middleware
-		httpclient.WithMiddleware(
-			httpclient.NewUserAgentMiddleware("MyApp/1.0"),
-		),
-		httpclient.WithMiddleware(
-			httpclient.NewHeaderMiddleware(map[string]string{
-				"X-API-Version": "v1",
-				"X-Client-ID":   "my-client",
-			}),
-		),
-	)
-	if err != nil {
-		log.Fatal(err)
-	}
+	// Даём серверу время на запуск
+	time.Sleep(1 * time.Second)
+	fmt.Println("Metrics available at http://localhost:2112/metrics")
 
-	// Make request
-	resp, err := client.Get("https://httpbin.org/headers")
-	if err != nil {
-		log.Printf("Request failed: %v", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	fmt.Printf("Status: %s\n", resp.Status)
-
-	// Display comprehensive metrics
-	metrics := client.GetMetrics()
-	fmt.Printf("\n=== Metrics ===\n")
-	fmt.Printf("Total Requests: %d\n", metrics.TotalRequests)
-	fmt.Printf("Successful Requests: %d\n", metrics.SuccessfulReqs)
-	fmt.Printf("Failed Requests: %d\n", metrics.FailedRequests)
-	fmt.Printf("Average Latency: %v\n", metrics.AverageLatency)
-	fmt.Printf("Note: Detailed metrics (retries, sizes, status codes) available via OpenTelemetry/Prometheus\n")
+	// Ждём некоторое время для сбора метрик
+	time.Sleep(5 * time.Second)
+	fmt.Println("Basic usage example completed. Check metrics at http://localhost:2112/metrics")
 }

@@ -1,406 +1,426 @@
 # Метрики и мониторинг
 
-HTTP клиент автоматически собирает детальные метрики через OpenTelemetry для мониторинга производительности и надежности. Все метрики экспортируются в формате Prometheus и готовы для интеграции с системами мониторинга.
+HTTP клиент автоматически собирает комплексные Prometheus метрики через OpenTelemetry для полной observability ваших HTTP запросов.
 
-> **🔄 МИГРАЦИЯ:** Детальные метрики (StatusCodes, TotalRetries, RequestSize и др.) больше не доступны через ClientMetrics. Используйте OpenTelemetry/Prometheus для полного набора метрик.
+## Доступные метрики
 
-## 📊 Доступные метрики Prometheus
+### 1. http_client_requests_total (Счетчик)
+Отслеживает общее количество HTTP запросов.
 
-### Основные HTTP метрики
+**Метки:**
+- `method`: HTTP метод (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
+- `host`: Целевой хост (example.com)
+- `status`: HTTP статус код (200, 404, 500, и т.д.)
+- `retry`: Была ли это попытка повтора (true/false)
+- `error`: Привел ли запрос к ошибке (true/false)
 
-#### `http_requests_total` (Counter)
-**Тип:** Counter  
-**Описание:** Общее количество HTTP запросов, выполненных клиентом  
-**Лейблы:**
-- `method` - HTTP метод (GET, POST, PUT, DELETE, etc.)
-- `status_code` - HTTP код ответа (200, 404, 500, etc.)
-- `host` - Хост назначения
-
-```prometheus
-# Примеры значений
-http_requests_total{method="GET",status_code="200",host="api.example.com"} 1245
-http_requests_total{method="POST",status_code="201",host="api.example.com"} 89
-http_requests_total{method="GET",status_code="404",host="api.example.com"} 12
-```
-
-#### `http_request_duration_seconds` (Histogram)
-**Тип:** Histogram  
-**Описание:** Время выполнения HTTP запросов в секундах  
-**Лейблы:**
-- `method` - HTTP метод
-- `status_code` - HTTP код ответа
-- `host` - Хост назначения
-
-**Бакеты:** 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2.5, 5, 10 (явно определены в коде)
-
-**Диапазоны:**
-- 0.001s (1мс) - очень быстрые запросы
-- 0.005s (5мс) - быстрые запросы  
-- 0.01s (10мс) - нормальные локальные запросы
-- 0.025s (25мс) - приемлемые запросы
-- 0.05s (50мс) - медленные запросы
-- 0.1s (100мс) - очень медленные запросы
-- 0.25s (250мс) - критически медленные
-- 0.5s (500мс) - неприемлемо медленные
-- 1.0s (1сек) - таймаут-кандидаты
-- 2.5s, 5.0s, 10.0s - сверхмедленные запросы
-
-```prometheus
-# Примеры значений
-http_request_duration_seconds_bucket{method="GET",status_code="200",host="api.example.com",le="0.1"} 892
-http_request_duration_seconds_bucket{method="GET",status_code="200",host="api.example.com",le="0.5"} 1203
-http_request_duration_seconds_sum{method="GET",status_code="200",host="api.example.com"} 156.78
-http_request_duration_seconds_count{method="GET",status_code="200",host="api.example.com"} 1245
-```
-
-#### `http_request_size_bytes` (Histogram)
-**Тип:** Histogram  
-**Описание:** Размер тела HTTP запроса в байтах  
-**Лейблы:**
-- `method` - HTTP метод
-- `host` - Хост назначения
-
-**Бакеты:** 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576
-
-#### `http_response_size_bytes` (Histogram)
-**Тип:** Histogram  
-**Описание:** Размер тела HTTP ответа в байтах  
-**Лейблы:**
-- `method` - HTTP метод
-- `status_code` - HTTP код ответа
-- `host` - Хост назначения
-
-**Бакеты:** 64, 256, 1024, 4096, 16384, 65536, 262144, 1048576
-
-### Метрики повторов (Retry)
-
-#### `http_retries_total` (Counter)
-**Тип:** Counter  
-**Описание:** Общее количество попыток повтора запросов (записывается автоматически)  
-**Лейблы:**
-- `method` - HTTP метод  
-- `url` - URL запроса
-- `attempt` - Номер попытки (2, 3, 4...)
-- `success` - Успешность попытки (true/false)
-
-**🔄 Автоматическая запись:** Эта метрика записывается автоматически при каждой retry попытке без необходимости ручного вызова `RecordRetry`.
-
-```prometheus  
-# Примеры значений
-http_retries_total{method="GET",url="https://api.example.com/users",attempt="2",success="false"} 15
-http_retries_total{method="POST",url="https://api.example.com/orders",attempt="3",success="true"} 8
-http_retries_total{method="GET",host="api.example.com",retry_reason="server_error"} 7
-```
-
-#### `http_retry_attempts` (Histogram)
-**Тип:** Histogram  
-**Описание:** Количество попыток для каждого запроса (записывается автоматически)  
-**Лейблы:**
-- `method` - HTTP метод
-- `host` - Хост назначения
-
-**Бакеты:** 1, 2, 3, 4, 5, 10
-
-**🔄 Автоматическая запись:** Количество retry попыток записывается автоматически при каждой retry операции.
-
-```prometheus
-# Примеры значений
-http_retry_attempts_bucket{method="GET",host="api.example.com",le="2"} 892
-http_retry_attempts_bucket{method="GET",host="api.example.com",le="3"} 945
-http_retry_attempts_sum{method="GET",host="api.example.com"} 1756
-http_retry_attempts_count{method="GET",host="api.example.com"} 856
-```
-
-### Метрики соединений (Connection Pool)
-
-#### `http_connections_active` (Gauge)
-**Тип:** Gauge  
-**Описание:** Количество активных HTTP соединений (записывается автоматически)  
-**Лейблы:**
-- `host` - Хост назначения
-
-**🔄 Автоматическая запись:** Эта метрика записывается автоматически при каждом запросе без необходимости ручного вызова.
-
-#### `http_connections_idle` (Gauge)
-**Тип:** Gauge  
-**Описание:** Количество неактивных HTTP соединений в пуле (записывается автоматически)  
-**Лейблы:**
-- `host` - Хост назначения
-
-#### `http_connection_pool_hits_total` (Counter)
-**Тип:** Counter  
-**Описание:** Количество повторного использования соединений из пула (записывается автоматически)  
-**Лейблы:**
-- `host` - Хост назначения
-
-**🔄 Автоматическая запись:** Записывается при успешных запросах (status code < 500).
-
-#### `http_connection_pool_misses_total` (Counter)
-**Тип:** Counter  
-**Описание:** Количество случаев создания новых соединений (записывается автоматически)  
-**Лейблы:**
-- `host` - Хост назначения
-
-**🔄 Автоматическая запись:** Записывается при неуспешных запросах (status code >= 500).
-
-### Метрики middleware (Промежуточное ПО)
-
-#### `middleware_duration_seconds` (Histogram)
-**Тип:** Histogram  
-**Описание:** Время выполнения middleware в секундах (записывается автоматически)  
-**Лейблы:**
-- `middleware_name` - Имя middleware (logging, auth, rate_limit, etc.)
-- `method` - HTTP метод
-
-**Бакеты:** 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1
-
-**🔄 Автоматическая запись:** Время выполнения записывается автоматически для всех middleware в цепочке.
-
-```prometheus
-# Примеры значений
-middleware_duration_seconds_bucket{middleware_name="logging",method="GET",le="0.001"} 245
-middleware_duration_seconds_sum{middleware_name="logging",method="GET"} 2.567
-middleware_duration_seconds_count{middleware_name="logging",method="GET"} 1000
-```
-
-#### `middleware_errors_total` (Counter)
-**Тип:** Counter  
-**Описание:** Количество ошибок в middleware (записывается автоматически)  
-**Лейблы:**
-- `middleware_name` - Имя middleware
-- `error_type` - Тип ошибки (request_failed, etc.)
-
-**🔄 Автоматическая запись:** Ошибки записываются автоматически при возникновении ошибок в middleware.
-
-```prometheus
-# Примеры значений
-middleware_errors_total{middleware_name="logging",error_type="request_failed"} 12
-middleware_errors_total{middleware_name="auth",error_type="token_expired"} 5
-```
-
-## 🔧 Конфигурация метрик
-
-### Включение метрик
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithMetrics(true), // Включить сбор метрик
-    httpclient.WithTracing(true), // Включить трейсинг
-)
-```
-
-### Настройка имени для OpenTelemetry инструментов
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithMetrics(true),
-    httpclient.WithMetricsMeterName("myapp"), // Установить имя для OpenTelemetry meter/tracer
-)
-```
-
-При установке имени "myapp" оно будет использоваться для идентификации OpenTelemetry meter и tracer, а имена метрик остаются стандартными:
-- `http_requests_total` 
-- `http_request_duration_seconds`
-- `circuit_breaker_state`
-- `http_retries_total`
-- И так далее
-
-**Важно:** Префикс передается в `otel.Meter(metricsName)` и `otel.Tracer(metricsName)` для идентификации источника метрик.
-
-**По умолчанию:** имя "httpclient"
-
-### Примеры настройки имен для разных сервисов
-```go
-// API Gateway
-apiClient, _ := httpclient.NewClient(
-    httpclient.WithMetricsMeterName("api_gateway"), // Имя для OpenTelemetry инструментов
-)
-
-// User Service
-userClient, _ := httpclient.NewClient(
-    httpclient.WithMetricsMeterName("user_service"), // Имя для OpenTelemetry инструментов
-)
-
-// Payment Service
-paymentClient, _ := httpclient.NewClient(
-    httpclient.WithMetricsMeterName("payment_svc"), // Имя для OpenTelemetry инструментов
-)
-```
-
-### Отключение метрик
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithMetrics(false), // Отключить сбор метрик
-)
-```
-
-## 📈 Полезные Prometheus запросы
-
-### Общая производительность
 ```promql
-# Средняя латентность запросов
-rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m])
+# Общее количество запросов
+http_client_requests_total
 
-# QPS (запросов в секунду)
-rate(http_requests_total[5m])
+# Запросы по методам
+http_client_requests_total{method="GET"}
 
-# Процент ошибок
-rate(http_requests_total{status_code!~"2.."}[5m]) / rate(http_requests_total[5m]) * 100
+# Успешные запросы
+http_client_requests_total{error="false"}
 ```
 
-### Retry и Connection Pool мониторинг
+### 2. http_client_request_duration_seconds (Гистограмма)
+Измеряет длительность запросов в секундах.
+
+**Метки:**
+- `method`: HTTP метод
+- `host`: Целевой хост
+- `status`: HTTP статус код
+- `attempt`: Номер попытки (1, 2, 3, и т.д.)
+
+**Бакеты:** `0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60`
+
 ```promql
-# Частота retry попыток
-rate(http_retries_total[5m])
+# 95-й перцентиль латентности
+histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le))
 
-# Средние попытки retry
-rate(http_retry_attempts_sum[5m]) / rate(http_retry_attempts_count[5m])
+# Средняя латентность
+rate(http_client_request_duration_seconds_sum[5m]) / rate(http_client_request_duration_seconds_count[5m])
 ```
 
-### Производительность соединений
+### 3. http_client_retries_total (Счетчик)
+Подсчитывает попытки повторов с детализацией причин.
+
+**Метки:**
+- `reason`: Причина повтора (status_code, network_error, timeout, connection_error)
+- `method`: HTTP метод
+- `host`: Целевой хост
+
 ```promql
-# Использование пула соединений
-http_connections_active / (http_connections_active + http_connections_idle) * 100
+# Частота повторов
+rate(http_client_retries_total[5m])
 
-# Эффективность пула соединений
-rate(http_connection_pool_hits_total[5m]) / (rate(http_connection_pool_hits_total[5m]) + rate(http_connection_pool_misses_total[5m])) * 100
+# Повторы по причинам
+sum(rate(http_client_retries_total[5m])) by (reason)
 ```
 
-## 🎯 Рекомендуемые алерты
+### 4. http_client_inflight_requests (UpDownCounter)
+Текущее количество активных запросов.
 
-### Критические алерты
+**Метки:**
+- `host`: Целевой хост
+
+```promql
+# Текущие активные запросы
+http_client_inflight_requests
+
+# Максимум за период
+max_over_time(http_client_inflight_requests[5m])
+```
+
+### 5. http_client_request_size_bytes (Гистограмма)
+Размер тела запроса в байтах.
+
+**Метки:**
+- `method`: HTTP метод
+- `host`: Целевой хост
+
+**Бакеты:** `256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216`
+
+```promql
+# 95-й перцентиль размера запросов
+histogram_quantile(0.95, sum(rate(http_client_request_size_bytes_bucket[5m])) by (le))
+```
+
+### 6. http_client_response_size_bytes (Гистограмма)
+Размер тела ответа в байтах.
+
+**Метки:**
+- `method`: HTTP метод
+- `host`: Целевой хост
+- `status`: HTTP статус код
+
+**Бакеты:** Те же, что и для размера запроса
+
+```promql
+# 95-й перцентиль размера ответов
+histogram_quantile(0.95, sum(rate(http_client_response_size_bytes_bucket[5m])) by (le))
+```
+
+## PromQL запросы
+
+### Базовые метрики производительности
+
+#### Частота запросов (RPS)
+```promql
+# Запросов в секунду
+sum(rate(http_client_requests_total[5m]))
+
+# RPS по сервисам
+sum(rate(http_client_requests_total[5m])) by (host)
+
+# RPS по методам
+sum(rate(http_client_requests_total[5m])) by (method)
+```
+
+#### Процент ошибок
+```promql
+# Общий процент ошибок
+sum(rate(http_client_requests_total{error="true"}[5m])) / 
+sum(rate(http_client_requests_total[5m])) * 100
+
+# Процент ошибок по сервисам
+sum(rate(http_client_requests_total{error="true"}[5m])) by (host) / 
+sum(rate(http_client_requests_total[5m])) by (host) * 100
+
+# Процент HTTP ошибок (4xx, 5xx)
+sum(rate(http_client_requests_total{status=~"[45].."}[5m])) by (host) /
+sum(rate(http_client_requests_total[5m])) by (host) * 100
+```
+
+#### Анализ латентности
+```promql
+# 50-й, 95-й, 99-й перцентили
+histogram_quantile(0.50, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
+histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
+histogram_quantile(0.99, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
+
+# Средняя латентность
+sum(rate(http_client_request_duration_seconds_sum[5m])) by (host) /
+sum(rate(http_client_request_duration_seconds_count[5m])) by (host)
+
+# Латентность по статус кодам
+histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, status))
+```
+
+### Анализ retry поведения
+
+#### Статистика повторов
+```promql
+# Частота повторов
+sum(rate(http_client_retries_total[5m])) by (host, reason)
+
+# Процент запросов с повторами
+sum(rate(http_client_requests_total{retry="true"}[5m])) by (host) /
+sum(rate(http_client_requests_total[5m])) by (host) * 100
+
+# Успешность повторов
+sum(rate(http_client_requests_total{retry="true", error="false"}[5m])) by (host) /
+sum(rate(http_client_retries_total[5m])) by (host) * 100
+```
+
+#### Топ причин повторов
+```promql
+# Самые частые причины повторов
+topk(5, sum(rate(http_client_retries_total[5m])) by (reason))
+
+# Повторы по сервисам
+topk(10, sum(rate(http_client_retries_total[5m])) by (host))
+```
+
+### Анализ нагрузки
+
+#### Активные соединения
+```promql
+# Текущие активные запросы
+http_client_inflight_requests
+
+# Пиковая нагрузка за час
+max_over_time(http_client_inflight_requests[1h])
+
+# Средняя нагрузка
+avg_over_time(http_client_inflight_requests[5m])
+```
+
+#### Анализ размеров
+```promql
+# Средний размер запросов
+rate(http_client_request_size_bytes_sum[5m]) / rate(http_client_request_size_bytes_count[5m])
+
+# Средний размер ответов
+rate(http_client_response_size_bytes_sum[5m]) / rate(http_client_response_size_bytes_count[5m])
+
+# Топ самых "тяжелых" эндпоинтов
+topk(10, histogram_quantile(0.95, sum(rate(http_client_response_size_bytes_bucket[5m])) by (le, host)))
+```
+
+### Dashboard запросы
+
+#### SLI метрики
+```promql
+# Availability (99.9% target)
+sum(rate(http_client_requests_total{error="false"}[5m])) /
+sum(rate(http_client_requests_total[5m])) * 100
+
+# Latency SLI (95% requests < 500ms)
+histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le))
+
+# Throughput
+sum(rate(http_client_requests_total[5m]))
+```
+
+## Правила алертов
+
+### Критичные алерты
+
+#### Высокий процент ошибок
 ```yaml
-# Высокий процент ошибок
-- alert: HighErrorRate
-  expr: rate(http_requests_total{status_code!~"2.."}[5m]) / rate(http_requests_total[5m]) > 0.05
-  for: 2m
-  labels:
-    severity: critical
-  annotations:
-    summary: "Высокий процент ошибок HTTP запросов"
-
-# Высокая латентность
-- alert: HighLatency
-  expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
-  for: 5m
-  labels:
-    severity: warning
-  annotations:
-    summary: "Высокая латентность HTTP запросов"
+groups:
+- name: httpclient.critical
+  rules:
+  - alert: HTTPClientHighErrorRate
+    expr: |
+      (
+        sum(rate(http_client_requests_total{error="true"}[5m])) by (host) /
+        sum(rate(http_client_requests_total[5m])) by (host)
+      ) > 0.05
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Высокий процент ошибок HTTP клиента"
+      description: "{{ $labels.host }} имеет {{ $value | humanizePercentage }} ошибок за последние 5 минут"
 ```
 
-### Предупреждающие алерты
+#### Критически высокая латентность
 ```yaml
-# Много повторов
-- alert: HighRetryRate
-  expr: rate(http_retries_total[5m]) > 10
-  for: 3m
-  labels:
-    severity: warning
-  annotations:
-    summary: "Высокая частота повторов запросов"
-
-# Низкая эффективность connection pool
-- alert: LowConnectionPoolEfficiency
-  expr: rate(http_connection_pool_hits_total[5m]) / (rate(http_connection_pool_hits_total[5m]) + rate(http_connection_pool_misses_total[5m])) < 0.8
-  for: 5m
-  labels:
-    severity: warning
-  annotations:
-    summary: "Низкая эффективность пула соединений"
-
-# Медленные middleware
-- alert: SlowMiddleware
-  expr: histogram_quantile(0.95, rate(middleware_duration_seconds_bucket[5m])) > 0.1
-  for: 3m
-  labels:
-    severity: warning
-  annotations:
-    summary: "Медленное выполнение middleware"
+  - alert: HTTPClientCriticalLatency
+    expr: |
+      histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host)) > 5
+    for: 2m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Критически высокая латентность HTTP клиента"
+      description: "{{ $labels.host }} имеет 95-й перцентиль латентности {{ $value }}с"
 ```
 
-## 📊 Дашборд Grafana
+### Предупреждения
 
-Для визуализации метрик рекомендуется создать дашборд в Grafana со следующими панелями:
+#### Повышенная латентность
+```yaml
+- name: httpclient.warnings
+  rules:
+  - alert: HTTPClientHighLatency
+    expr: |
+      histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host)) > 2
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Повышенная латентность HTTP клиента"
+      description: "{{ $labels.host }} имеет 95-й перцентиль латентности {{ $value }}с за 5 минут"
+```
 
-1. **Обзор** - QPS, латентность, процент ошибок
-2. **Детали запросов** - распределение по методам и кодам ответов
-3. **Circuit Breaker** - состояния и переключения
-4. **Повторы** - статистика retry попыток
-5. **Соединения** - использование пула соединений
-6. **Middleware** - производительность промежуточного ПО
+#### Чрезмерные повторы
+```yaml
+  - alert: HTTPClientExcessiveRetries
+    expr: |
+      sum(rate(http_client_retries_total[5m])) by (host) > 1
+    for: 3m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Высокая частота повторов HTTP клиента"
+      description: "{{ $labels.host }} делает {{ $value }} повторов/сек за последние 5 минут"
+```
 
-## 🔍 Отладка производительности
+#### Много активных запросов
+```yaml
+  - alert: HTTPClientHighInflight
+    expr: |
+      http_client_inflight_requests > 100
+    for: 2m
+    labels:
+      severity: warning
+    annotations:
+      summary: "Много одновременных HTTP запросов"
+      description: "{{ $labels.host }} имеет {{ $value }} одновременных запросов"
+```
 
-### Типичные проблемы и их диагностика
+### Информационные алерты
 
-1. **Высокая латентность**
-   - Проверить `http_request_duration_seconds` percentiles
-   - Анализировать `middleware_duration_seconds`
+#### Необычно большие ответы
+```yaml
+- name: httpclient.info
+  rules:
+  - alert: HTTPClientLargeResponses
+    expr: |
+      histogram_quantile(0.95, sum(rate(http_client_response_size_bytes_bucket[5m])) by (le, host)) > 10485760 # 10MB
+    for: 10m
+    labels:
+      severity: info
+    annotations:
+      summary: "Большие HTTP ответы"
+      description: "{{ $labels.host }} возвращает ответы размером {{ $value | humanizeBytes }}"
+```
 
-2. **Проблемы с соединениями**
-   - Мониторить `http_connections_active` vs `http_connections_idle`
-   - Проверить `http_connection_pool_misses_total`
+## Grafana Dashboard
 
-3. **Частые повторы**
-   - Анализировать `http_retries_total` по `retry_reason`
-   - Проверить состояние `circuit_breaker_state`
+### Основные панели
 
-Все метрики автоматически экспортируются через OpenTelemetry и готовы для интеграции с Prometheus без дополнительной настройки.
+#### Overview Panel
+```promql
+# Requests per second
+sum(rate(http_client_requests_total[5m])) by (host)
 
-## 📝 Константы метрик в коде
+# Error rate
+sum(rate(http_client_requests_total{error="true"}[5m])) by (host) /
+sum(rate(http_client_requests_total[5m])) by (host)
 
-Все имена метрик вынесены в константы в файле `metrics.go` для удобства использования:
+# 95th percentile latency
+histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
+
+# Active requests
+http_client_inflight_requests
+```
+
+#### Detailed Analytics
+```promql
+# Requests by method
+sum(rate(http_client_requests_total[5m])) by (method)
+
+# Status code distribution
+sum(rate(http_client_requests_total[5m])) by (status)
+
+# Retry analysis
+sum(rate(http_client_retries_total[5m])) by (reason)
+
+# Size distribution
+histogram_quantile(0.95, sum(rate(http_client_request_size_bytes_bucket[5m])) by (le))
+```
+
+### Recording Rules
+
+Для оптимизации производительности используйте recording rules:
+
+```yaml
+groups:
+- name: httpclient.recording
+  interval: 30s
+  rules:
+  - record: httpclient:request_rate
+    expr: sum(rate(http_client_requests_total[5m])) by (host)
+    
+  - record: httpclient:error_rate
+    expr: |
+      sum(rate(http_client_requests_total{error="true"}[5m])) by (host) /
+      sum(rate(http_client_requests_total[5m])) by (host)
+    
+  - record: httpclient:latency_p95
+    expr: histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
+    
+  - record: httpclient:retry_rate
+    expr: sum(rate(http_client_retries_total[5m])) by (host)
+```
+
+## Использование метрик в коде
+
+Метрики собираются автоматически, но вы можете получить к ним доступ:
 
 ```go
-// Основные HTTP метрики
-const (
-    MetricHTTPRequestsTotal        = "http_requests_total"
-    MetricHTTPRequestDuration      = "http_request_duration_seconds"
-    MetricHTTPRequestSize          = "http_request_size_bytes"
-    MetricHTTPResponseSize         = "http_response_size_bytes"
-    
-    // Метрики повторов (Retry)
-    MetricHTTPRetriesTotal         = "http_retries_total"
-    MetricHTTPRetryAttempts        = "http_retry_attempts"
-    
-    // УДАЛЕНО: Circuit Breaker метрики больше не используются
-    // MetricCircuitBreakerState, MetricCircuitBreakerFailures, 
-    // MetricCircuitBreakerSuccesses, MetricCircuitBreakerStateChanges
-    
-    // Метрики соединений
-    MetricHTTPConnectionsActive    = "http_connections_active"
-    MetricHTTPConnectionsIdle      = "http_connections_idle"
-    MetricHTTPConnectionPoolHits   = "http_connection_pool_hits_total"
-    MetricHTTPConnectionPoolMisses = "http_connection_pool_misses_total"
-    
-    // Метрики middleware
-    MetricMiddlewareDuration       = "middleware_duration_seconds"
-    MetricMiddlewareErrors         = "middleware_errors_total"
-)
+// Метрики доступны через клиент (internal API)
+// Обычно не требуется прямое взаимодействие
+
+client := httpclient.New(config, "my-service")
+defer client.Close()
+
+// Все метрики собираются автоматически при выполнении запросов
+resp, err := client.Get(ctx, "https://api.example.com/data")
 ```
 
-Эти константы используются внутри библиотеки и обеспечивают единообразие имен метрик.
+## Интеграция с OpenTelemetry
 
-## 🔄 Миграция с ClientMetrics на OpenTelemetry
-
-### Устаревшие поля ClientMetrics
-Следующие поля больше не доступны в `ClientMetrics`:
-- `StatusCodes` → используйте метрику `http_requests_total` с лейблом `status_code`
-- `TotalRetries` → используйте метрику `http_retries_total`
-- `TotalRequestSize` → используйте метрику `http_request_size_bytes`
-- `TotalResponseSize` → используйте метрику `http_response_size_bytes`
-- `MinLatency`, `MaxLatency` → используйте перцентили в `http_request_duration_seconds`
-- `CircuitBreakerState`, `CircuitBreakerTrips` → используйте метрики `circuit_breaker_state`
-
-### Переход на OpenTelemetry
 ```go
-// Получение OpenTelemetry meter от HTTP клиента
-meter := client.GetMeter()
-
-// Создание собственных метрик с тем же meter
-requestCounter, _ := meter.Int64Counter(
-    "my_app_requests_total",
-    metric.WithDescription("Метрики моего приложения"),
+import (
+    "go.opentelemetry.io/otel"
+    "go.opentelemetry.io/otel/exporters/prometheus"
+    "go.opentelemetry.io/otel/sdk/metric"
 )
+
+// Настройка экспорта метрик в Prometheus
+func setupMetrics() {
+    exporter, err := prometheus.New()
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    provider := metric.NewMeterProvider(metric.WithReader(exporter))
+    otel.SetMeterProvider(provider)
+    
+    // HTTP клиент автоматически будет использовать этот provider
+}
 ```
 
-Все детальные метрики теперь автоматически экспортируются в Prometheus через OpenTelemetry интеграцию.
+## Troubleshooting метрик
+
+### Метрики не появляются
+1. Проверьте настройку OpenTelemetry
+2. Убедитесь что exporter настроен корректно
+3. Проверьте что клиент выполняет запросы
+
+### Неожиданные значения
+1. Проверьте лейблы в PromQL запросах
+2. Убедитесь в правильности временных интервалов
+3. Проверьте фильтры по host/method
+
+### Производительность
+1. Используйте recording rules для часто используемых запросов
+2. Оптимизируйте время выполнения PromQL запросов
+3. Настройте appropriate retention policy

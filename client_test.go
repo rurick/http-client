@@ -2,329 +2,212 @@ package httpclient
 
 import (
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 )
 
-// TestNewClient проверяет создание HTTP клиента с настройками по умолчанию
-// Проверяет что все основные компоненты инициализированы корректно
-func TestNewClient(t *testing.T) {
-	t.Parallel()
-
-	client, err := NewClient()
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-	assert.NotNil(t, client.httpClient)
-	assert.NotNil(t, client.retryClient)
-	assert.NotNil(t, client.middlewareChain)
-}
-
-// TestNewClientWithOptions проверяет создание клиента с пользовательскими настройками
-// Проверяет что все переданные опции корректно применяются к клиенту
-func TestNewClientWithOptions(t *testing.T) {
-	t.Parallel()
-
-	logger := zap.NewNop()
-
-	client, err := NewClient(
-		WithTimeout(10*time.Second),
-		WithMaxIdleConns(50),
-		WithMaxConnsPerHost(5),
-		WithRetryMax(5),
-		WithLogger(logger),
-		WithMetrics(true),
-	)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, client)
-	assert.Equal(t, 10*time.Second, client.options.Timeout)
-	assert.Equal(t, 50, client.options.MaxIdleConns)
-	assert.Equal(t, 5, client.options.MaxConnsPerHost)
-	assert.Equal(t, 5, client.options.RetryMax)
-	assert.Equal(t, logger, client.options.Logger)
-	assert.True(t, client.options.MetricsEnabled)
-}
-
-// TestClientGet проверяет выполнение GET запросов
-// Создает тестовый сервер и проверяет что GET запрос выполняется корректно
-func TestClientGet(t *testing.T) {
-	t.Parallel()
-
-	// Создаем тестовый сервер
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodGet, r.Method)
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Hello, World!"))
-	}))
-	defer server.Close()
-
-	client, err := NewClient()
-	require.NoError(t, err)
-
-	resp, err := client.Get(server.URL)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
-// TestClientPost проверяет выполнение POST запросов с телом
-// Проверяет что тело запроса и Content-Type передаются корректно
-func TestClientPost(t *testing.T) {
-	t.Parallel()
-
-	expectedBody := "test body"
-	expectedContentType := "text/plain"
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, expectedContentType, r.Header.Get("Content-Type"))
-
-		body := make([]byte, len(expectedBody))
-		_, _ = r.Body.Read(body)
-		assert.Equal(t, expectedBody, string(body))
-
-		w.WriteHeader(http.StatusCreated)
-	}))
-	defer server.Close()
-
-	client, err := NewClient()
-	require.NoError(t, err)
-
-	resp, err := client.Post(server.URL, expectedContentType, strings.NewReader(expectedBody))
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	assert.Equal(t, http.StatusCreated, resp.StatusCode)
-}
-
-// TestClientPostForm проверяет отправку форм через POST
-// Проверяет корректную обработку form-data с множественными значениями
-func TestClientPostForm(t *testing.T) {
-	t.Parallel()
-
-	formData := map[string][]string{
-		"name":  {"John Doe"},
-		"email": {"john@example.com"},
-		"tags":  {"developer", "golang"},
+func TestClient_New(t *testing.T) {
+	config := Config{
+		Timeout:       10 * time.Second,
+		PerTryTimeout: 3 * time.Second,
 	}
 
+	client := New(config, "test-client")
+
+	if client == nil {
+		t.Fatal("expected client to be created")
+	}
+
+	if client.config.Timeout != 10*time.Second {
+		t.Errorf("expected timeout to be 10s, got %v", client.config.Timeout)
+	}
+
+	if client.config.PerTryTimeout != 3*time.Second {
+		t.Errorf("expected per-try timeout to be 3s, got %v", client.config.PerTryTimeout)
+	}
+}
+
+func TestClient_NewWithDefaults(t *testing.T) {
+	client := New(Config{}, "test-client")
+
+	if client.config.Timeout != 5*time.Second {
+		t.Errorf("expected default timeout to be 5s, got %v", client.config.Timeout)
+	}
+
+	if client.config.PerTryTimeout != 2*time.Second {
+		t.Errorf("expected default per-try timeout to be 2s, got %v", client.config.PerTryTimeout)
+	}
+
+	if client.config.RetryEnabled {
+		t.Error("expected retry to be disabled by default")
+	}
+}
+
+func TestClient_Get(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "application/x-www-form-urlencoded", r.Header.Get("Content-Type"))
+		if r.Method != http.MethodGet {
+			t.Errorf("expected GET method, got %s", r.Method)
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("test response"))
+	}))
+	defer server.Close()
 
-		err := r.ParseForm()
-		assert.NoError(t, err)
+	client := New(Config{}, "test-client")
 
-		for key, expectedValues := range formData {
-			actualValues := r.Form[key]
-			assert.Equal(t, expectedValues, actualValues)
+	ctx := context.Background()
+	resp, err := client.Get(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("failed to read response body: %v", err)
+	}
+
+	if string(body) != "test response" {
+		t.Errorf("expected 'test response', got %s", string(body))
+	}
+}
+
+func TestClient_Post(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("expected POST method, got %s", r.Method)
 		}
 
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+		contentType := r.Header.Get("Content-Type")
+		if contentType != "application/json" {
+			t.Errorf("expected Content-Type application/json, got %s", contentType)
+		}
 
-	client, err := NewClient()
-	require.NoError(t, err)
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("failed to read request body: %v", err)
+		}
 
-	resp, err := client.PostForm(server.URL, formData)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+		if string(body) != "test data" {
+			t.Errorf("expected 'test data', got %s", string(body))
+		}
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
-// TestClientGetJSON проверяет удобный метод для получения JSON данных
-// Проверяет автоматическую установку Accept заголовка и десериализацию ответа
-func TestClientGetJSON(t *testing.T) {
-	t.Parallel()
-
-	expectedData := map[string]interface{}{
-		"name":   "John Doe",
-		"age":    float64(30),
-		"active": true,
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodGet, r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Accept"))
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"name":"John Doe","age":30,"active":true}`))
-	}))
-	defer server.Close()
-
-	client, err := NewClient()
-	require.NoError(t, err)
-
-	var result map[string]interface{}
-	err = client.GetJSON(context.Background(), server.URL, &result)
-	require.NoError(t, err)
-
-	assert.Equal(t, expectedData, result)
-}
-
-// TestClientPostJSON проверяет удобный метод для отправки JSON данных
-// Проверяет автоматическую сериализацию, установку заголовков и десериализацию ответа
-func TestClientPostJSON(t *testing.T) {
-	t.Parallel()
-
-	requestData := map[string]interface{}{
-		"name":  "Jane Doe",
-		"email": "jane@example.com",
-	}
-
-	responseData := map[string]interface{}{
-		"id":      float64(123),
-		"created": true,
-	}
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, http.MethodPost, r.Method)
-		assert.Equal(t, "application/json", r.Header.Get("Content-Type"))
-		assert.Equal(t, "application/json", r.Header.Get("Accept"))
-
-		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusCreated)
-		w.Write([]byte(`{"id":123,"created":true}`))
+		w.Write([]byte("created"))
 	}))
 	defer server.Close()
 
-	client, err := NewClient()
-	require.NoError(t, err)
+	client := New(Config{}, "test-client")
 
-	var result map[string]interface{}
-	err = client.PostJSON(context.Background(), server.URL, requestData, &result)
-	require.NoError(t, err)
+	ctx := context.Background()
+	resp, err := client.Post(ctx, server.URL, "application/json", strings.NewReader("test data"))
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
 
-	assert.Equal(t, responseData, result)
+	if resp.StatusCode != http.StatusCreated {
+		t.Errorf("expected status 201, got %d", resp.StatusCode)
+	}
 }
 
-// TestClientWithMiddleware проверяет интеграцию middleware с клиентом
-// Проверяет что middleware применяется ко всем запросам клиента
-func TestClientWithMiddleware(t *testing.T) {
-	t.Parallel()
-
-	headerKey := "X-Test-Header"
-	headerValue := "test-value"
-
+func TestClient_WithRetry(t *testing.T) {
+	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		assert.Equal(t, headerValue, r.Header.Get(headerKey))
+		attempts++
+		if attempts < 3 {
+			w.WriteHeader(http.StatusInternalServerError)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte("success"))
+	}))
+	defer server.Close()
+
+	config := Config{
+		RetryEnabled: true,
+		RetryConfig: RetryConfig{
+			MaxAttempts:       3,
+			BaseDelay:         10 * time.Millisecond,
+			MaxDelay:          100 * time.Millisecond,
+			RetryMethods:      []string{http.MethodGet},
+			RetryStatusCodes:  []int{500},
+			RespectRetryAfter: false,
+		},
+	}
+
+	client := New(config, "test-client")
+
+	ctx := context.Background()
+	resp, err := client.Get(ctx, server.URL)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Errorf("expected status 200, got %d", resp.StatusCode)
+	}
+
+	if attempts != 3 {
+		t.Errorf("expected 3 attempts, got %d", attempts)
+	}
+}
+
+func TestClient_ContextCancellation(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
 
-	middleware := NewHeaderMiddleware(map[string]string{
-		headerKey: headerValue,
-	})
+	client := New(Config{}, "test-client")
 
-	client, err := NewClient(
-		WithMiddleware(middleware),
-	)
-	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
 
-	resp, err := client.Get(server.URL)
-	require.NoError(t, err)
-	defer resp.Body.Close()
+	_, err := client.Get(ctx, server.URL)
+	if err == nil {
+		t.Fatal("expected context deadline exceeded error")
+	}
 
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	if !strings.Contains(err.Error(), "deadline exceeded") && !strings.Contains(err.Error(), "context canceled") {
+		t.Errorf("expected context error, got: %v", err)
+	}
 }
 
-// TestClientMetrics проверяет сбор метрик клиентом
-// Проверяет что метрики корректно накапливаются после выполнения запросов
-func TestClientMetrics(t *testing.T) {
-	t.Parallel()
+func TestClient_Close(t *testing.T) {
+	client := New(Config{}, "test-client")
 
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("OK"))
-	}))
-	defer server.Close()
-
-	client, err := NewClient(WithMetrics(true))
-	require.NoError(t, err)
-
-	// Make a request
-	resp, err := client.Get(server.URL)
-	require.NoError(t, err)
-	defer resp.Body.Close()
-
-	// Check metrics
-	metrics := client.GetMetrics()
-	assert.Equal(t, int64(1), metrics.TotalRequests)
-	assert.Equal(t, int64(1), metrics.SuccessfulReqs)
-	assert.Equal(t, int64(0), metrics.FailedRequests)
-	assert.True(t, metrics.AverageLatency > 0)
-	// StatusCodes больше не доступны - используем только базовые метрики
+	err := client.Close()
+	if err != nil {
+		t.Errorf("unexpected error during close: %v", err)
+	}
 }
 
-func TestClientTimeout(t *testing.T) {
-	// НЕ parallel - тест содержит time.Sleep
-	// Create a slow server
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(50 * time.Millisecond)
-		w.WriteHeader(http.StatusOK)
-	}))
-	defer server.Close()
+func TestClient_GetConfig(t *testing.T) {
+	originalConfig := Config{
+		Timeout:       10 * time.Second,
+		PerTryTimeout: 3 * time.Second,
+		RetryEnabled:  true,
+	}
 
-	client, err := NewClient(
-		WithTimeout(10 * time.Millisecond), // Короче чем задержка сервера
-	)
-	require.NoError(t, err)
+	client := New(originalConfig, "test-client")
+	retrievedConfig := client.GetConfig()
 
-	_, err = client.Get(server.URL)
-	assert.Error(t, err)
-	// Проверяем что ошибка связана с таймаутом
-	assert.True(t, err != nil, "Должна быть ошибка таймаута")
-}
+	if retrievedConfig.Timeout != originalConfig.Timeout {
+		t.Errorf("expected timeout %v, got %v", originalConfig.Timeout, retrievedConfig.Timeout)
+	}
 
-func TestClientErrorHandling(t *testing.T) {
-	t.Parallel()
-
-	// Test with non-existent server
-	client, err := NewClient()
-	require.NoError(t, err)
-
-	_, err = client.Get("http://localhost:99999/nonexistent")
-	assert.Error(t, err)
-
-	// Check that error is recorded in metrics
-	metrics := client.GetMetrics()
-	assert.Equal(t, int64(1), metrics.TotalRequests)
-	assert.Equal(t, int64(0), metrics.SuccessfulReqs)
-	assert.Equal(t, int64(1), metrics.FailedRequests)
-}
-
-func TestClientHTTPErrorStatus(t *testing.T) {
-	t.Parallel()
-
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte("Not Found"))
-	}))
-	defer server.Close()
-
-	client, err := NewClient()
-	require.NoError(t, err)
-
-	// Test GetJSON with error status
-	var result map[string]interface{}
-	err = client.GetJSON(context.Background(), server.URL, &result)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "404")
-
-	// Test that response with error status is handled correctly in Do
-	resp, err := client.Get(server.URL)
-	require.NoError(t, err) // Do doesn't return error for HTTP error statuses
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	if retrievedConfig.RetryEnabled != originalConfig.RetryEnabled {
+		t.Errorf("expected retry enabled %v, got %v", originalConfig.RetryEnabled, retrievedConfig.RetryEnabled)
+	}
 }

@@ -2,329 +2,177 @@ package httpclient
 
 import (
 	"context"
-	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/trace"
 )
 
-// Константы имен метрик для Prometheus
-const (
-	// Основные HTTP метрики
-	MetricHTTPRequestsTotal   = "http_requests_total"
-	MetricHTTPRequestDuration = "http_request_duration_seconds"
-	MetricHTTPRequestSize     = "http_request_size_bytes"
-	MetricHTTPResponseSize    = "http_response_size_bytes"
+// Metrics содержит все метрики HTTP клиента
+type Metrics struct {
+	// RequestsTotal счётчик общего количества запросов
+	RequestsTotal metric.Int64Counter
 
-	// Метрики повторов (Retry)
-	MetricHTTPRetriesTotal  = "http_retries_total"
-	MetricHTTPRetryAttempts = "http_retry_attempts"
+	// RequestDuration гистограмма длительности запросов
+	RequestDuration metric.Float64Histogram
 
-	// Метрики соединений
-	MetricHTTPConnectionsActive    = "http_connections_active"
-	MetricHTTPConnectionsIdle      = "http_connections_idle"
-	MetricHTTPConnectionPoolHits   = "http_connection_pool_hits_total"
-	MetricHTTPConnectionPoolMisses = "http_connection_pool_misses_total"
+	// RetriesTotal счётчик ретраев
+	RetriesTotal metric.Int64Counter
 
-	// Метрики middleware
-	MetricMiddlewareDuration = "middleware_duration_seconds"
-	MetricMiddlewareErrors   = "middleware_errors_total"
-)
+	// InflightRequests updowncounter активных запросов
+	InflightRequests metric.Int64UpDownCounter
 
-// ClientMetrics holds basic metrics interface
-// All detailed metrics are collected via OpenTelemetry
-type ClientMetrics struct {
-	TotalRequests  int64
-	SuccessfulReqs int64
-	FailedRequests int64
-	AverageLatency time.Duration
+	// RequestSize гистограмма размера запросов
+	RequestSize metric.Int64Histogram
+
+	// ResponseSize гистограмма размера ответов
+	ResponseSize metric.Int64Histogram
+
+	meter metric.Meter
 }
 
-// NewClientMetrics creates a new ClientMetrics instance
-func NewClientMetrics() *ClientMetrics {
-	return &ClientMetrics{}
-}
-
-// OTelMetricsCollector implements MetricsCollector using OpenTelemetry
-type OTelMetricsCollector struct {
-	meter   metric.Meter
-	tracer  trace.Tracer
-	metrics *ClientMetrics
-
-	// OpenTelemetry instruments
-	requestCounter          metric.Int64Counter
-	requestDuration         metric.Float64Histogram
-	requestSizeCounter      metric.Int64Counter
-	responseSizeCounter     metric.Int64Counter
-	retryCounter            metric.Int64Counter
-	retryAttemptsCounter    metric.Int64Counter
-	connectionsActiveGauge  metric.Int64Gauge
-	connectionsIdleGauge    metric.Int64Gauge
-	poolHitsCounter         metric.Int64Counter
-	poolMissesCounter       metric.Int64Counter
-	middlewareDuration      metric.Float64Histogram
-	middlewareErrorsCounter metric.Int64Counter
-}
-
-// NewOTelMetricsCollector creates a new OpenTelemetry metrics collector
-func NewOTelMetricsCollector(meterName string) (*OTelMetricsCollector, error) {
+// NewMetrics создаёт новый экземпляр метрик
+func NewMetrics(meterName string) *Metrics {
 	meter := otel.Meter(meterName)
-	tracer := otel.Tracer(meterName)
 
-	// Create instruments using constants
-	requestCounter, err := meter.Int64Counter(
-		MetricHTTPRequestsTotal,
-		metric.WithDescription("Total number of HTTP requests"),
+	requestsTotal, _ := meter.Int64Counter(
+		"http_client_requests_total",
+		metric.WithDescription("Total number of HTTP client requests"),
+		metric.WithUnit("1"),
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	requestDuration, err := meter.Float64Histogram(
-		MetricHTTPRequestDuration,
-		metric.WithDescription("HTTP request duration in seconds"),
+	requestDuration, _ := meter.Float64Histogram(
+		"http_client_request_duration_seconds",
+		metric.WithDescription("HTTP client request duration in seconds"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60),
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	requestSizeCounter, err := meter.Int64Counter(
-		MetricHTTPRequestSize,
-		metric.WithDescription("Size of HTTP requests in bytes"),
+	retriesTotal, _ := meter.Int64Counter(
+		"http_client_retries_total",
+		metric.WithDescription("Total number of HTTP client retries"),
+		metric.WithUnit("1"),
+	)
+
+	inflightRequests, _ := meter.Int64UpDownCounter(
+		"http_client_inflight_requests",
+		metric.WithDescription("Number of HTTP client requests currently in-flight"),
+		metric.WithUnit("1"),
+	)
+
+	requestSize, _ := meter.Int64Histogram(
+		"http_client_request_size_bytes",
+		metric.WithDescription("HTTP client request size in bytes"),
 		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216),
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	responseSizeCounter, err := meter.Int64Counter(
-		MetricHTTPResponseSize,
-		metric.WithDescription("Size of HTTP responses in bytes"),
+	responseSize, _ := meter.Int64Histogram(
+		"http_client_response_size_bytes",
+		metric.WithDescription("HTTP client response size in bytes"),
 		metric.WithUnit("By"),
+		metric.WithExplicitBucketBoundaries(256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216),
 	)
-	if err != nil {
-		return nil, err
-	}
 
-	retryCounter, err := meter.Int64Counter(
-		MetricHTTPRetriesTotal,
-		metric.WithDescription("Total number of HTTP request retries"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	retryAttemptsCounter, err := meter.Int64Counter(
-		MetricHTTPRetryAttempts,
-		metric.WithDescription("Number of retry attempts for HTTP requests"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	connectionsActiveGauge, err := meter.Int64Gauge(
-		MetricHTTPConnectionsActive,
-		metric.WithDescription("Number of active HTTP connections"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	connectionsIdleGauge, err := meter.Int64Gauge(
-		MetricHTTPConnectionsIdle,
-		metric.WithDescription("Number of idle HTTP connections"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	poolHitsCounter, err := meter.Int64Counter(
-		MetricHTTPConnectionPoolHits,
-		metric.WithDescription("Total number of connection pool hits"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	poolMissesCounter, err := meter.Int64Counter(
-		MetricHTTPConnectionPoolMisses,
-		metric.WithDescription("Total number of connection pool misses"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	middlewareDuration, err := meter.Float64Histogram(
-		MetricMiddlewareDuration,
-		metric.WithDescription("Middleware processing duration in seconds"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.0001, 0.0005, 0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	middlewareErrorsCounter, err := meter.Int64Counter(
-		MetricMiddlewareErrors,
-		metric.WithDescription("Total number of middleware errors"),
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	return &OTelMetricsCollector{
-		meter:                   meter,
-		tracer:                  tracer,
-		metrics:                 NewClientMetrics(),
-		requestCounter:          requestCounter,
-		requestDuration:         requestDuration,
-		requestSizeCounter:      requestSizeCounter,
-		responseSizeCounter:     responseSizeCounter,
-		retryCounter:            retryCounter,
-		retryAttemptsCounter:    retryAttemptsCounter,
-		connectionsActiveGauge:  connectionsActiveGauge,
-		connectionsIdleGauge:    connectionsIdleGauge,
-		poolHitsCounter:         poolHitsCounter,
-		poolMissesCounter:       poolMissesCounter,
-		middlewareDuration:      middlewareDuration,
-		middlewareErrorsCounter: middlewareErrorsCounter,
-	}, nil
-}
-
-// GetMeter returns the OpenTelemetry meter for external use
-func (omc *OTelMetricsCollector) GetMeter() metric.Meter {
-	return omc.meter
-}
-
-// RecordRequest records metrics for an HTTP request
-func (omc *OTelMetricsCollector) RecordRequest(ctx context.Context, method, url string, statusCode int, duration time.Duration, requestSize, responseSize int64) {
-
-	// Update basic internal metrics
-	omc.metrics.TotalRequests++
-	if statusCode >= 200 && statusCode < 400 {
-		omc.metrics.SuccessfulReqs++
-	} else {
-		omc.metrics.FailedRequests++
-	}
-
-	// Simple average calculation
-	if omc.metrics.TotalRequests > 0 {
-		omc.metrics.AverageLatency = (omc.metrics.AverageLatency*time.Duration(omc.metrics.TotalRequests-1) + duration) / time.Duration(omc.metrics.TotalRequests)
-	}
-
-	// Record OpenTelemetry metrics
-	attrs := []attribute.KeyValue{
-		attribute.String("method", method),
-		attribute.String("url", url),
-		attribute.Int("status_code", statusCode),
-	}
-
-	omc.requestCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-	omc.requestDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
-
-	if requestSize > 0 {
-		omc.requestSizeCounter.Add(ctx, requestSize, metric.WithAttributes(attrs...))
-	}
-
-	if responseSize > 0 {
-		omc.responseSizeCounter.Add(ctx, responseSize, metric.WithAttributes(attrs...))
+	return &Metrics{
+		RequestsTotal:    requestsTotal,
+		RequestDuration:  requestDuration,
+		RetriesTotal:     retriesTotal,
+		InflightRequests: inflightRequests,
+		RequestSize:      requestSize,
+		ResponseSize:     responseSize,
+		meter:            meter,
 	}
 }
 
-// RecordRetry records metrics for retry attempts
-func (omc *OTelMetricsCollector) RecordRetry(ctx context.Context, method, url string, attempt int, err error) {
-
-	// Record OpenTelemetry metrics only
-	attrs := []attribute.KeyValue{
-		attribute.String("method", method),
-		attribute.String("url", url),
-		attribute.Int("attempt", attempt),
-		attribute.Bool("success", err == nil),
-	}
-
-	omc.retryCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-}
-
-// RecordRetryAttempts records individual retry attempts
-func (omc *OTelMetricsCollector) RecordRetryAttempts(ctx context.Context, method, url string, attempts int) {
-	attrs := []attribute.KeyValue{
-		attribute.String("method", method),
-		attribute.String("url", url),
-		attribute.Int("attempts", attempts),
-	}
-	omc.retryAttemptsCounter.Add(ctx, int64(attempts), metric.WithAttributes(attrs...))
-}
-
-// RecordConnectionStats records connection pool statistics
-func (omc *OTelMetricsCollector) RecordConnectionStats(ctx context.Context, active, idle int64) {
-	omc.connectionsActiveGauge.Record(ctx, active)
-	omc.connectionsIdleGauge.Record(ctx, idle)
-}
-
-// RecordConnectionPoolHit records a connection pool hit
-func (omc *OTelMetricsCollector) RecordConnectionPoolHit(ctx context.Context, url string) {
-	attrs := []attribute.KeyValue{
-		attribute.String("url", url),
-	}
-	omc.poolHitsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-}
-
-// RecordConnectionPoolMiss records a connection pool miss
-func (omc *OTelMetricsCollector) RecordConnectionPoolMiss(ctx context.Context, url string) {
-	attrs := []attribute.KeyValue{
-		attribute.String("url", url),
-	}
-	omc.poolMissesCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-}
-
-// RecordMiddlewareDuration records middleware processing time
-func (omc *OTelMetricsCollector) RecordMiddlewareDuration(ctx context.Context, middlewareName string, duration time.Duration) {
-	attrs := []attribute.KeyValue{
-		attribute.String("middleware", middlewareName),
-	}
-	omc.middlewareDuration.Record(ctx, duration.Seconds(), metric.WithAttributes(attrs...))
-}
-
-// RecordMiddlewareError records middleware errors
-func (omc *OTelMetricsCollector) RecordMiddlewareError(ctx context.Context, middlewareName string, errorType string) {
-	attrs := []attribute.KeyValue{
-		attribute.String("middleware", middlewareName),
-		attribute.String("error_type", errorType),
-	}
-	omc.middlewareErrorsCounter.Add(ctx, 1, metric.WithAttributes(attrs...))
-}
-
-// GetMetrics returns a copy of the current metrics
-func (omc *OTelMetricsCollector) GetMetrics() *ClientMetrics {
-	return &ClientMetrics{
-		TotalRequests:  omc.metrics.TotalRequests,
-		SuccessfulReqs: omc.metrics.SuccessfulReqs,
-		FailedRequests: omc.metrics.FailedRequests,
-		AverageLatency: omc.metrics.AverageLatency,
-	}
-}
-
-// StartSpan starts a new trace span for HTTP request
-func (omc *OTelMetricsCollector) StartSpan(ctx context.Context, method, url string) (context.Context, trace.Span) {
-	return omc.tracer.Start(ctx, "http_client_request",
-		trace.WithAttributes(
-			attribute.String("http.method", method),
-			attribute.String("http.url", url),
+// RecordRequest записывает метрики для запроса
+func (m *Metrics) RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool) {
+	m.RequestsTotal.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("method", method),
+			attribute.String("host", host),
+			attribute.String("status", status),
+			attribute.Bool("retry", retry),
+			attribute.Bool("error", hasError),
 		),
 	)
 }
 
-// FinishSpan finishes a trace span with response information
-func (omc *OTelMetricsCollector) FinishSpan(span trace.Span, statusCode int, err error) {
-	span.SetAttributes(attribute.Int("http.status_code", statusCode))
+// RecordDuration записывает длительность запроса
+func (m *Metrics) RecordDuration(ctx context.Context, duration float64, method, host, status string, attempt int) {
+	m.RequestDuration.Record(ctx, duration,
+		metric.WithAttributes(
+			attribute.String("method", method),
+			attribute.String("host", host),
+			attribute.String("status", status),
+			attribute.Int("attempt", attempt),
+		),
+	)
+}
 
-	if err != nil {
-		span.RecordError(err)
-	}
+// RecordRetry записывает метрику retry
+func (m *Metrics) RecordRetry(ctx context.Context, reason, method, host string) {
+	m.RetriesTotal.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("reason", reason),
+			attribute.String("method", method),
+			attribute.String("host", host),
+		),
+	)
+}
 
-	span.End()
+// RecordInflight записывает количество активных запросов
+func (m *Metrics) RecordInflight(ctx context.Context, delta int64, host string) {
+	m.InflightRequests.Add(ctx, delta,
+		metric.WithAttributes(
+			attribute.String("host", host),
+		),
+	)
+}
+
+// RecordRequestSize записывает размер запроса
+func (m *Metrics) RecordRequestSize(ctx context.Context, size int64, method, host string) {
+	m.RequestSize.Record(ctx, size,
+		metric.WithAttributes(
+			attribute.String("method", method),
+			attribute.String("host", host),
+		),
+	)
+}
+
+// RecordResponseSize записывает размер ответа
+func (m *Metrics) RecordResponseSize(ctx context.Context, size int64, method, host, status string) {
+	m.ResponseSize.Record(ctx, size,
+		metric.WithAttributes(
+			attribute.String("method", method),
+			attribute.String("host", host),
+			attribute.String("status", status),
+		),
+	)
+}
+
+// IncrementInflight увеличивает счётчик активных запросов
+func (m *Metrics) IncrementInflight(ctx context.Context, method, host string) {
+	m.InflightRequests.Add(ctx, 1,
+		metric.WithAttributes(
+			attribute.String("method", method),
+			attribute.String("host", host),
+		),
+	)
+}
+
+// DecrementInflight уменьшает счётчик активных запросов
+func (m *Metrics) DecrementInflight(ctx context.Context, method, host string) {
+	m.InflightRequests.Add(ctx, -1,
+		metric.WithAttributes(
+			attribute.String("method", method),
+			attribute.String("host", host),
+		),
+	)
+}
+
+// Close освобождает ресурсы метрик
+func (m *Metrics) Close() error {
+	// В текущей реализации нет ресурсов для освобождения
+	return nil
 }

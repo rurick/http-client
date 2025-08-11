@@ -1,366 +1,361 @@
-# Конфигурация клиента
+# Конфигурация
 
-Полное руководство по всем опциям конфигурации HTTP клиента.
+HTTP клиент пакет предлагает комплексные возможности конфигурации для различных сценариев использования.
 
-> 📚 **См. также**: [Настройки по умолчанию](default-settings.md) | [Пул соединений](connection-pool.md)
-
-## Базовые опции
-
-### Таймауты
+## Структура Config
 
 ```go
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(30*time.Second),           // Общий таймаут запроса
-)
+type Config struct {
+    Timeout         time.Duration    // Общий таймаут запроса
+    PerTryTimeout   time.Duration    // Таймаут на каждую попытку
+    RetryConfig     RetryConfig      // Конфигурация повторов
+    TracingEnabled  bool             // Включить OpenTelemetry tracing
+    Transport       http.RoundTripper // Пользовательский транспорт
+}
 ```
 
-### Пул соединений
+## Параметры конфигурации
+
+### Timeout (Общий таймаут)
+- **Тип:** `time.Duration`
+- **По умолчанию:** `5 * time.Second`
+- **Описание:** Максимальное время ожидания для всего запроса, включая все retry попытки
 
 ```go
-client, err := httpclient.NewClient(
-    httpclient.WithMaxIdleConns(100),                 // Максимум неактивных соединений
-    httpclient.WithMaxConnsPerHost(10),               // Максимум соединений на хост
-    httpclient.WithIdleConnTimeout(90*time.Second),   // Таймаут неактивного соединения
-)
+config := httpclient.Config{
+    Timeout: 30 * time.Second, // Общий лимит 30 секунд
+}
 ```
 
-> 📚 **Подробнее**: [Пул соединений](connection-pool.md) - полное руководство по настройке и оптимизации
-
-### Пользовательский HTTP клиент
+### PerTryTimeout (Таймаут попытки)
+- **Тип:** `time.Duration`
+- **По умолчанию:** `2 * time.Second`
+- **Описание:** Максимальное время ожидания для одной попытки запроса
 
 ```go
-customTransport := &http.Transport{
-    TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+config := httpclient.Config{
+    PerTryTimeout: 5 * time.Second, // Каждая попытка до 5 секунд
+}
+```
+
+### TracingEnabled (Включение tracing)
+- **Тип:** `bool`
+- **По умолчанию:** `false`
+- **Описание:** Включает создание OpenTelemetry спанов для каждого запроса
+
+```go
+config := httpclient.Config{
+    TracingEnabled: true, // Включить tracing
+}
+```
+
+### Transport (Пользовательский транспорт)
+- **Тип:** `http.RoundTripper`
+- **По умолчанию:** `http.DefaultTransport`
+- **Описание:** Позволяет настроить пользовательский HTTP транспорт
+
+```go
+config := httpclient.Config{
+    Transport: &http.Transport{
+        MaxIdleConns:       100,
+        IdleConnTimeout:    90 * time.Second,
+        DisableCompression: false,
+    },
+}
+```
+
+## Конфигурация Retry
+
+### Структура RetryConfig
+
+```go
+type RetryConfig struct {
+    MaxAttempts int           // Максимальное количество попыток
+    BaseDelay   time.Duration // Базовая задержка для backoff
+    MaxDelay    time.Duration // Максимальная задержка
+    Jitter      float64       // Фактор джиттера (0.0-1.0)
+}
+```
+
+### MaxAttempts (Максимум попыток)
+- **Тип:** `int`
+- **По умолчанию:** `1` (без повторов)
+- **Описание:** Общее количество попыток (включая первоначальную)
+
+```go
+RetryConfig{
+    MaxAttempts: 3, // 1 основная + 2 повтора
+}
+```
+
+### BaseDelay (Базовая задержка)
+- **Тип:** `time.Duration`
+- **По умолчанию:** `100 * time.Millisecond`
+- **Описание:** Начальная задержка для экспоненциального backoff
+
+```go
+RetryConfig{
+    BaseDelay: 200 * time.Millisecond, // Начинать с 200ms
+}
+```
+
+### MaxDelay (Максимальная задержка)
+- **Тип:** `time.Duration`
+- **По умолчанию:** `5 * time.Second`
+- **Описание:** Максимальная задержка между попытками
+
+```go
+RetryConfig{
+    MaxDelay: 10 * time.Second, // Не больше 10 секунд
+}
+```
+
+### Jitter (Джиттер)
+- **Тип:** `float64`
+- **Диапазон:** `0.0 - 1.0`
+- **По умолчанию:** `0.2`
+- **Описание:** Случайное отклонение задержки для предотвращения thundering herd
+
+```go
+RetryConfig{
+    Jitter: 0.3, // ±30% случайного отклонения
+}
+```
+
+## Значения по умолчанию
+
+```go
+// Автоматически применяется при создании клиента
+defaultConfig := Config{
+    Timeout:       5 * time.Second,
+    PerTryTimeout: 2 * time.Second,
+    RetryConfig: RetryConfig{
+        MaxAttempts: 1,        // Без повторов
+        BaseDelay:   100 * time.Millisecond,
+        MaxDelay:    5 * time.Second,
+        Jitter:      0.2,
+    },
+    TracingEnabled: false,
+    Transport:      http.DefaultTransport,
+}
+```
+
+## Примеры конфигураций
+
+### Быстрые внутренние сервисы
+
+```go
+config := httpclient.Config{
+    Timeout:       5 * time.Second,
+    PerTryTimeout: 1 * time.Second,
+    RetryConfig: httpclient.RetryConfig{
+        MaxAttempts: 2,
+        BaseDelay:   50 * time.Millisecond,
+        MaxDelay:    500 * time.Millisecond,
+        Jitter:      0.1,
+    },
 }
 
-customClient := &http.Client{
-    Transport: customTransport,
-    Timeout:   30 * time.Second,
+client := httpclient.New(config, "internal-api")
+```
+
+### Внешние API (требующие надежности)
+
+```go
+config := httpclient.Config{
+    Timeout:       30 * time.Second,
+    PerTryTimeout: 10 * time.Second,
+    RetryConfig: httpclient.RetryConfig{
+        MaxAttempts: 5,
+        BaseDelay:   200 * time.Millisecond,
+        MaxDelay:    10 * time.Second,
+        Jitter:      0.3,
+    },
+    TracingEnabled: true,
 }
 
-client, err := httpclient.NewClient(
-    httpclient.WithHTTPClient(customClient),          // Использовать кастомный клиент
-)
+client := httpclient.New(config, "external-api")
 ```
 
-## Стратегии повтора
-
-### Без повторов (по умолчанию)
+### Критичные платежные сервисы
 
 ```go
-// По умолчанию клиент работает БЕЗ повторов
-client, err := httpclient.NewClient()
+config := httpclient.Config{
+    Timeout:       60 * time.Second,
+    PerTryTimeout: 15 * time.Second,
+    RetryConfig: httpclient.RetryConfig{
+        MaxAttempts: 7,
+        BaseDelay:   500 * time.Millisecond,
+        MaxDelay:    30 * time.Second,
+        Jitter:      0.25,
+    },
+    TracingEnabled: true,
+    Transport: &http.Transport{
+        MaxIdleConns:        50,
+        MaxIdleConnsPerHost: 10,
+        IdleConnTimeout:     90 * time.Second,
+        TLSHandshakeTimeout: 10 * time.Second,
+    },
+}
+
+client := httpclient.New(config, "payment-service")
 ```
 
-### Включение повторов
+### Высокопроизводительные API Gateway
 
 ```go
-client, err := httpclient.NewClient(
-    httpclient.WithRetryMax(5),                       // Максимум 5 попыток
-    httpclient.WithRetryWait(1*time.Second, 10*time.Second), // Мин/макс время ожидания
-)
+config := httpclient.Config{
+    Timeout:       10 * time.Second,
+    PerTryTimeout: 3 * time.Second,
+    RetryConfig: httpclient.RetryConfig{
+        MaxAttempts: 2,
+        BaseDelay:   25 * time.Millisecond,
+        MaxDelay:    1 * time.Second,
+        Jitter:      0.1,
+    },
+    TracingEnabled: true,
+    Transport: &http.Transport{
+        MaxIdleConns:        200,
+        MaxIdleConnsPerHost: 50,
+        IdleConnTimeout:     60 * time.Second,
+    },
+}
+
+client := httpclient.New(config, "api-gateway")
 ```
 
-### Экспоненциальная задержка
+## Продвинутые настройки Transport
+
+### Настройка пулов соединений
 
 ```go
-client, err := httpclient.NewClient(
-    httpclient.WithRetryMax(3),
-    httpclient.WithRetryStrategy(httpclient.NewExponentialBackoffStrategy(
-        3,                          // максимальное количество попыток
-        100*time.Millisecond,       // базовая задержка
-        5*time.Second,              // максимальная задержка
-    )),
-)
-```
-
-### Фиксированная задержка
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithRetryMax(3),
-    httpclient.WithRetryStrategy(httpclient.NewFixedDelayStrategy(
-        3,                          // максимальное количество попыток
-        1*time.Second,              // задержка между попытками
-    )),
-)
-```
-
-### Умная стратегия
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithRetryMax(5),
-    httpclient.WithRetryStrategy(httpclient.NewSmartRetryStrategy(
-        5,                          // максимальное количество попыток
-        100*time.Millisecond,       // базовая задержка
-        10*time.Second,             // максимальная задержка
-    )),
-)
-```
-
-## Circuit Breaker
-
-### Простой circuit breaker
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithCircuitBreaker(httpclient.NewSimpleCircuitBreaker()),
-)
-```
-
-### Настраиваемый circuit breaker
-
-```go
-circuitBreaker := httpclient.NewCircuitBreaker(
-    5,                    // failureThreshold - количество ошибок для открытия
-    10*time.Second,       // timeout - время ожидания перед переходом в half-open
-    3,                    // maxRequests - максимум запросов в half-open состоянии
-)
-
-client, err := httpclient.NewClient(
-    httpclient.WithCircuitBreaker(circuitBreaker),
-)
-```
-
-## Middleware
-
-### Добавление одного middleware
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithMiddleware(httpclient.NewLoggingMiddleware(logger)),
-)
-```
-
-### Добавление нескольких middleware
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithMiddleware(httpclient.NewBearerTokenMiddleware("token")),
-    httpclient.WithMiddleware(httpclient.NewLoggingMiddleware(logger)),
-    httpclient.WithMiddleware(httpclient.NewRateLimitMiddleware(10, 20)),
-)
-```
-
-## Метрики и трейсинг
-
-### Встроенные метрики
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithMetrics(true),                     // Включить встроенные метрики
-)
-```
-
-### OpenTelemetry
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithOpenTelemetry(true),               // Включить OpenTelemetry
-    httpclient.WithMetrics(true),                     // Можно комбинировать с метриками
-)
-```
-
-## Управление функциями
-
-### Отключение функций
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithRetryDisabled(),                   // Отключить повторы полностью
-    httpclient.WithMetricsDisabled(),                 // Отключить сбор метрик
-    httpclient.WithTracingDisabled(),                 // Отключить трейсинг
-)
-```
-
-### Включение только необходимых функций
-
-```go
-// Минимальная конфигурация - только HTTP клиент
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(10*time.Second),
-)
-
-// Клиент с повторами но без метрик
-client, err := httpclient.NewClient(
-    httpclient.WithRetryMax(3),
-    httpclient.WithMetricsDisabled(),
-)
-```
-
-## Комплексная конфигурация
-
-### Продакшн конфигурация
-
-```go
-logger, _ := zap.NewProduction()
-
-client, err := httpclient.NewClient(
-    // Базовые настройки
-    httpclient.WithTimeout(30*time.Second),
-    httpclient.WithMaxIdleConns(100),
-    httpclient.WithMaxConnsPerHost(20),
+transport := &http.Transport{
+    // Общий пул соединений
+    MaxIdleConns:        100,
     
-    // Повторы с экспоненциальной задержкой
-    httpclient.WithRetryMax(3),
-    httpclient.WithRetryStrategy(httpclient.NewExponentialBackoffStrategy(
-        3, 200*time.Millisecond, 5*time.Second)),
+    // Соединения на хост
+    MaxIdleConnsPerHost: 10,
     
-    // Circuit breaker для защиты от каскадных сбоев
-    httpclient.WithCircuitBreaker(httpclient.NewCircuitBreaker(5, 10*time.Second, 3)),
+    // Время жизни idle соединений
+    IdleConnTimeout:     90 * time.Second,
     
-    // Middleware
-    httpclient.WithMiddleware(httpclient.NewLoggingMiddleware(logger)),
-    httpclient.WithMiddleware(httpclient.NewRateLimitMiddleware(100, 150)),
+    // Таймауты TLS
+    TLSHandshakeTimeout: 10 * time.Second,
     
-    // Observability
-    httpclient.WithMetrics(true),
-    httpclient.WithOpenTelemetry(true),
-)
+    // Таймауты TCP
+    DialTimeout:         5 * time.Second,
+    
+    // Keep-alive
+    KeepAlive:           30 * time.Second,
+    
+    // Отключить сжатие
+    DisableCompression:  false,
+    
+    // Размер буфера чтения
+    ReadBufferSize:      4096,
+    
+    // Размер буфера записи
+    WriteBufferSize:     4096,
+}
+
+config := httpclient.Config{
+    Transport: transport,
+}
 ```
 
-### Разработческая конфигурация
+### Настройка TLS
 
 ```go
-logger, _ := zap.NewDevelopment()
-
-client, err := httpclient.NewClient(
-    // Более короткие таймауты для быстрой разработки
-    httpclient.WithTimeout(10*time.Second),
+tlsConfig := &tls.Config{
+    // Проверка сертификатов
+    InsecureSkipVerify: false,
     
-    // Агрессивные повторы для нестабильной среды
-    httpclient.WithRetryMax(5),
-    httpclient.WithRetryStrategy(httpclient.NewSmartRetryStrategy(
-        5, 100*time.Millisecond, 3*time.Second)),
+    // Минимальная версия TLS
+    MinVersion: tls.VersionTLS12,
     
-    // Подробное логирование
-    httpclient.WithMiddleware(httpclient.NewLoggingMiddleware(logger)),
-    
-    // Метрики для debug
-    httpclient.WithMetrics(true),
-)
-```
+    // Предпочитаемые cipher suites
+    CipherSuites: []uint16{
+        tls.TLS_ECDHE_RSA_WITH_AES_256_GCM_SHA384,
+        tls.TLS_ECDHE_RSA_WITH_CHACHA20_POLY1305,
+    },
+}
 
-### Тестовая конфигурация
+transport := &http.Transport{
+    TLSClientConfig: tlsConfig,
+}
 
-```go
-client, err := httpclient.NewClient(
-    // Быстрые таймауты для тестов
-    httpclient.WithTimeout(5*time.Second),
-    
-    // Без повторов в тестах
-    httpclient.WithRetryMax(0),
-    
-    // Отключить метрики и трейсинг
-    httpclient.WithMetricsDisabled(),
-    httpclient.WithTracingDisabled(),
-)
-```
-
-## Конфигурация для разных сценариев
-
-### Клиент для внешних API
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(30*time.Second),
-    httpclient.WithRetryMax(3),
-    httpclient.WithRetryStrategy(httpclient.NewExponentialBackoffStrategy(
-        3, 500*time.Millisecond, 10*time.Second)),
-    httpclient.WithCircuitBreaker(httpclient.NewCircuitBreaker(3, 30*time.Second, 2)),
-    httpclient.WithMiddleware(httpclient.NewRateLimitMiddleware(10, 15)), // Консервативный rate limit
-)
-```
-
-### Клиент для внутренних микросервисов
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(5*time.Second),  // Быстрые таймауты
-    httpclient.WithRetryMax(5),
-    httpclient.WithRetryStrategy(httpclient.NewSmartRetryStrategy(
-        5, 50*time.Millisecond, 2*time.Second)),
-    httpclient.WithCircuitBreaker(httpclient.NewCircuitBreaker(10, 5*time.Second, 5)),
-    httpclient.WithMiddleware(httpclient.NewRateLimitMiddleware(1000, 1500)), // Высокий rate limit
-)
-```
-
-### CLI утилита
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(60*time.Second), // Длинные операции
-    httpclient.WithRetryMax(3),
-    httpclient.WithRetryStrategy(httpclient.NewExponentialBackoffStrategy(
-        3, 1*time.Second, 30*time.Second)),
-    httpclient.WithMetrics(true), // Встроенные метрики без экспорта
-)
+config := httpclient.Config{
+    Transport: transport,
+}
 ```
 
 ## Валидация конфигурации
 
+Пакет автоматически валидирует конфигурацию:
+
 ```go
-func validateClient(client httpclient.ExtendedHTTPClient) error {
-    // Тестовый запрос для проверки конфигурации
-    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-    defer cancel()
-    
-    _, err := client.Get("https://httpbin.org/status/200")
-    return err
+// Некорректные значения будут исправлены
+config := httpclient.Config{
+    Timeout:       -1 * time.Second,  // Будет установлен в default
+    PerTryTimeout: 0,                 // Будет установлен в default
+    RetryConfig: httpclient.RetryConfig{
+        MaxAttempts: -5,              // Будет установлен в 1
+        Jitter:      2.0,             // Будет ограничен до 1.0
+    },
+}
+
+client := httpclient.New(config, "service") // Работает с исправленными значениями
+```
+
+## Получение текущей конфигурации
+
+```go
+client := httpclient.New(config, "service")
+
+// Получить активную конфигурацию
+currentConfig := client.GetConfig()
+
+fmt.Printf("Timeout: %v\n", currentConfig.Timeout)
+fmt.Printf("Max Attempts: %d\n", currentConfig.RetryConfig.MaxAttempts)
+```
+
+## Рекомендации по конфигурации
+
+### По типу сервиса
+
+| Тип сервиса | Timeout | PerTryTimeout | MaxAttempts | BaseDelay |
+|-------------|---------|---------------|-------------|-----------|
+| Внутренний API | 5s | 1s | 2 | 50ms |
+| Внешний API | 30s | 10s | 5 | 200ms |
+| Базы данных | 10s | 3s | 3 | 100ms |
+| Платежи | 60s | 15s | 7 | 500ms |
+| File Upload | 300s | 60s | 3 | 1s |
+
+### По SLA требованиям
+
+- **99.9% SLA:** MaxAttempts = 3-5, агрессивные таймауты
+- **99.95% SLA:** MaxAttempts = 5-7, умеренные таймауты  
+- **99.99% SLA:** MaxAttempts = 7-10, консервативные таймауты
+
+### По сетевой среде
+
+- **Внутренняя сеть:** Низкий jitter (0.1), быстрые таймауты
+- **Публичный интернет:** Высокий jitter (0.3), длинные таймауты
+- **Мобильные сети:** Очень высокий jitter (0.5), очень длинные таймауты
+
+## Отладка конфигурации
+
+Включите tracing для отладки:
+
+```go
+config := httpclient.Config{
+    TracingEnabled: true,
+    // ... другие настройки
 }
 ```
 
-## Лучшие практики
-
-### 1. Начинайте с простого
-```go
-// Сначала базовая конфигурация
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(10*time.Second),
-)
-
-// Добавляйте функции по мере необходимости
-```
-
-### 2. Настраивайте под среду
-```go
-var client httpclient.ExtendedHTTPClient
-
-switch os.Getenv("ENV") {
-case "production":
-    client = createProductionClient()
-case "development":
-    client = createDevelopmentClient()
-default:
-    client = createTestClient()
-}
-```
-
-### 3. Используйте фабричные функции
-```go
-func NewAPIClient(apiToken string) (httpclient.ExtendedHTTPClient, error) {
-    return httpclient.NewClient(
-        httpclient.WithTimeout(30*time.Second),
-        httpclient.WithRetryMax(3),
-        httpclient.WithMiddleware(httpclient.NewBearerTokenMiddleware(apiToken)),
-        httpclient.WithMetrics(true),
-    )
-}
-```
-
-### 4. Документируйте конфигурацию
-```go
-// ProductionHTTPClient создает HTTP клиент для продакшн среды
-// с консервативными настройками повторов и circuit breaker
-func ProductionHTTPClient() httpclient.ExtendedHTTPClient {
-    // ...
-}
-```
-
-## См. также
-
-- [Стратегии повтора](retry-strategies.md) - Подробнее о настройке повторов
-- [Circuit Breaker](circuit-breaker.md) - Настройка автоматического выключателя
-- [Middleware](middleware.md) - Система промежуточного ПО
-- [Метрики](metrics.md) - Настройка сбора метрик
+Это поможет увидеть:
+- Реальное время выполнения запросов
+- Количество retry попыток
+- Причины ошибок
+- Эффективность backoff стратегии

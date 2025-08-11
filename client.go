@@ -1,577 +1,136 @@
+// Package httpclient provides an HTTP client with automatic metrics collection,
+// configurable retry mechanisms, and OpenTelemetry integration.
 package httpclient
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"encoding/xml"
-	"fmt"
 	"io"
 	"net/http"
 	"net/url"
-	"time"
-
-	"github.com/hashicorp/go-retryablehttp"
-	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
+	"strings"
 )
 
-// Client - основной HTTP клиент с поддержкой повтора, метрик и промежуточного ПО
+// Client представляет HTTP клиент с автоматическими метриками и retry механизмом
 type Client struct {
-	httpClient       *http.Client
-	retryClient      *retryablehttp.Client
-	options          *ClientOptions
-	middlewareChain  *MiddlewareChain
-	otelCollector    *OTelMetricsCollector
-	errorAnalyzer    *ErrorInsightsAnalyzer
-	logger           *zap.Logger
-	lastErrorInsight *ErrorInsight
+	httpClient *http.Client
+	config     Config
+	metrics    *Metrics
+	tracer     *Tracer
+	name       string
 }
 
-// NewClient создает новый HTTP клиент с заданными опциями
-func NewClient(opts ...ClientOption) (*Client, error) {
-	options := DefaultOptions()
+// New создаёт новый HTTP клиент с указанной конфигурацией
+func New(config Config, meterName string) *Client {
+	// Применяем значения по умолчанию
+	config = config.withDefaults()
 
-	// Apply options
-	for _, opt := range opts {
-		opt(options)
+	// Устанавливаем имя метера по умолчанию если не задано
+	if meterName == "" {
+		meterName = "http-client"
 	}
 
-	client := &Client{
-		options:       options,
-		logger:        options.Logger,
-		errorAnalyzer: NewErrorInsightsAnalyzer(),
+	// Инициализируем метрики
+	metrics := NewMetrics(meterName)
+
+	// Инициализируем трассировку (опционально)
+	var tracer *Tracer
+	if config.TracingEnabled {
+		tracer = NewTracer()
 	}
 
-	// Setup HTTP client
-	if options.HTTPClient != nil {
-		client.httpClient = options.HTTPClient
-	} else {
-		client.httpClient = &http.Client{
-			Timeout: options.Timeout,
-			Transport: &http.Transport{
-				MaxIdleConns:        options.MaxIdleConns,
-				MaxIdleConnsPerHost: options.MaxConnsPerHost,
-				IdleConnTimeout:     90 * time.Second,
-			},
-		}
+	// Создаём кастомный RoundTripper
+	rt := &RoundTripper{
+		base:    config.Transport,
+		config:  config,
+		metrics: metrics,
+		tracer:  tracer,
 	}
 
-	// Setup retry client
-	if options.RetryClient != nil {
-		client.retryClient = options.RetryClient
-	} else {
-		retryClient := retryablehttp.NewClient()
-		retryClient.HTTPClient = client.httpClient
-		retryClient.RetryMax = options.RetryMax
-		retryClient.RetryWaitMin = options.RetryWaitMin
-		retryClient.RetryWaitMax = options.RetryWaitMax
-		retryClient.Logger = nil // Disable default logging
-
-		// Set custom retry policy if strategy is provided
-		if options.RetryStrategy != nil {
-			retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-				return options.RetryStrategy.ShouldRetry(resp, err), nil
-			}
-			retryClient.Backoff = func(min, max time.Duration, attemptNum int, resp *http.Response) time.Duration {
-				return options.RetryStrategy.NextDelay(attemptNum, nil)
-			}
-		}
-
-		// Настройка автоматической записи retry метрик
-		client.setupRetryMetricsHooks(retryClient)
-
-		client.retryClient = retryClient
+	// Создаём HTTP клиент
+	httpClient := &http.Client{
+		Transport: rt,
+		Timeout:   config.Timeout,
 	}
 
-	// Setup middleware chain
-	middlewares := options.Middlewares
-
-	// Add circuit breaker middleware if configured
-	if options.CircuitBreaker != nil {
-		middlewares = append([]Middleware{NewCircuitBreakerMiddleware(options.CircuitBreaker)}, middlewares...)
+	return &Client{
+		httpClient: httpClient,
+		config:     config,
+		metrics:    metrics,
+		tracer:     tracer,
+		name:       meterName,
 	}
-
-	client.middlewareChain = NewMiddlewareChain(middlewares...)
-
-	// Setup OpenTelemetry metrics collector
-	if options.MetricsEnabled {
-		collector, err := NewOTelMetricsCollector(options.MetricsMeterName)
-		if err != nil {
-			return nil, fmt.Errorf("failed to create metrics collector: %w", err)
-		}
-		client.otelCollector = collector
-	}
-
-	return client, nil
 }
 
-// Do executes an HTTP request with retry, middleware, and metrics
-func (c *Client) Do(req *http.Request) (*http.Response, error) {
-	return c.DoWithContext(req.Context(), req)
-}
-
-// DoWithContext executes an HTTP request with context
-func (c *Client) DoWithContext(ctx context.Context, req *http.Request) (*http.Response, error) {
-	req = req.WithContext(ctx)
-
-	start := time.Now()
-	var resp *http.Response
-	var err error
-	var requestSize, responseSize int64
-
-	// Calculate request size
-	if req.Body != nil {
-		if req.ContentLength > 0 {
-			requestSize = req.ContentLength
-		}
-	}
-
-	// Start tracing if enabled
-	var span interface{}
-	if c.otelCollector != nil && c.options.TracingEnabled {
-		ctx, span = c.otelCollector.StartSpan(ctx, req.Method, req.URL.String())
-		req = req.WithContext(ctx)
-	}
-
-	// Передаем коллектор метрик в контекст для middleware
-	if c.otelCollector != nil {
-		ctx = context.WithValue(ctx, "otel_collector", c.otelCollector)
-		req = req.WithContext(ctx)
-	}
-
-	// Execute through middleware chain
-	resp, err = c.middlewareChain.Execute(req, c.executeRequest)
-
-	duration := time.Since(start)
-	statusCode := 0
-
-	if resp != nil {
-		statusCode = resp.StatusCode
-		if resp.ContentLength > 0 {
-			responseSize = resp.ContentLength
-		}
-	}
-
-	// Record metrics
-	if c.otelCollector != nil {
-		c.otelCollector.RecordRequest(ctx, req.Method, req.URL.String(), statusCode, duration, requestSize, responseSize)
-
-		// Автоматические connection pool метрики
-		if transport, ok := c.httpClient.Transport.(*http.Transport); ok {
-			// Приблизительное измерение соединений
-			c.otelCollector.RecordConnectionStats(ctx, 1, 0)
-			if statusCode < 500 {
-				c.otelCollector.RecordConnectionPoolHit(ctx, req.URL.String())
-			} else {
-				c.otelCollector.RecordConnectionPoolMiss(ctx, req.URL.String())
-			}
-			_ = transport // используем переменную
-		}
-	}
-
-	// Analyze errors if they occurred
-	if err != nil || (resp != nil && resp.StatusCode >= 400) {
-		insight := c.errorAnalyzer.AnalyzeError(ctx, req, resp, err)
-		// Store last error insight for analysis
-		if insight != nil {
-			c.lastErrorInsight = insight
-			ctx = context.WithValue(ctx, "error_insight", insight)
-		}
-	}
-
-	// Finish tracing
-	if span != nil {
-		if traceSpan, ok := span.(trace.Span); ok {
-			c.otelCollector.FinishSpan(traceSpan, statusCode, err)
-		}
-	}
-
-	return resp, err
-}
-
-// GetMeter returns the OpenTelemetry meter from the client's metrics collector
-func (c *Client) GetMeter() interface{} {
-	if c.otelCollector != nil {
-		return c.otelCollector.GetMeter()
-	}
-	return nil
-}
-
-// executeRequest is the final handler that executes the HTTP request
-func (c *Client) executeRequest(req *http.Request) (*http.Response, error) {
-	// Сохраняем информацию о запросе для retry метрик
-	if c.otelCollector != nil {
-		ctx := context.WithValue(req.Context(), "http_client_method", req.Method)
-		ctx = context.WithValue(ctx, "http_client_url", req.URL.String())
-		req = req.WithContext(ctx)
-	}
-
-	// Convert to retryable request
-	retryableReq, err := retryablehttp.FromRequest(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create retryable request: %w", err)
-	}
-
-	return c.retryClient.Do(retryableReq)
-}
-
-// retryTracker отслеживает retry попытки для метрик
-type retryTracker struct {
-	method  string
-	url     string
-	attempt int
-	client  *Client
-}
-
-// setupRetryMetricsHooks настраивает автоматическую запись retry метрик
-func (c *Client) setupRetryMetricsHooks(retryClient *retryablehttp.Client) {
-	if c.otelCollector == nil {
-		return
-	}
-
-	// Мапа для отслеживания попыток по уникальному ключу запроса
-	attemptMap := make(map[string]int)
-
-	// Сохраняем оригинальные функции
-	originalCheckRetry := retryClient.CheckRetry
-
-	// Переопределяем CheckRetry для подсчета retry попыток
-	retryClient.CheckRetry = func(ctx context.Context, resp *http.Response, err error) (bool, error) {
-		// Создаем уникальный ключ для отслеживания запроса
-		requestKey := fmt.Sprintf("%p", ctx) // используем адрес контекста как уникальный ID
-
-		// Увеличиваем счетчик попыток
-		attemptMap[requestKey]++
-		currentAttempt := attemptMap[requestKey]
-
-		// Анализ ошибок для каждой попытки (включая первую)
-		if c.errorAnalyzer != nil && resp != nil {
-			// Создаем фиктивный request для анализа
-			req, _ := http.NewRequestWithContext(ctx, "GET", "", nil)
-			if methodVal := ctx.Value("http_client_method"); methodVal != nil {
-				if m, ok := methodVal.(string); ok {
-					req.Method = m
-				}
-			}
-			if urlVal := ctx.Value("http_client_url"); urlVal != nil {
-				if u, ok := urlVal.(string); ok {
-					if parsedURL, parseErr := url.Parse(u); parseErr == nil {
-						req.URL = parsedURL
-					}
-				}
-			}
-
-			// Анализируем ошибку и сохраняем insight
-			insight := c.errorAnalyzer.AnalyzeError(ctx, req, resp, err)
-			if insight != nil {
-				c.lastErrorInsight = insight
-			}
-		}
-
-		// Определяем нужен ли retry
-		shouldRetry := false
-		var retryErr error
-
-		if originalCheckRetry != nil {
-			shouldRetry, retryErr = originalCheckRetry(ctx, resp, err)
-		} else {
-			// Дефолтная логика retry
-			if err != nil {
-				shouldRetry = true
-			} else if resp != nil && (resp.StatusCode == 0 || resp.StatusCode >= 500) {
-				shouldRetry = true
-			}
-		}
-
-		// Если это retry попытка (attempt > 1), записываем метрику
-		if currentAttempt > 1 {
-			method := "UNKNOWN"
-			url := "unknown"
-
-			// Извлекаем информацию о запросе из контекста
-			if methodVal := ctx.Value("http_client_method"); methodVal != nil {
-				if m, ok := methodVal.(string); ok {
-					method = m
-				}
-			}
-			if urlVal := ctx.Value("http_client_url"); urlVal != nil {
-				if u, ok := urlVal.(string); ok {
-					url = u
-				}
-			}
-
-			c.otelCollector.RecordRetry(ctx, method, url, currentAttempt, err)
-		}
-
-		// Если больше retry не нужен, очищаем счетчик
-		if !shouldRetry {
-			delete(attemptMap, requestKey)
-		}
-
-		return shouldRetry, retryErr
-	}
-
-	// Используем стандартную функцию backoff
-	// Дополнительное отслеживание через originalBackoff не требуется
-}
-
-// Get performs a GET request
-func (c *Client) Get(url string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodGet, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	return c.Do(req)
-}
-
-// Post performs a POST request
-func (c *Client) Post(url, contentType string, body io.Reader) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodPost, url, body)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("Content-Type", contentType)
-	return c.Do(req)
-}
-
-// PostForm performs a POST request with form data
-func (c *Client) PostForm(requestURL string, data map[string][]string) (*http.Response, error) {
-	form := make(url.Values)
-	for key, vals := range data {
-		for _, val := range vals {
-			form.Add(key, val)
-		}
-	}
-	return c.Post(requestURL, "application/x-www-form-urlencoded", bytes.NewBufferString(form.Encode()))
-}
-
-// Head performs a HEAD request
-func (c *Client) Head(url string) (*http.Response, error) {
-	req, err := http.NewRequest(http.MethodHead, url, nil)
-	if err != nil {
-		return nil, err
-	}
-	return c.Do(req)
-}
-
-// GetJSON performs a GET request and decodes JSON response
-func (c *Client) GetJSON(ctx context.Context, url string, result interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(result)
-}
-
-// PostJSON performs a POST request with JSON body and decodes JSON response
-func (c *Client) PostJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
-	return c.sendJSON(ctx, http.MethodPost, url, body, result)
-}
-
-// PutJSON performs a PUT request with JSON body and decodes JSON response
-func (c *Client) PutJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
-	return c.sendJSON(ctx, http.MethodPut, url, body, result)
-}
-
-// PatchJSON performs a PATCH request with JSON body and decodes JSON response
-func (c *Client) PatchJSON(ctx context.Context, url string, body interface{}, result interface{}) error {
-	return c.sendJSON(ctx, http.MethodPatch, url, body, result)
-}
-
-// DeleteJSON performs a DELETE request and decodes JSON response
-func (c *Client) DeleteJSON(ctx context.Context, url string, result interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	if result != nil {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
-}
-
-// sendJSON is a helper method for sending JSON requests
-func (c *Client) sendJSON(ctx context.Context, method, url string, body interface{}, result interface{}) error {
-	var bodyReader io.Reader
-	if body != nil {
-		jsonBody, err := json.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("failed to marshal JSON body: %w", err)
-		}
-		bodyReader = bytes.NewBuffer(jsonBody)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, method, url, bodyReader)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Accept", "application/json")
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	if result != nil {
-		return json.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
-}
-
-// GetXML performs a GET request and decodes XML response
-func (c *Client) GetXML(ctx context.Context, url string, result interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
-	if err != nil {
-		return err
-	}
-	req.Header.Set("Accept", "application/xml")
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	return xml.NewDecoder(resp.Body).Decode(result)
-}
-
-// PostXML performs a POST request with XML body and decodes XML response
-func (c *Client) PostXML(ctx context.Context, url string, body interface{}, result interface{}) error {
-	var bodyReader io.Reader
-	if body != nil {
-		xmlBody, err := xml.Marshal(body)
-		if err != nil {
-			return fmt.Errorf("failed to marshal XML body: %w", err)
-		}
-		bodyReader = bytes.NewBuffer(xmlBody)
-	}
-
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, bodyReader)
-	if err != nil {
-		return err
-	}
-
-	req.Header.Set("Content-Type", "application/xml")
-	req.Header.Set("Accept", "application/xml")
-
-	resp, err := c.Do(req)
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode >= 400 {
-		return fmt.Errorf("HTTP error: %d %s", resp.StatusCode, resp.Status)
-	}
-
-	if result != nil {
-		return xml.NewDecoder(resp.Body).Decode(result)
-	}
-
-	return nil
-}
-
-// DoCtx performs an HTTP request with context support
-func (c *Client) DoCtx(ctx context.Context, req *http.Request) (*http.Response, error) {
-	return c.Do(req.WithContext(ctx))
-}
-
-// GetCtx performs a GET request with context support
-func (c *Client) GetCtx(ctx context.Context, url string) (*http.Response, error) {
+// Get выполняет GET запрос
+func (c *Client) Get(ctx context.Context, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	return c.Do(req)
+	return c.httpClient.Do(req)
 }
 
-// PostCtx performs a POST request with context support
-func (c *Client) PostCtx(ctx context.Context, url, contentType string, body io.Reader) (*http.Response, error) {
+// Post выполняет POST запрос
+func (c *Client) Post(ctx context.Context, url, contentType string, body io.Reader) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("Content-Type", contentType)
-	return c.Do(req)
-}
-
-// PostFormCtx performs a POST request with form data and context support
-func (c *Client) PostFormCtx(ctx context.Context, requestURL string, data map[string][]string) (*http.Response, error) {
-	form := make(url.Values)
-	for key, vals := range data {
-		for _, val := range vals {
-			form.Add(key, val)
-		}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
-	return c.PostCtx(ctx, requestURL, "application/x-www-form-urlencoded", bytes.NewBufferString(form.Encode()))
+	return c.httpClient.Do(req)
 }
 
-// HeadCtx performs a HEAD request with context support
-func (c *Client) HeadCtx(ctx context.Context, url string) (*http.Response, error) {
+// Put выполняет PUT запрос
+func (c *Client) Put(ctx context.Context, url, contentType string, body io.Reader) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, body)
+	if err != nil {
+		return nil, err
+	}
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
+	}
+	return c.httpClient.Do(req)
+}
+
+// Delete выполняет DELETE запрос
+func (c *Client) Delete(ctx context.Context, url string) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
+	if err != nil {
+		return nil, err
+	}
+	return c.httpClient.Do(req)
+}
+
+// Head выполняет HEAD запрос
+func (c *Client) Head(ctx context.Context, url string) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return nil, err
 	}
-	return c.Do(req)
+	return c.httpClient.Do(req)
 }
 
-// GetOptions возвращает копию настроек клиента
-func (c *Client) GetOptions() *ClientOptions {
-	return c.options
+// Do выполняет HTTP запрос
+func (c *Client) Do(req *http.Request) (*http.Response, error) {
+	return c.httpClient.Do(req)
 }
 
-// GetMetrics returns the current metrics
-func (c *Client) GetMetrics() *ClientMetrics {
-	if c.otelCollector != nil {
-		return c.otelCollector.GetMetrics()
+// PostForm выполняет POST запрос с form data
+func (c *Client) PostForm(ctx context.Context, url string, data url.Values) (*http.Response, error) {
+	return c.Post(ctx, url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
+}
+
+// GetConfig возвращает конфигурацию клиента
+func (c *Client) GetConfig() Config {
+	return c.config
+}
+
+// Close освобождает ресурсы клиента
+func (c *Client) Close() error {
+	if c.metrics != nil {
+		return c.metrics.Close()
 	}
-	return NewClientMetrics()
-}
-
-// AnalyzeLastError returns the last error insight generated during requests
-func (c *Client) AnalyzeLastError(ctx context.Context) *ErrorInsight {
-	return c.lastErrorInsight
-}
-
-// GetErrorInsightsAnalyzer returns the error insights analyzer for custom configuration
-func (c *Client) GetErrorInsightsAnalyzer() *ErrorInsightsAnalyzer {
-	return c.errorAnalyzer
+	return nil
 }

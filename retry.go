@@ -1,268 +1,159 @@
 package httpclient
 
 import (
-	"math"
-	"net/http"
-	"slices"
-	"time"
+	"errors"
+	"net"
+	"net/url"
+	"strings"
 )
 
-// ExponentialBackoffStrategy реализует стратегию повтора с экспоненциальной задержкой
-type ExponentialBackoffStrategy struct {
-	maxAttempts int
-	baseDelay   time.Duration
-	maxDelay    time.Duration
-	multiplier  float64
+// RetryableError интерфейс для ошибок, которые можно повторить
+type RetryableError interface {
+	error
+	Retryable() bool
 }
 
-// NewExponentialBackoffStrategy создает новую стратегию экспоненциальной задержки
-func NewExponentialBackoffStrategy(maxAttempts int, baseDelay, maxDelay time.Duration) *ExponentialBackoffStrategy {
-	return &ExponentialBackoffStrategy{
-		maxAttempts: maxAttempts,
-		baseDelay:   baseDelay,
-		maxDelay:    maxDelay,
-		multiplier:  2.0,
+// retryableError обёртка для ошибок, которые можно повторить
+type retryableError struct {
+	err       error
+	retryable bool
+}
+
+func (re *retryableError) Error() string {
+	return re.err.Error()
+}
+
+func (re *retryableError) Retryable() bool {
+	return re.retryable
+}
+
+func (re *retryableError) Unwrap() error {
+	return re.err
+}
+
+// NewRetryableError создаёт новую ошибку, которую можно повторить
+func NewRetryableError(err error) error {
+	return &retryableError{
+		err:       err,
+		retryable: true,
 	}
 }
 
-// NextDelay вычисляет следующую задержку на основе экспоненциального отката
-// Параметр lastErr не используется в этой стратегии
-func (e *ExponentialBackoffStrategy) NextDelay(attempt int, _ error) time.Duration {
-	if attempt <= 0 {
-		return e.baseDelay
-	}
-
-	delay := float64(e.baseDelay) * math.Pow(e.multiplier, float64(attempt-1))
-
-	if delay > float64(e.maxDelay) {
-		return e.maxDelay
-	}
-
-	return time.Duration(delay)
-}
-
-// ShouldRetry определяет, следует ли повторить запрос (ExponentialBackoff)
-func (e *ExponentialBackoffStrategy) ShouldRetry(resp *http.Response, err error) bool {
-	// Повтор при сетевых ошибках
-	if err != nil {
-		return true
-	}
-
-	// Повтор при определенных HTTP кодах состояния
-	if resp != nil {
-		switch resp.StatusCode {
-		case http.StatusTooManyRequests,
-			http.StatusInternalServerError,
-			http.StatusBadGateway,
-			http.StatusServiceUnavailable,
-			http.StatusGatewayTimeout:
-			return true
-		}
-	}
-
-	return false
-}
-
-// MaxAttempts возвращает максимальное количество попыток
-func (e *ExponentialBackoffStrategy) MaxAttempts() int {
-	return e.maxAttempts
-}
-
-// FixedDelayStrategy реализует стратегию повтора с фиксированной задержкой
-type FixedDelayStrategy struct {
-	maxAttempts int
-	delay       time.Duration
-}
-
-// NewFixedDelayStrategy создает новую стратегию фиксированной задержки
-func NewFixedDelayStrategy(maxAttempts int, delay time.Duration) *FixedDelayStrategy {
-	return &FixedDelayStrategy{
-		maxAttempts: maxAttempts,
-		delay:       delay,
+// NewNonRetryableError создаёт новую ошибку, которую нельзя повторить
+func NewNonRetryableError(err error) error {
+	return &retryableError{
+		err:       err,
+		retryable: false,
 	}
 }
 
-// NextDelay возвращает фиксированную задержку
-// Параметры attempt и lastErr не используются в этой стратегии
-func (f *FixedDelayStrategy) NextDelay(_ int, _ error) time.Duration {
-	return f.delay
-}
-
-// ShouldRetry определяет, следует ли повторить запрос (FixedDelay)
-func (f *FixedDelayStrategy) ShouldRetry(resp *http.Response, err error) bool {
-	// Повтор при сетевых ошибках
-	if err != nil {
-		return true
-	}
-
-	// Повтор при определенных HTTP кодах состояния
-	if resp != nil {
-		switch resp.StatusCode {
-		case http.StatusTooManyRequests,
-			http.StatusInternalServerError,
-			http.StatusBadGateway,
-			http.StatusServiceUnavailable,
-			http.StatusGatewayTimeout:
-			return true
-		}
-	}
-
-	return false
-}
-
-// MaxAttempts возвращает максимальное количество попыток
-func (f *FixedDelayStrategy) MaxAttempts() int {
-	return f.maxAttempts
-}
-
-// CustomRetryStrategy позволяет создавать пользовательскую стратегию повтора
-type CustomRetryStrategy struct {
-	maxAttempts   int
-	shouldRetryFn func(resp *http.Response, err error) bool
-	nextDelayFn   func(attempt int, lastErr error) time.Duration
-}
-
-// NewCustomRetryStrategy создает новую пользовательскую стратегию повтора
-func NewCustomRetryStrategy(maxAttempts int, shouldRetry func(resp *http.Response, err error) bool, nextDelay func(attempt int, lastErr error) time.Duration) *CustomRetryStrategy {
-	return &CustomRetryStrategy{
-		maxAttempts:   maxAttempts,
-		shouldRetryFn: shouldRetry,
-		nextDelayFn:   nextDelay,
-	}
-}
-
-// NextDelay вычисляет следующую задержку с использованием пользовательской функции
-func (c *CustomRetryStrategy) NextDelay(attempt int, lastErr error) time.Duration {
-	if c.nextDelayFn == nil {
-		return time.Second
-	}
-	return c.nextDelayFn(attempt, lastErr)
-}
-
-// ShouldRetry определяет, следует ли повторить запрос с использованием пользовательской функции
-func (c *CustomRetryStrategy) ShouldRetry(resp *http.Response, err error) bool {
-	if c.shouldRetryFn == nil {
+// IsRetryableError проверяет, можно ли повторить ошибку
+func IsRetryableError(err error) bool {
+	if err == nil {
 		return false
 	}
-	return c.shouldRetryFn(resp, err)
-}
 
-// MaxAttempts возвращает максимальное количество попыток
-func (c *CustomRetryStrategy) MaxAttempts() int {
-	return c.maxAttempts
-}
-
-// RetryableHTTPCodes содержит HTTP коды состояния, для которых следует повторить запрос
-var RetryableHTTPCodes = []int{
-	http.StatusTooManyRequests,
-	http.StatusInternalServerError,
-	http.StatusBadGateway,
-	http.StatusServiceUnavailable,
-	http.StatusGatewayTimeout,
-}
-
-// IsRetryableStatusCode проверяет, является ли статус код подходящим для повтора
-func IsRetryableStatusCode(statusCode int) bool {
-	return slices.Contains(RetryableHTTPCodes, statusCode)
-}
-
-// SmartRetryStrategy адаптивная стратегия повтора, которая анализирует историю ошибок
-type SmartRetryStrategy struct {
-	maxAttempts  int
-	errorHistory []error
-	delayHistory []time.Duration
-	baseDelay    time.Duration
-	maxDelay     time.Duration
-}
-
-// NewSmartRetryStrategy создает новую адаптивную стратегию повтора
-func NewSmartRetryStrategy(maxAttempts int, baseDelay, maxDelay time.Duration) *SmartRetryStrategy {
-	return &SmartRetryStrategy{
-		maxAttempts:  maxAttempts,
-		errorHistory: make([]error, 0, maxAttempts),
-		delayHistory: make([]time.Duration, 0, maxAttempts),
-		baseDelay:    baseDelay,
-		maxDelay:     maxDelay,
-	}
-}
-
-// NextDelay вычисляет адаптивную задержку на основе истории ошибок
-func (s *SmartRetryStrategy) NextDelay(attempt int, lastErr error) time.Duration {
-	if attempt <= 0 {
-		return s.baseDelay
+	var retryableErr RetryableError
+	if errors.As(err, &retryableErr) {
+		return retryableErr.Retryable()
 	}
 
-	// Добавляем ошибку в историю
-	s.errorHistory = append(s.errorHistory, lastErr)
+	// Проверяем стандартные типы ошибок
+	return isNetworkRetryableError(err) || isTimeoutRetryableError(err)
+}
 
-	// Адаптивный расчет задержки на основе паттернов ошибок
-	multiplier := 2.0
-	if len(s.delayHistory) > 0 {
-		// Анализируем предыдущие задержки для оптимизации
-		avgDelay := s.calculateAverageDelay()
-		if avgDelay > s.baseDelay {
-			multiplier = 1.5 // Уменьшаем агрессивность роста
+// isNetworkRetryableError проверяет, является ли сетевая ошибка повторяемой
+func isNetworkRetryableError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Проверяем net.Error
+	var netErr net.Error
+	if errors.As(err, &netErr) {
+		// Временные ошибки можно повторить
+		if netErr.Temporary() {
+			return true
 		}
 	}
 
-	delay := time.Duration(float64(s.baseDelay) * math.Pow(multiplier, float64(attempt-1)))
-
-	// Ограничиваем задержку диапазоном
-	adaptiveDelay := delay
-	if adaptiveDelay > s.maxDelay {
-		adaptiveDelay = s.maxDelay
-	}
-	if adaptiveDelay < s.baseDelay {
-		adaptiveDelay = s.baseDelay
+	// Проверяем url.Error
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return isNetworkRetryableError(urlErr.Err)
 	}
 
-	s.delayHistory = append(s.delayHistory, adaptiveDelay)
+	errStr := err.Error()
 
-	return adaptiveDelay
-}
-
-// ShouldRetry определяет, следует ли повторить запрос на основе адаптивного анализа
-func (s *SmartRetryStrategy) ShouldRetry(resp *http.Response, err error) bool {
-	if err != nil {
-		return true
+	// Проверяем специфические сетевые ошибки
+	retryableErrors := []string{
+		"connection reset",
+		"broken pipe",
+		"connection refused",
+		"no such host",
+		"network is unreachable",
+		"connection timed out",
 	}
 
-	if resp != nil {
-		return IsRetryableStatusCode(resp.StatusCode)
+	for _, retryableErr := range retryableErrors {
+		if strings.Contains(errStr, retryableErr) {
+			return true
+		}
 	}
 
 	return false
 }
 
-// MaxAttempts возвращает максимальное количество попыток
-func (s *SmartRetryStrategy) MaxAttempts() int {
-	return s.maxAttempts
-}
-
-// calculateAverageDelay вычисляет среднюю задержку из истории
-func (s *SmartRetryStrategy) calculateAverageDelay() time.Duration {
-	if len(s.delayHistory) == 0 {
-		return s.baseDelay
+// isTimeoutRetryableError проверяет, является ли ошибка таймаута повторяемой
+func isTimeoutRetryableError(err error) bool {
+	if err == nil {
+		return false
 	}
 
-	var total time.Duration
-	for _, delay := range s.delayHistory {
-		total += delay
+	// Проверяем net.Error на таймаут
+	var netErr net.Error
+	if errors.As(err, &netErr) && netErr.Timeout() {
+		return true
 	}
 
-	return total / time.Duration(len(s.delayHistory))
+	// Проверяем url.Error
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return isTimeoutRetryableError(urlErr.Err)
+	}
+
+	errStr := err.Error()
+
+	// Проверяем строки, связанные с таймаутом
+	timeoutErrors := []string{
+		"timeout",
+		"deadline exceeded",
+		"context deadline exceeded",
+		"request timeout",
+	}
+
+	for _, timeoutErr := range timeoutErrors {
+		if strings.Contains(errStr, timeoutErr) {
+			return true
+		}
+	}
+
+	return false
 }
 
-// GetErrorHistory возвращает историю ошибок (читаемую копию)
-func (s *SmartRetryStrategy) GetErrorHistory() []error {
-	result := make([]error, len(s.errorHistory))
-	copy(result, s.errorHistory)
-	return result
-}
+// ClassifyError классифицирует ошибку для целей retry
+func ClassifyError(err error) string {
+	if err == nil {
+		return ""
+	}
 
-// GetDelayHistory возвращает историю задержек (читаемую копию)
-func (s *SmartRetryStrategy) GetDelayHistory() []time.Duration {
-	result := make([]time.Duration, len(s.delayHistory))
-	copy(result, s.delayHistory)
-	return result
+	if isTimeoutRetryableError(err) {
+		return "timeout"
+	}
+
+	if isNetworkRetryableError(err) {
+		return "net"
+	}
+
+	return "other"
 }

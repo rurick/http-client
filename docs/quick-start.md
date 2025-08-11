@@ -1,6 +1,10 @@
 # Быстрый старт
 
+Этот раздел поможет вам быстро начать использовать HTTP клиент пакет.
+
 ## Установка
+
+Пакет является частью внутренней экосистемы CityDrive и доступен через внутренний GitLab:
 
 ```bash
 go get gitlab.citydrive.tech/back-end/go/pkg/http-client
@@ -8,139 +12,313 @@ go get gitlab.citydrive.tech/back-end/go/pkg/http-client
 
 ## Базовое использование
 
-### Создание простого клиента (РЕКОМЕНДУЕМЫЙ способ)
-
-**Всегда используйте контекстные методы для лучшего контроля!**
+### Простой HTTP клиент
 
 ```go
 package main
 
 import (
     "context"
-    "fmt"
     "log"
-    "time"
-    
     httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
 func main() {
-    // Создание нового клиента с настройками по умолчанию
-    client, err := httpclient.NewClient()
-    if err != nil {
-        log.Fatal(err)
-    }
+    // Создание клиента с настройками по умолчанию
+    client := httpclient.New(httpclient.Config{}, "my-service")
+    defer client.Close()
     
-    // Создание контекста с таймаутом (ОБЯЗАТЕЛЬНО!)
-    ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-    defer cancel()
-    
-    // Выполнение GET запроса с контекстом (РЕКОМЕНДУЕТСЯ)
-    resp, err := client.GetCtx(ctx, "https://api.example.com/data")
+    // GET запрос
+    resp, err := client.Get(context.Background(), "https://api.example.com/users")
     if err != nil {
         log.Fatal(err)
     }
     defer resp.Body.Close()
     
-    fmt.Printf("Статус: %s\n", resp.Status)
+    // Чтение ответа
+    body, err := io.ReadAll(resp.Body)
+    if err != nil {
+        log.Fatal(err)
+    }
+    
+    fmt.Printf("Response: %s\n", body)
 }
 ```
 
-### Устаревший способ (НЕ рекомендуется)
+### POST запрос с JSON
 
 ```go
-// Старый способ без контекста - используйте только для legacy кода
-resp, err := client.Get("https://api.example.com/data")
-```
-
-### Клиент с пользовательской конфигурацией
-
-```go
-client, err := httpclient.NewClient(
-    httpclient.WithTimeout(10*time.Second),
-    httpclient.WithRetryMax(5),
-    httpclient.WithMetrics(true),
-    httpclient.WithCircuitBreaker(httpclient.NewSimpleCircuitBreaker()),
-)
-```
-
-### JSON запросы (с контекстом)
-
-```go
-// Создание контекста с таймаутом
-ctx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
-defer cancel()
-
-// GET JSON
-var result map[string]any
-err := client.GetJSON(ctx, "https://api.example.com/data", &result)
-
-// POST JSON
-data := map[string]string{"key": "value"}
-var response map[string]any
-err := client.PostJSON(ctx, "https://api.example.com/submit", data, &response)
-```
-
-## Основные HTTP методы (с контекстом - РЕКОМЕНДУЕТСЯ)
-
-```go
-ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-defer cancel()
-
-// GET запрос
-resp, err := client.GetCtx(ctx, "https://api.example.com/users")
-
-// POST запрос
-resp, err := client.PostCtx(ctx, "https://api.example.com/users", "application/json", body)
-
-// POST форма
-formData := map[string][]string{
-    "name": {"John Doe"},
-    "email": {"john@example.com"},
+func createUser(client *httpclient.Client) error {
+    userData := `{
+        "name": "John Doe",
+        "email": "john@example.com"
+    }`
+    
+    resp, err := client.Post(
+        context.Background(),
+        "https://api.example.com/users",
+        "application/json",
+        strings.NewReader(userData),
+    )
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    
+    if resp.StatusCode != 201 {
+        return fmt.Errorf("unexpected status: %d", resp.StatusCode)
+    }
+    
+    return nil
 }
-resp, err := client.PostFormCtx(ctx, "https://api.example.com/users", formData)
-
-// HEAD запрос
-resp, err := client.HeadCtx(ctx, "https://api.example.com/users/1")
 ```
 
-### Устаревшие методы (используйте только для legacy кода)
+### Использование с контекстом и таймаутом
 
 ```go
-// Старые методы без контекста - НЕ рекомендуются
-resp, err := client.Get("https://api.example.com/users")
-resp, err := client.Post("https://api.example.com/users", "application/json", body)
+func fetchWithTimeout() error {
+    client := httpclient.New(httpclient.Config{
+        Timeout: 10 * time.Second,
+    }, "api-client")
+    defer client.Close()
+    
+    // Создание контекста с таймаутом
+    ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+    defer cancel()
+    
+    resp, err := client.Get(ctx, "https://slow-api.example.com/data")
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    
+    return nil
+}
+```
 
-// DELETE запрос
-resp, err := client.Delete("https://api.example.com/users/1")
+## Конфигурация с retry
+
+### Базовые retry настройки
+
+```go
+func createRetryClient() *httpclient.Client {
+    config := httpclient.Config{
+        Timeout:       30 * time.Second,
+        PerTryTimeout: 5 * time.Second,
+        RetryConfig: httpclient.RetryConfig{
+            MaxAttempts: 3,
+            BaseDelay:   100 * time.Millisecond,
+            MaxDelay:    5 * time.Second,
+            Jitter:      0.2,
+        },
+    }
+    
+    return httpclient.New(config, "retry-client")
+}
+```
+
+### Идемпотентные операции
+
+```go
+func updateResource(client *httpclient.Client, id string, data string) error {
+    // PUT запросы автоматически повторяются
+    resp, err := client.Put(
+        context.Background(),
+        fmt.Sprintf("https://api.example.com/resources/%s", id),
+        "application/json",
+        strings.NewReader(data),
+    )
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    
+    return nil
+}
+```
+
+### POST с Idempotency-Key
+
+```go
+func createPayment(client *httpclient.Client, paymentData string) error {
+    req, err := http.NewRequestWithContext(
+        context.Background(),
+        "POST",
+        "https://api.payment.com/payments",
+        strings.NewReader(paymentData),
+    )
+    if err != nil {
+        return err
+    }
+    
+    // Добавление Idempotency-Key позволяет повторять POST запросы
+    req.Header.Set("Idempotency-Key", "payment-12345")
+    req.Header.Set("Content-Type", "application/json")
+    
+    resp, err := client.Do(req)
+    if err != nil {
+        return err
+    }
+    defer resp.Body.Close()
+    
+    return nil
+}
 ```
 
 ## Обработка ошибок
 
+### Проверка типов ошибок
+
 ```go
-client, err := httpclient.NewClient(
-    httpclient.WithRetryMax(3), // Включить повторы
-)
-if err != nil {
-    log.Fatal("Ошибка создания клиента:", err)
+func handleErrors(client *httpclient.Client) {
+    resp, err := client.Get(context.Background(), "https://api.example.com/data")
+    if err != nil {
+        // Проверка на ошибки после исчерпания retry попыток
+        if retryableErr, ok := err.(*httpclient.RetryableError); ok {
+            log.Printf("Запрос не удался после %d попыток: %v", 
+                retryableErr.Attempts, retryableErr.Err)
+            return
+        }
+        
+        // Ошибки, которые не подлежат повтору
+        if nonRetryableErr, ok := err.(*httpclient.NonRetryableError); ok {
+            log.Printf("Неповторяемая ошибка: %v", nonRetryableErr.Err)
+            return
+        }
+        
+        // Другие ошибки
+        log.Printf("Общая ошибка: %v", err)
+        return
+    }
+    defer resp.Body.Close()
+    
+    // Проверка статус кода
+    if resp.StatusCode >= 400 {
+        log.Printf("HTTP ошибка: %d", resp.StatusCode)
+        return
+    }
+}
+```
+
+## Monitoring и Observability
+
+### Включение tracing
+
+```go
+func createTracedClient() *httpclient.Client {
+    config := httpclient.Config{
+        TracingEnabled: true,
+        Timeout:        15 * time.Second,
+    }
+    
+    return httpclient.New(config, "traced-service")
+}
+```
+
+### Метрики автоматически собираются
+
+Пакет автоматически собирает метрики Prometheus:
+- Количество запросов
+- Латентность
+- Ошибки и retry попытки
+- Размеры запросов/ответов
+- Активные соединения
+
+Никаких дополнительных настроек не требуется!
+
+## Распространенные паттерны
+
+### Клиент для микросервиса
+
+```go
+type UserService struct {
+    client *httpclient.Client
 }
 
-resp, err := client.Get("https://api.example.com/data")
-if err != nil {
-    log.Printf("Ошибка запроса: %v", err)
-    return
+func NewUserService() *UserService {
+    config := httpclient.Config{
+        Timeout: 10 * time.Second,
+        RetryConfig: httpclient.RetryConfig{
+            MaxAttempts: 2,
+            BaseDelay:   50 * time.Millisecond,
+            MaxDelay:    1 * time.Second,
+        },
+        TracingEnabled: true,
+    }
+    
+    return &UserService{
+        client: httpclient.New(config, "user-service"),
+    }
 }
-defer resp.Body.Close()
 
-if resp.StatusCode >= 400 {
-    log.Printf("HTTP ошибка: %s", resp.Status)
-    return
+func (s *UserService) GetUser(ctx context.Context, id string) (*User, error) {
+    resp, err := s.client.Get(ctx, fmt.Sprintf("/users/%s", id))
+    if err != nil {
+        return nil, err
+    }
+    defer resp.Body.Close()
+    
+    var user User
+    if err := json.NewDecoder(resp.Body).Decode(&user); err != nil {
+        return nil, err
+    }
+    
+    return &user, nil
+}
+
+func (s *UserService) Close() error {
+    return s.client.Close()
+}
+```
+
+### Внешний API клиент
+
+```go
+func createExternalAPIClient() *httpclient.Client {
+    config := httpclient.Config{
+        Timeout:       30 * time.Second,
+        PerTryTimeout: 10 * time.Second,
+        RetryConfig: httpclient.RetryConfig{
+            MaxAttempts: 5,
+            BaseDelay:   200 * time.Millisecond,
+            MaxDelay:    10 * time.Second,
+            Jitter:      0.3,
+        },
+        TracingEnabled: true,
+        
+        // Пользовательский transport при необходимости
+        Transport: &http.Transport{
+            MaxIdleConns:       100,
+            IdleConnTimeout:    90 * time.Second,
+            DisableCompression: false,
+        },
+    }
+    
+    return httpclient.New(config, "external-api")
 }
 ```
 
 ## Следующие шаги
 
-- [Настройка стратегий повтора](retry-strategies.md)
-- [Конфигурация клиента](configuration.md)
-- [Примеры использования](examples.md)
-- [Middleware система](middleware.md)
+После освоения базового использования изучите:
+
+- [Конфигурация](configuration.md) - Детальные настройки клиента
+- [Метрики](metrics.md) - Monitoring и alerting
+- [Тестирование](testing.md) - Mock utilities и тестовые сервера
+- [Лучшие практики](best-practices.md) - Рекомендации для продакшена
+
+## Частые вопросы
+
+**Q: Как настроить custom headers для всех запросов?**
+
+A: Используйте пользовательский Transport или добавляйте headers к каждому запросу через http.Request.
+
+**Q: Можно ли отключить retry для конкретного запроса?**
+
+A: Установите MaxAttempts = 1 в конфигурации или создайте отдельный клиент.
+
+**Q: Как логировать все HTTP запросы?**
+
+A: Включите TracingEnabled: true и настройте OpenTelemetry logging экспорт.
+
+Больше ответов в разделе [Troubleshooting](troubleshooting.md).
