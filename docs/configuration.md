@@ -8,6 +8,7 @@ HTTP клиент пакет предлагает комплексные воз�
 type Config struct {
     Timeout         time.Duration    // Общий таймаут запроса
     PerTryTimeout   time.Duration    // Таймаут на каждую попытку
+    RetryEnabled    bool             // Включает/выключает retry механизм  
     RetryConfig     RetryConfig      // Конфигурация повторов
     TracingEnabled  bool             // Включить OpenTelemetry tracing
     Transport       http.RoundTripper // Пользовательский транспорт
@@ -36,6 +37,19 @@ config := httpclient.Config{
 config := httpclient.Config{
     PerTryTimeout: 5 * time.Second, // Каждая попытка до 5 секунд
 }
+```
+
+### RetryEnabled (Включает/выключает retry механизм )
+- **Тип:** `bool`
+- **По умолчанию:** `false`
+- **Описание:** Включает/выключает retry механизм
+
+```go
+config := httpclient.Config{
+	RetryEnabled: true,
+}
+
+client := httpclient.New(config, "httpclient")
 ```
 
 ### TracingEnabled (Включение tracing)

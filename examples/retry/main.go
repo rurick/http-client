@@ -22,6 +22,7 @@ func main() {
 			Jitter:      0.3,                    // 30% jitter для избежания thundering herd
 		},
 		TracingEnabled: true,
+		RetryEnabled:   true,
 		Transport:      http.DefaultTransport,
 	}
 
