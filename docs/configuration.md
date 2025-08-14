@@ -88,6 +88,9 @@ type RetryConfig struct {
     BaseDelay   time.Duration // Базовая задержка для backoff
     MaxDelay    time.Duration // Максимальная задержка
     Jitter      float64       // Фактор джиттера (0.0-1.0)
+    RetryMethods []string     // список HTTP методов для retry
+    RetryStatusCodes []int   // список HTTP статусов для retry
+    RespectRetryAfter bool    // учитывать заголовок Retry-After
 }
 ```
 
@@ -133,6 +136,39 @@ RetryConfig{
 ```go
 RetryConfig{
     Jitter: 0.3, // ±30% случайного отклонения
+}
+```
+
+### RetryMethods (HTTP методы для retry)
+- **Тип:** `[]string`
+- **По умолчанию:** `["GET", "HEAD", "OPTIONS", "PUT", "DELETE"]`
+- **Описание:** Список HTTP методов, для которых будет выполняться retry. По умолчанию включены только идемпотентные методы. POST и PATCH будут повторяться только при наличии заголовка `Idempotency-Key`
+
+```go
+RetryConfig{
+    RetryMethods: []string{"GET", "POST", "PUT"}, // Кастомный список методов
+}
+```
+
+### RetryStatusCodes (HTTP статус коды для retry)
+- **Тип:** `[]int`
+- **По умолчанию:** `[429, 500, 502, 503, 504]`
+- **Описание:** Список HTTP статус кодов, при получении которых будет выполняться retry. Включает временные серверные ошибки и rate limiting
+
+```go
+RetryConfig{
+    RetryStatusCodes: []int{429, 500, 502, 503}, // Исключить 504 Gateway Timeout
+}
+```
+
+### RespectRetryAfter (Учет заголовка Retry-After)
+- **Тип:** `bool`
+- **По умолчанию:** `true`
+- **Описание:** При значении `true` клиент будет учитывать заголовок `Retry-After` в ответах сервера и ждать указанное время перед повторной попыткой. Имеет приоритет над стандартным backoff алгоритмом
+
+```go
+RetryConfig{
+    RespectRetryAfter: false, // Игнорировать Retry-After, использовать только backoff
 }
 ```
 
