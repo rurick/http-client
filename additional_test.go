@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 // Additional tests to boost coverage to 75%+
@@ -32,12 +34,11 @@ func TestClientPost(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 201 {
-		t.Errorf("Expected status 201, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, resp.StatusCode, 201, "Expected status code 201")
 }
 
 func TestClientPut(t *testing.T) {
+	t.Parallel()
 	server := NewTestServer(
 		TestResponse{
 			StatusCode: 200,
@@ -56,12 +57,11 @@ func TestClientPut(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, resp.StatusCode, 200, "Expected status code 200")
 }
 
 func TestClientDelete(t *testing.T) {
+	t.Parallel()
 	server := NewTestServer(
 		TestResponse{StatusCode: 204},
 	)
@@ -76,12 +76,11 @@ func TestClientDelete(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 204 {
-		t.Errorf("Expected status 204, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, resp.StatusCode, 204, "Expected status code 204")
 }
 
 func TestClientHead(t *testing.T) {
+	t.Parallel()
 	server := NewTestServer(
 		TestResponse{
 			StatusCode: 200,
@@ -99,25 +98,19 @@ func TestClientHead(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
-
-	if resp.Header.Get("Content-Length") != "123" {
-		t.Errorf("Expected Content-Length 123, got %s", resp.Header.Get("Content-Length"))
-	}
+	assert.Equal(t, resp.StatusCode, 200, "Expected status code 200")
+	assert.Equal(t, resp.ContentLength, int64(123), "Expected Content-Length 123")
 }
 
 func TestConfigurationError(t *testing.T) {
+	t.Parallel()
 	err := NewConfigurationError("timeout", -1, "must be positive")
 	expected := "configuration error in field 'timeout': must be positive (value: -1)"
-
-	if err.Error() != expected {
-		t.Errorf("Expected %s, got %s", expected, err.Error())
-	}
+	assert.Equal(t, expected, err.Error())
 }
 
 func TestClientWithTracingEnabled(t *testing.T) {
+	t.Parallel()
 	server := NewTestServer(
 		TestResponse{StatusCode: 200, Body: "OK"},
 	)
@@ -135,12 +128,11 @@ func TestClientWithTracingEnabled(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		t.Errorf("Expected status 200, got %d", resp.StatusCode)
-	}
+	assert.Equal(t, resp.StatusCode, 200, "Expected status code 200")
 }
 
 func TestClientWithCustomTransport(t *testing.T) {
+	t.Parallel()
 	mock := NewMockRoundTripper()
 	mock.AddResponse(&http.Response{
 		StatusCode: 200,
@@ -160,12 +152,11 @@ func TestClientWithCustomTransport(t *testing.T) {
 	defer resp.Body.Close()
 
 	body, _ := io.ReadAll(resp.Body)
-	if string(body) != "custom response" {
-		t.Errorf("Expected 'custom response', got %s", string(body))
-	}
+	assert.Equal(t, string(body), "custom response", "Expected 'custom response'")
 }
 
 func TestClientWithMaxResponseBytes(t *testing.T) {
+	t.Parallel()
 	maxBytes := int64(100)
 	config := Config{
 		MaxResponseBytes: &maxBytes,
@@ -190,12 +181,11 @@ func TestClientWithMaxResponseBytes(t *testing.T) {
 
 	// This test just validates the config is applied
 	body, _ := io.ReadAll(resp.Body)
-	if len(body) == 0 {
-		t.Error("Response body should not be empty")
-	}
+	assert.NotEqual(t, 0, len(body), "Response body should not be empty")
 }
 
 func TestClientWithRetryEnabled(t *testing.T) {
+	t.Parallel()
 	server := NewTestServer()
 	server.AddResponse(TestResponse{StatusCode: 500})
 	server.AddResponse(TestResponse{StatusCode: 200, Body: "success"})
@@ -218,16 +208,12 @@ func TestClientWithRetryEnabled(t *testing.T) {
 	}
 	defer resp.Body.Close()
 
-	if resp.StatusCode != 200 {
-		t.Errorf("Expected status 200 after retry, got %d", resp.StatusCode)
-	}
-
-	if server.GetRequestCount() != 2 {
-		t.Errorf("Expected 2 requests, got %d", server.GetRequestCount())
-	}
+	assert.Equal(t, resp.StatusCode, 200, "Expected status code 200 after retry")
+	assert.Equal(t, server.GetRequestCount(), 2, "Expected 2 requests")
 }
 
 func TestRetryConfigValidation(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name   string
 		config RetryConfig
@@ -254,20 +240,18 @@ func TestRetryConfigValidation(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 			result := tt.config.withDefaults()
 
 			// Basic validation that defaults are applied
-			if result.MaxAttempts == 0 {
-				t.Error("MaxAttempts should have default value")
-			}
-			if result.BaseDelay == 0 {
-				t.Error("BaseDelay should have default value")
-			}
+			assert.NotEqual(t, result.MaxAttempts, 0, "MaxAttempts should have default value")
+			assert.NotEqual(t, result.BaseDelay, 0, "BaseDelay should have default value")
 		})
 	}
 }
 
 func TestTracerMethods(t *testing.T) {
+	t.Parallel()
 	tracer := NewTracer()
 
 	ctx := context.Background()
@@ -276,7 +260,5 @@ func TestTracerMethods(t *testing.T) {
 
 	// Test SpanFromContext
 	retrievedSpan := tracer.SpanFromContext(newCtx)
-	if retrievedSpan == nil {
-		t.Error("SpanFromContext returned nil")
-	}
+	assert.NotNil(t, retrievedSpan, "SpanFromContext should return a non-nil span")
 }

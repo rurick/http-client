@@ -36,6 +36,7 @@ func TestClient_NewWithDefaults(t *testing.T) {
 }
 
 func TestClient_Get(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			t.Errorf("expected GET method, got %s", r.Method)
@@ -69,6 +70,7 @@ func TestClient_Get(t *testing.T) {
 }
 
 func TestClient_Post(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodPost {
 			t.Errorf("expected POST method, got %s", r.Method)
@@ -108,6 +110,7 @@ func TestClient_Post(t *testing.T) {
 }
 
 func TestClient_WithRetry(t *testing.T) {
+	t.Parallel()
 	attempts := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
@@ -151,6 +154,7 @@ func TestClient_WithRetry(t *testing.T) {
 }
 
 func TestClient_ContextCancellation(t *testing.T) {
+	t.Parallel()
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond)
 		w.WriteHeader(http.StatusOK)
@@ -173,6 +177,7 @@ func TestClient_ContextCancellation(t *testing.T) {
 }
 
 func TestClient_Close(t *testing.T) {
+	t.Parallel()
 	client := New(Config{}, "test-client")
 
 	err := client.Close()
@@ -182,6 +187,7 @@ func TestClient_Close(t *testing.T) {
 }
 
 func TestClient_GetConfig(t *testing.T) {
+	t.Parallel()
 	originalConfig := Config{
 		Timeout:       10 * time.Second,
 		PerTryTimeout: 3 * time.Second,
