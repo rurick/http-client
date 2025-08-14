@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/sdk/metric"
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
@@ -165,18 +166,12 @@ func TestMetricsWithIdempotency(t *testing.T) {
 
 	// Проверяем что сделано 2 запроса (503 + 201)
 	requestCount := server.GetRequestCount()
-	t.Logf("Request count for idempotency test: %d", requestCount)
-
-	if requestCount != 2 {
-		t.Logf("Warning: expected 2 requests, got %d - retry may not have triggered", requestCount)
-	}
+	assert.Equal(t, 2, requestCount, "Expected 2 requests, got %d", requestCount)
 
 	// Проверяем метрики
 	rm := &metricdata.ResourceMetrics{}
 	err = reader.Collect(ctx, rm)
-	if err != nil {
-		t.Fatalf("failed to collect metrics: %v", err)
-	}
+	assert.NoError(t, err, "failed to collect metrics")
 
 	assertMetricExists(t, rm, "http_client_requests_total")
 	assertMetricExists(t, rm, "http_client_retries_total")
@@ -281,7 +276,7 @@ func assertMetricExists(t *testing.T, rm *metricdata.ResourceMetrics, metricName
 		}
 	}
 
-	t.Errorf("metric %s not found in collected metrics", metricName)
+	assert.Fail(t, "metric not found in collected metrics", metricName)
 }
 
 // TestMetricsLabels проверяет что метрики содержат правильные лейблы
@@ -331,28 +326,18 @@ func TestMetricsLabels(t *testing.T) {
 							switch kv.Key {
 							case "method":
 								hasMethod = true
-								if kv.Value.AsString() != "GET" {
-									t.Errorf("expected method=GET, got %s", kv.Value.AsString())
-								}
+								assert.Equal(t, "GET", kv.Value.AsString(), "expected method=GET")
 							case "host":
 								hasHost = true
 							case "status":
 								hasStatus = true
-								if kv.Value.AsString() != "404" {
-									t.Errorf("expected status=404, got %s", kv.Value.AsString())
-								}
+								assert.Equal(t, "404", kv.Value.AsString(), "expected status=404")
 							}
 						}
 
-						if !hasMethod {
-							t.Error("missing method attribute in metrics")
-						}
-						if !hasHost {
-							t.Error("missing host attribute in metrics")
-						}
-						if !hasStatus {
-							t.Error("missing status attribute in metrics")
-						}
+						assert.True(t, hasMethod, "missing method attribute")
+						assert.True(t, hasHost, "missing host attribute")
+						assert.True(t, hasStatus, "missing status attribute")
 					}
 				}
 			}
