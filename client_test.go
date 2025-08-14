@@ -8,9 +8,12 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestClient_New(t *testing.T) {
+	t.Parallel()
 	config := Config{
 		Timeout:       10 * time.Second,
 		PerTryTimeout: 3 * time.Second,
@@ -18,33 +21,18 @@ func TestClient_New(t *testing.T) {
 
 	client := New(config, "test-client")
 
-	if client == nil {
-		t.Fatal("expected client to be created")
-	}
-
-	if client.config.Timeout != 10*time.Second {
-		t.Errorf("expected timeout to be 10s, got %v", client.config.Timeout)
-	}
-
-	if client.config.PerTryTimeout != 3*time.Second {
-		t.Errorf("expected per-try timeout to be 3s, got %v", client.config.PerTryTimeout)
-	}
+	assert.NotNil(t, client, "expected client to be created")
+	assert.Equal(t, client.config.Timeout, 10*time.Second, "expected timeout to be 10s, got %")
+	assert.Equal(t, client.config.PerTryTimeout, 3*time.Second, "expected per-try timeout to be 3s")
 }
 
 func TestClient_NewWithDefaults(t *testing.T) {
+	t.Parallel()
 	client := New(Config{}, "test-client")
 
-	if client.config.Timeout != 5*time.Second {
-		t.Errorf("expected default timeout to be 5s, got %v", client.config.Timeout)
-	}
-
-	if client.config.PerTryTimeout != 2*time.Second {
-		t.Errorf("expected default per-try timeout to be 2s, got %v", client.config.PerTryTimeout)
-	}
-
-	if client.config.RetryEnabled {
-		t.Error("expected retry to be disabled by default")
-	}
+	assert.Equal(t, client.config.Timeout, 5*time.Second, "expected timeout expected default timeout to be 5s")
+	assert.Equal(t, client.config.PerTryTimeout, 2*time.Second, "expected default per-try timeout to be 2s")
+	assert.False(t, client.config.RetryEnabled, "expected retry to be disabled by default")
 }
 
 func TestClient_Get(t *testing.T) {

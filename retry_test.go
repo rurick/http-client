@@ -4,6 +4,8 @@ import (
 	"errors"
 	"net/url"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type mockTemporaryError struct {
@@ -25,6 +27,7 @@ func (e *mockTemporaryError) Timeout() bool {
 }
 
 func TestIsRetryableError(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		err      error
@@ -84,15 +87,14 @@ func TestIsRetryableError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := IsRetryableError(tc.err)
-			if result != tc.expected {
-				t.Errorf("expected %v, got %v for error: %v", tc.expected, result, tc.err)
-			}
+			t.Parallel()
+			assert.Equal(t, tc.expected, IsRetryableError(tc.err), "IsRetryableError returned unexpected result")
 		})
 	}
 }
 
 func TestIsNetworkRetryableError(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		err      error
@@ -152,15 +154,15 @@ func TestIsNetworkRetryableError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
 			result := isNetworkRetryableError(tc.err)
-			if result != tc.expected {
-				t.Errorf("expected %v, got %v for error: %v", tc.expected, result, tc.err)
-			}
+			assert.Equal(t, tc.expected, result, "IsNetworkRetryableError returned unexpected result")
 		})
 	}
 }
 
 func TestIsTimeoutRetryableError(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		err      error
@@ -210,15 +212,14 @@ func TestIsTimeoutRetryableError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := isTimeoutRetryableError(tc.err)
-			if result != tc.expected {
-				t.Errorf("expected %v, got %v for error: %v", tc.expected, result, tc.err)
-			}
+			t.Parallel()
+			assert.Equal(t, tc.expected, isTimeoutRetryableError(tc.err), "isTimeoutRetryableError returned unexpected result")
 		})
 	}
 }
 
 func TestClassifyError(t *testing.T) {
+	t.Parallel()
 	testCases := []struct {
 		name     string
 		err      error
@@ -258,46 +259,35 @@ func TestClassifyError(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := ClassifyError(tc.err)
-			if result != tc.expected {
-				t.Errorf("expected %v, got %v for error: %v", tc.expected, result, tc.err)
-			}
+			t.Parallel()
+			assert.Equal(t, tc.expected, ClassifyError(tc.err), "ClassifyError returned unexpected result")
 		})
 	}
 }
 
 func TestNewRetryableError(t *testing.T) {
+	t.Parallel()
 	originalErr := errors.New("original error")
 	retryableErr := NewRetryableError(originalErr)
 
-	if retryableErr.Error() != "original error" {
-		t.Errorf("expected error message 'original error', got %s", retryableErr.Error())
-	}
-
-	if !IsRetryableError(retryableErr) {
-		t.Error("expected error to be retryable")
-	}
-
+	assert.NotNil(t, retryableErr)
+	assert.Equal(t, "original error", retryableErr.Error(), "Error message not as expected")
+	assert.True(t, IsRetryableError(retryableErr), "expected error to be retryable")
 	// Проверяем unwrapping
-	if !errors.Is(retryableErr, originalErr) {
-		t.Error("expected error to wrap original error")
-	}
+	assert.ErrorIs(t, retryableErr, originalErr, "expected error to wrap original error")
 }
 
 func TestNewNonRetryableError(t *testing.T) {
+	t.Parallel()
 	originalErr := errors.New("original error")
 	nonRetryableErr := NewNonRetryableError(originalErr)
 
-	if nonRetryableErr.Error() != "original error" {
-		t.Errorf("expected error message 'original error', got %s", nonRetryableErr.Error())
-	}
-
-	if IsRetryableError(nonRetryableErr) {
-		t.Error("expected error to be non-retryable")
-	}
+	assert.NotNil(t, nonRetryableErr)
+	assert.Equal(t, "original error", nonRetryableErr.Error(), "Error message not as expected")
+	assert.EqualError(t, nonRetryableErr, "original error")
+	assert.False(t, IsRetryableError(nonRetryableErr), "expected error to be non-retryable")
 
 	// Проверяем unwrapping
-	if !errors.Is(nonRetryableErr, originalErr) {
-		t.Error("expected error to wrap original error")
-	}
+	assert.ErrorIs(t, nonRetryableErr, originalErr, "expected error to wrap original error")
+
 }

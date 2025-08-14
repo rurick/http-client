@@ -6,9 +6,12 @@ import (
 	"net/url"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestHTTPErrorType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		err      *HTTPError
@@ -38,15 +41,14 @@ func TestHTTPErrorType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.err.Error()
-			if result != tt.expected {
-				t.Errorf("HTTPError.Error() = %v, want %v", result, tt.expected)
-			}
+			t.Parallel()
+			assert.Equal(t, tt.expected, tt.err.Error(), "MaxAttemptsExceededError.Error() returned unexpected result")
 		})
 	}
 }
 
 func TestMaxAttemptsExceededErrorType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		err      *MaxAttemptsExceededError
@@ -72,15 +74,14 @@ func TestMaxAttemptsExceededErrorType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.err.Error()
-			if result != tt.expected {
-				t.Errorf("MaxAttemptsExceededError.Error() = %v, want %v", result, tt.expected)
-			}
+			t.Parallel()
+			assert.Equal(t, tt.expected, tt.err.Error(), "MaxAttemptsExceededError.Error() returned unexpected result")
 		})
 	}
 }
 
 func TestTimeoutExceededErrorType(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name     string
 		err      *TimeoutExceededError
@@ -106,15 +107,14 @@ func TestTimeoutExceededErrorType(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := tt.err.Error()
-			if result != tt.expected {
-				t.Errorf("TimeoutExceededError.Error() = %v, want %v", result, tt.expected)
-			}
+			t.Parallel()
+			assert.Equal(t, tt.expected, tt.err.Error(), "TimeoutExceededError.Error() returned unexpected result")
 		})
 	}
 }
 
 func TestIsHTTPError(t *testing.T) {
+	t.Parallel()
 	httpErr := &HTTPError{StatusCode: 404}
 	regularErr := errors.New("regular error")
 
@@ -132,6 +132,7 @@ func TestIsHTTPError(t *testing.T) {
 }
 
 func TestNewHTTPError(t *testing.T) {
+	t.Parallel()
 	req := &http.Request{
 		Method: "GET",
 		URL:    &url.URL{Scheme: "https", Host: "example.com", Path: "/api"},
@@ -161,6 +162,7 @@ func TestNewHTTPError(t *testing.T) {
 }
 
 func TestMaxAttemptsExceededErrorUnwrap(t *testing.T) {
+	t.Parallel()
 	originalErr := errors.New("network error")
 	maxErr := &MaxAttemptsExceededError{
 		MaxAttempts: 3,
