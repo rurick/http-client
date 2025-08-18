@@ -165,6 +165,30 @@ func createPayment(client *httpclient.Client, paymentData string) error {
 }
 ```
 
+## Circuit Breaker (коротко)
+
+### Включить по умолчанию
+```go
+client := httpclient.New(httpclient.Config{
+    CircuitBreakerEnable: true, // если экземпляр не задан, используется SimpleCircuitBreaker
+}, "my-service")
+```
+
+### Кастомные пороги и обработчик
+```go
+cb := httpclient.NewCircuitBreakerWithConfig(httpclient.CircuitBreakerConfig{
+    FailureThreshold: 2,
+    SuccessThreshold: 1,
+    Timeout:          5 * time.Second,
+    OnStateChange: func(from, to httpclient.CircuitBreakerState) { log.Printf("CB: %s -> %s", from, to) },
+})
+
+client := httpclient.New(httpclient.Config{
+    CircuitBreakerEnable: true,
+    CircuitBreaker:       cb,
+}, "orders-client")
+```
+
 ## Обработка ошибок
 
 ### Проверка типов ошибок

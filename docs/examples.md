@@ -647,105 +647,73 @@ func main() {
 }
 ```
 
-## Circuit Breaker паттерн
+## Circuit Breaker
 
-### Простой Circuit Breaker
+### Встроенный Circuit Breaker
 ```go
 package main
 
 import (
     "context"
     "fmt"
-    "sync"
     "time"
     httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
-type CircuitBreaker struct {
-    client       *httpclient.Client
-    failures     int
-    threshold    int
-    timeout      time.Duration
-    lastFailure  time.Time
-    state        string // "closed", "open", "half-open"
-    mu           sync.Mutex
-}
-
-func NewCircuitBreaker(client *httpclient.Client, threshold int, timeout time.Duration) *CircuitBreaker {
-    return &CircuitBreaker{
-        client:    client,
-        threshold: threshold,
-        timeout:   timeout,
-        state:     "closed",
-    }
-}
-
-func (cb *CircuitBreaker) Get(ctx context.Context, url string) (*http.Response, error) {
-    cb.mu.Lock()
-    defer cb.mu.Unlock()
-    
-    switch cb.state {
-    case "open":
-        if time.Since(cb.lastFailure) > cb.timeout {
-            cb.state = "half-open"
-        } else {
-            return nil, fmt.Errorf("circuit breaker open")
-        }
-    case "half-open":
-        // Попробуем один запрос
-    case "closed":
-        // Нормальное состояние
-    }
-    
-    resp, err := cb.client.Get(ctx, url)
-    if err != nil {
-        cb.failures++
-        cb.lastFailure = time.Now()
-        
-        if cb.failures >= cb.threshold {
-            cb.state = "open"
-        }
-        
-        return nil, err
-    }
-    
-    if resp.StatusCode >= 500 {
-        cb.failures++
-        cb.lastFailure = time.Now()
-        
-        if cb.failures >= cb.threshold {
-            cb.state = "open"
-        }
-    } else {
-        // Успешный запрос
-        cb.failures = 0
-        cb.state = "closed"
-    }
-    
-    return resp, nil
-}
-
 func main() {
-    config := httpclient.Config{
-        Timeout: 5 * time.Second,
-        RetryConfig: httpclient.RetryConfig{MaxAttempts: 1}, // Без retry - circuit breaker сам управляет
-    }
-    
-    client := httpclient.New(config, "circuit-breaker-example")
+    // Включаем встроенный CB по умолчанию
+    client := httpclient.New(httpclient.Config{
+        CircuitBreakerEnable: true,
+    }, "cb-example")
     defer client.Close()
-    
-    cb := NewCircuitBreaker(client, 3, 10*time.Second) // 3 ошибки -> 10 сек ожидания
-    
-    for i := 0; i < 10; i++ {
-        resp, err := cb.Get(context.Background(), "https://httpbin.org/status/500")
+
+    for i := 0; i < 5; i++ {
+        resp, err := client.Get(context.Background(), "https://httpbin.org/status/500")
         if err != nil {
-            fmt.Printf("Запрос %d: ошибка - %v\n", i+1, err)
+            fmt.Printf("%d) err: %v\n", i+1, err)
         } else {
-            fmt.Printf("Запрос %d: успех - %d\n", i+1, resp.StatusCode)
+            fmt.Printf("%d) status: %d\n", i+1, resp.StatusCode)
             resp.Body.Close()
         }
-        
-        time.Sleep(1 * time.Second)
+        time.Sleep(200 * time.Millisecond)
+    }
+}
+```
+
+### Кастомные пороги и обработчик состояний
+```go
+package main
+
+import (
+    "context"
+    "fmt"
+    "time"
+    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+)
+
+func main() {
+    cb := httpclient.NewCircuitBreakerWithConfig(httpclient.CircuitBreakerConfig{
+        FailureThreshold: 2,
+        SuccessThreshold: 1,
+        Timeout:          2 * time.Second,
+        OnStateChange: func(from, to httpclient.CircuitBreakerState) { fmt.Printf("state: %s -> %s\n", from, to) },
+    })
+
+    client := httpclient.New(httpclient.Config{
+        CircuitBreakerEnable: true,
+        CircuitBreaker:       cb,
+    }, "cb-custom")
+    defer client.Close()
+
+    for i := 0; i < 6; i++ {
+        resp, err := client.Get(context.Background(), "https://httpbin.org/status/500")
+        if err != nil {
+            fmt.Printf("%d) err: %v\n", i+1, err)
+        } else {
+            fmt.Printf("%d) status: %d\n", i+1, resp.StatusCode)
+            resp.Body.Close()
+        }
+        time.Sleep(300 * time.Millisecond)
     }
 }
 ```

@@ -111,6 +111,54 @@ for attempt := 1; attempt <= 5; attempt++ {
 }
 ```
 
+## Проблемы с Circuit Breaker
+
+### CB всегда «открыт», запросы не уходят
+**Симптомы:** Клиент быстро возвращает ошибку, не выполняя запросы.
+
+**Проверка:**
+```go
+cfg := client.GetConfig()
+fmt.Printf("CB enabled: %t\n", cfg.CircuitBreakerEnable)
+// Если включен — проверьте состояние
+if cfg.CircuitBreaker != nil {
+    fmt.Printf("CB state: %s\n", cfg.CircuitBreaker.State())
+}
+```
+
+**Возможные причины и решения:**
+1. Порог неудач слишком низкий — увеличьте `FailureThreshold`.
+2. Сервис действительно нестабилен — уменьшите трафик/включите fallback, дождитесь восстановления.
+3. Таймаут восстановления слишком большой — уменьшите `Timeout`.
+4. Неверно классифицируются статусы — настройте `FailStatusCodes` в `CircuitBreakerConfig`.
+
+### Почему при открытом CB нет retry?
+**Ответ:** Ошибка `ErrCircuitBreakerOpen` не инициирует retry — это осознанно, чтобы не «молотить» по недоступному сервису.
+
+### Как получить «последний неуспешный ответ» при открытом CB?
+**Ответ:** В открытом состоянии возвращается клон последнего неуспешного ответа (если он был). Проверьте тело/заголовки как обычно:
+```go
+resp, err := client.Get(ctx, url)
+if errors.Is(err, httpclient.ErrCircuitBreakerOpen) && resp != nil {
+    body, _ := io.ReadAll(resp.Body)
+    log.Printf("Последний ответ: %d, body=%s", resp.StatusCode, string(body))
+}
+```
+
+### Как логировать переходы состояний CB?
+**Ответ:** Используйте `OnStateChange` в `CircuitBreakerConfig`.
+```go
+cb := httpclient.NewCircuitBreakerWithConfig(httpclient.CircuitBreakerConfig{
+    FailureThreshold: 3,
+    SuccessThreshold: 1,
+    Timeout:          10 * time.Second,
+    OnStateChange: func(from, to httpclient.CircuitBreakerState) { log.Printf("CB: %s -> %s", from, to) },
+})
+```
+
+### В какой момент применяется CB относительно retry?
+**Ответ:** CB применяется на каждую попытку. Если CB «открыт» — попытка завершается сразу и retry не выполняется.
+
 **Решение:**
 ```go
 config := httpclient.Config{

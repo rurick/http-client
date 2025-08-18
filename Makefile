@@ -86,6 +86,13 @@ security: ## Проверка безопасности
 		echo "govulncheck не найден, запустите 'make install-tools'"; \
 	fi
 
+split:
+	./project2file.sh
+
+zip:
+	rm project.zip
+	zip -r project.zip ./ -x ".*" "*/.*"
+
 cyclo: ## Проверка цикломатической сложности
 	@echo "Проверка цикломатической сложности..."
 	@if [ -f $(GOCYCLO) ]; then \

@@ -12,6 +12,8 @@ type Config struct {
     RetryConfig     RetryConfig      // Конфигурация повторов
     TracingEnabled  bool             // Включить OpenTelemetry tracing
     Transport       http.RoundTripper // Пользовательский транспорт
+    CircuitBreakerEnable bool        // Включить Circuit Breaker
+    CircuitBreaker       httpclient.CircuitBreaker // Экземпляр Circuit Breaker
 }
 ```
 
