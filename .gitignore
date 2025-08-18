@@ -2,3 +2,5 @@
 .gitignore
 /tools/bin/
 /coverage.html
+/project.zip
+project2file.sh

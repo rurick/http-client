@@ -54,6 +54,8 @@ type Config struct {
     RetryConfig     RetryConfig      // Конфигурация повторов
     TracingEnabled  bool             // Включить OpenTelemetry tracing
     Transport       http.RoundTripper // Пользовательский транспорт
+    CircuitBreakerEnable bool        // Включить Circuit Breaker
+    CircuitBreaker       httpclient.CircuitBreaker // Экземпляр Circuit Breaker
 }
 ```
 
@@ -75,6 +77,40 @@ config := httpclient.Config{
 ```
 
 ### RetryConfig
+### CircuitBreaker
+```go
+type CircuitBreaker interface {
+    Execute(fn func() (*http.Response, error)) (*http.Response, error)
+    State() CircuitBreakerState
+    Reset()
+}
+```
+
+```go
+type CircuitBreakerState int
+
+const (
+    CircuitBreakerClosed CircuitBreakerState = iota
+    CircuitBreakerOpen
+    CircuitBreakerHalfOpen
+)
+```
+
+```go
+type CircuitBreakerConfig struct {
+    FailStatusCodes  []int
+    FailureThreshold int
+    SuccessThreshold int
+    Timeout          time.Duration
+    OnStateChange    func(from, to CircuitBreakerState)
+}
+```
+
+**Конструкторы:**
+```go
+func NewSimpleCircuitBreaker() *SimpleCircuitBreaker
+func NewCircuitBreakerWithConfig(CircuitBreakerConfig) *SimpleCircuitBreaker
+```
 ```go
 type RetryConfig struct {
     MaxAttempts int           // Максимальное количество попыток

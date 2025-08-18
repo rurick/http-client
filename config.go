@@ -28,6 +28,12 @@ type Config struct {
 
 	// MaxResponseBytes ограничивает максимальный размер ответа
 	MaxResponseBytes *int64
+
+	// CircuitBreakerEnable включает/выключает использование CircuitBreaker
+	CircuitBreakerEnable bool
+
+	// CircuitBreaker настраиваемый автоматический выключатель
+	CircuitBreaker CircuitBreaker
 }
 
 // RetryConfig содержит настройки retry механизма
@@ -70,6 +76,11 @@ func (c Config) withDefaults() Config {
 
 	if c.RetryEnabled {
 		c.RetryConfig = c.RetryConfig.withDefaults()
+	}
+
+	// Circuit breaker по умолчанию выключен. Если включён и не задан — используем простой.
+	if c.CircuitBreakerEnable && c.CircuitBreaker == nil {
+		c.CircuitBreaker = NewSimpleCircuitBreaker()
 	}
 
 	return c

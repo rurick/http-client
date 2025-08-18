@@ -91,8 +91,10 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 			attemptReq.Body = io.NopCloser(bytes.NewReader(originalBody))
 		}
 
-		// Выполняем запрос
-		resp, err := rt.base.RoundTrip(attemptReq)
+		// Выполняем запрос (через CircuitBreaker, если включен)
+		var resp *http.Response
+		var err error
+		resp, err = rt.doTransport(attemptReq)
 		cancel()
 
 		duration := time.Since(startTime)
@@ -104,15 +106,7 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		if resp != nil {
 			status = resp.StatusCode
 		}
-
-		rt.metrics.RecordRequest(ctx, req.Method, host, strconv.Itoa(status), isRetry, isError)
-		rt.metrics.RecordDuration(ctx, duration.Seconds(), req.Method, host, strconv.Itoa(status), attempt)
-
-		// Записываем размер ответа
-		if resp != nil {
-			responseSize := getResponseSize(resp)
-			rt.metrics.RecordResponseSize(ctx, responseSize, req.Method, host, strconv.Itoa(status))
-		}
+		rt.recordAttemptMetrics(ctx, req.Method, host, resp, status, attempt, isRetry, isError, duration)
 
 		// Обновляем атрибуты span
 		if span != nil {
@@ -128,30 +122,15 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		lastResponse = resp
 		lastError = err
 
-		// Если запрос успешен или retry отключён, возвращаем результат
-		if !rt.config.RetryEnabled || err == nil && !shouldRetryStatus(status) {
+		// Решение о retry
+		deadline, _ := ctx.Deadline()
+		shouldRetry, retryReason := shouldRetryAttempt(rt.config, req, attempt, maxAttempts, err, status, deadline)
+		if !shouldRetry {
 			return resp, err
 		}
 
-		// Проверяем, стоит ли повторять запрос
-		if attempt >= maxAttempts {
-			break
-		}
-
-		// Определяем причину retry
-		retryReason := getRetryReason(err, status)
-		if retryReason == "" {
-			// Не подходит под политику retry
-			break
-		}
-
-		// Проверяем возможность retry для данного запроса (с учетом идемпотентности)
-		if !rt.config.RetryConfig.isRequestRetryable(req) {
-			break
-		}
-
 		// Записываем метрику retry
-		rt.metrics.RecordRetry(ctx, retryReason, req.Method, host)
+		rt.recordRetry(ctx, retryReason, req.Method, host)
 
 		// Вычисляем задержку перед следующей попыткой
 		delay := rt.calculateRetryDelay(attempt, resp)
@@ -220,6 +199,85 @@ func getRetryReason(err error, status int) string {
 	}
 
 	return ""
+}
+
+// getRetryReasonWithConfig аналогичен getRetryReason, но использует политику статусов из RetryConfig
+func getRetryReasonWithConfig(cfg RetryConfig, err error, status int) string {
+	if err != nil {
+		if isNetworkError(err) {
+			return "net"
+		}
+		if isTimeoutError(err) {
+			return "timeout"
+		}
+		return ""
+	}
+
+	if cfg.isStatusRetryable(status) {
+		return "status"
+	}
+
+	return ""
+}
+
+// doTransport выполняет реальный HTTP-запрос, опционально через CircuitBreaker
+func (rt *RoundTripper) doTransport(req *http.Request) (*http.Response, error) {
+	if rt.config.CircuitBreakerEnable && rt.config.CircuitBreaker != nil {
+		return rt.config.CircuitBreaker.Execute(func() (*http.Response, error) {
+			return rt.base.RoundTrip(req)
+		})
+	}
+	return rt.base.RoundTrip(req)
+}
+
+// shouldRetryAttempt принимает решение о повторе попытки и возвращает причину
+func shouldRetryAttempt(cfg Config, req *http.Request, attempt, maxAttempts int, err error, status int, deadline time.Time) (bool, string) {
+	if !cfg.RetryEnabled {
+		return false, ""
+	}
+
+	// Не ретраим, если вышли по открытому CircuitBreaker
+	if errors.Is(err, ErrCircuitBreakerOpen) {
+		return false, ""
+	}
+
+	// По статусу — используем политику из RetryConfig
+	if err == nil && !cfg.RetryConfig.isStatusRetryable(status) {
+		return false, ""
+	}
+
+	if attempt >= maxAttempts {
+		return false, ""
+	}
+
+	if !cfg.RetryConfig.isRequestRetryable(req) {
+		return false, ""
+	}
+
+	if !deadline.IsZero() && time.Until(deadline) <= 0 {
+		return false, ""
+	}
+
+	reason := getRetryReasonWithConfig(cfg.RetryConfig, err, status)
+	if reason == "" {
+		return false, ""
+	}
+	return true, reason
+}
+
+// recordAttemptMetrics логирует метрики одной попытки
+func (rt *RoundTripper) recordAttemptMetrics(ctx context.Context, method, host string, resp *http.Response, status int, attempt int, isRetry bool, isError bool, duration time.Duration) {
+	rt.metrics.RecordRequest(ctx, method, host, strconv.Itoa(status), isRetry, isError)
+	rt.metrics.RecordDuration(ctx, duration.Seconds(), method, host, strconv.Itoa(status), attempt)
+	if resp != nil {
+		responseSize := getResponseSize(resp)
+		rt.metrics.RecordResponseSize(ctx, responseSize, method, host, strconv.Itoa(status))
+	}
+}
+
+// recordRetry логирует метрику повторной попытки
+func (rt *RoundTripper) recordRetry(ctx context.Context, reason, method, host string) {
+	rt.metrics.RecordRetry(ctx, reason, method, host)
 }
 
 // isNetworkError проверяет, является ли ошибка сетевой
