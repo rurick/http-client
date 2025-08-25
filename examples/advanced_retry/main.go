@@ -165,8 +165,7 @@ func testNonRetryableMethod(ctx context.Context, client *httpclient.Client) erro
 	fmt.Println("Making POST request (non-retryable method)...")
 
 	start := time.Now()
-	resp, err := client.Post(ctx, "https://httpbin.org/status/500", "application/json",
-		strings.NewReader(`{"test": "data"}`))
+	resp, err := client.Post(ctx, "https://httpbin.org/status/500", strings.NewReader(`{"test": "data"}`), httpclient.WithContentType("application/json"))
 	elapsed := time.Since(start)
 
 	if err != nil {

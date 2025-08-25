@@ -284,7 +284,7 @@ func executeScenario(ctx context.Context, client *httpclient.Client, scenario tr
 	case "GET":
 		resp, err = client.Get(ctx, scenario.url)
 	case "POST":
-		resp, err = client.Post(ctx, scenario.url, "application/json", strings.NewReader(scenario.body))
+		resp, err = client.Post(ctx, scenario.url, strings.NewReader(scenario.body), httpclient.WithContentType("application/json"))
 	default:
 		log.Printf("Unsupported method: %s", scenario.method)
 		return

@@ -98,7 +98,7 @@ func TestClient_Post(t *testing.T) {
 	client := New(Config{}, "test-client")
 
 	ctx := context.Background()
-	resp, err := client.Post(ctx, server.URL, "application/json", strings.NewReader("test data"))
+	resp, err := client.Post(ctx, server.URL, strings.NewReader("test data"), WithContentType("application/json"))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

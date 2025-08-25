@@ -42,9 +42,9 @@ func callHTTPMethod(client *Client, method, url string, headers map[string]strin
 	case "GET":
 		return client.Get(context.Background(), url)
 	case "POST":
-		return client.Post(context.Background(), url, headers["Content-Type"], body)
+		return client.Post(context.Background(), url, body, WithContentType(headers["Content-Type"]))
 	case "PUT":
-		return client.Put(context.Background(), url, headers["Content-Type"], body)
+		return client.Put(context.Background(), url, body, WithContentType(headers["Content-Type"]))
 	case "DELETE":
 		return client.Delete(context.Background(), url)
 	default:

@@ -619,7 +619,7 @@ func TestCloneHttpResponse_EmptyResponse(t *testing.T) {
 	}
 
 	// Clone the empty response
-	clonedResp := cb.cloneHttpResponse(emptyResp)
+	clonedResp := cb.cloneHTTPResponse(emptyResp)
 
 	// Verify that the cloned response is not nil
 	require.NotNil(t, clonedResp)
@@ -655,7 +655,7 @@ func TestCloneHttpResponseWithNilBody(t *testing.T) {
 	}
 
 	// Clone the response
-	clonedResp := cb.cloneHttpResponse(originalResp)
+	clonedResp := cb.cloneHTTPResponse(originalResp)
 
 	// Verify that the cloned response has the same status code and headers
 	assert.Equal(t, originalResp.StatusCode, clonedResp.StatusCode)
@@ -684,7 +684,7 @@ func TestCloneHttpResponseWithMultipleHeaders(t *testing.T) {
 	cb := NewSimpleCircuitBreaker()
 
 	// Clone the response
-	clonedResp := cb.cloneHttpResponse(originalResp)
+	clonedResp := cb.cloneHTTPResponse(originalResp)
 
 	// Verify that the headers are correctly cloned
 	assert.Equal(t, originalResp.Header, clonedResp.Header, "Headers should be equal")
@@ -713,7 +713,7 @@ func TestCloneHttpResponseWithMultipleTrailers(t *testing.T) {
 	}
 
 	cb := NewSimpleCircuitBreaker()
-	clonedResp := cb.cloneHttpResponse(originalResp)
+	clonedResp := cb.cloneHTTPResponse(originalResp)
 
 	// Check that the trailers are cloned correctly
 	assert.Equal(t, originalResp.Trailer, clonedResp.Trailer, "Trailers should be cloned correctly")
@@ -739,15 +739,19 @@ func TestCloneHttpResponseWithClosedBody(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 
 	cb := NewSimpleCircuitBreaker()
-	clonedResponse := cb.cloneHttpResponse(resp)
+	clonedResponse := cb.cloneHTTPResponse(resp)
 
 	require.NotNil(t, clonedResponse)
 	assert.Equal(t, http.StatusOK, clonedResponse.StatusCode)
 	assert.Equal(t, "1", clonedResponse.Header.Get("X-Test"))
 
-	// Since source body is already closed, cloneHttpResponse cannot read it
-	// and should leave clonedResponse.Body as nil
-	assert.Nil(t, clonedResponse.Body)
+	// Since source body is already closed, cloneHTTPResponse cannot read it
+	// and should create an empty body
+	assert.NotNil(t, clonedResponse.Body)
+	// The body should be empty since the original was closed
+	body, err := io.ReadAll(clonedResponse.Body)
+	require.NoError(t, err)
+	assert.Empty(t, body)
 }
 
 func TestCloneHttpResponseWithTLS(t *testing.T) {
@@ -761,7 +765,7 @@ func TestCloneHttpResponseWithTLS(t *testing.T) {
 	}
 
 	cb := NewSimpleCircuitBreaker()
-	clonedResp := cb.cloneHttpResponse(originalResp)
+	clonedResp := cb.cloneHTTPResponse(originalResp)
 
 	// Verify that the cloned response has the same TLS field
 	assert.NotNil(t, clonedResp.TLS, "Expected TLS field to be non-nil")
@@ -782,7 +786,7 @@ func TestCloneHttpResponseWithBodyReadError(t *testing.T) {
 	cb := NewSimpleCircuitBreaker()
 
 	// Clone the response
-	clonedResp := cb.cloneHttpResponse(resp)
+	clonedResp := cb.cloneHTTPResponse(resp)
 
 	// Verify that the clone is not nil and has the same status code
 	assert.NotNil(t, clonedResp, "Cloned response should not be nil")
@@ -791,8 +795,12 @@ func TestCloneHttpResponseWithBodyReadError(t *testing.T) {
 	// Verify that headers are copied correctly
 	assert.Equal(t, resp.Header, clonedResp.Header, "Headers should match")
 
-	// Verify that the body is nil due to read error
-	assert.Nil(t, clonedResp.Body, "Cloned response body should be nil due to read error")
+	// Verify that the body is empty due to read error
+	assert.NotNil(t, clonedResp.Body, "Cloned response body should not be nil")
+	// The body should be empty since reading failed
+	clonedBody, err := io.ReadAll(clonedResp.Body)
+	require.NoError(t, err)
+	assert.Empty(t, clonedBody, "Cloned response body should be empty due to read error")
 }
 
 func TestCloneHttpResponseWithNonNilRequest(t *testing.T) {
@@ -812,7 +820,7 @@ func TestCloneHttpResponseWithNonNilRequest(t *testing.T) {
 	}
 
 	cb := NewSimpleCircuitBreaker()
-	clonedResponse := cb.cloneHttpResponse(originalResponse)
+	clonedResponse := cb.cloneHTTPResponse(originalResponse)
 
 	assert.Equal(t, originalResponse.StatusCode, clonedResponse.StatusCode)
 	assert.Equal(t, originalResponse.Proto, clonedResponse.Proto)
@@ -842,7 +850,7 @@ func TestCloneHttpResponseWithContentLength(t *testing.T) {
 	}
 
 	cb := NewSimpleCircuitBreaker()
-	clonedResp := cb.cloneHttpResponse(originalResp)
+	clonedResp := cb.cloneHTTPResponse(originalResp)
 
 	assert.Equal(t, originalResp.StatusCode, clonedResp.StatusCode)
 	assert.Equal(t, originalResp.Proto, clonedResp.Proto)
@@ -874,7 +882,7 @@ func TestCloneHttpResponseWithChunkedTransferEncoding(t *testing.T) {
 	cb := NewSimpleCircuitBreaker()
 
 	// Clone the response
-	clonedResp := cb.cloneHttpResponse(originalResp)
+	clonedResp := cb.cloneHTTPResponse(originalResp)
 
 	// Verify that the cloned response has the same TransferEncoding
 	assert.Equal(t, originalResp.TransferEncoding, clonedResp.TransferEncoding, "TransferEncoding should be 'chunked'")

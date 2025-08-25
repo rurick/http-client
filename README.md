@@ -25,11 +25,28 @@ func main() {
     client := httpclient.New(httpclient.Config{}, "my-service")
     defer client.Close()
     
+    // Простой GET запрос
     resp, err := client.Get(context.Background(), "https://api.example.com/data")
     if err != nil {
         // обработка ошибки
     }
     defer resp.Body.Close()
+    
+    // GET с заголовками через новые опции
+    resp, err = client.Get(context.Background(), "https://api.example.com/users",
+        httpclient.WithHeaders(map[string]string{
+            "Authorization": "Bearer your-token",
+            "Accept": "application/json",
+        }))
+    
+    // POST с JSON телом
+    user := map[string]interface{}{
+        "name": "John Doe",
+        "email": "john@example.com",
+    }
+    resp, err = client.Post(context.Background(), "https://api.example.com/users", nil,
+        httpclient.WithJSONBody(user),
+        httpclient.WithBearerToken("your-token"))
 }
 ```
 

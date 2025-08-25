@@ -126,11 +126,6 @@ func (rc RetryConfig) withDefaults() RetryConfig {
 	return rc
 }
 
-// isMethodRetryable проверяет, можно ли повторять запрос для данного HTTP метода
-func (rc RetryConfig) isMethodRetryable(method string) bool {
-	return slices.Contains(rc.RetryMethods, method)
-}
-
 // isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности
 func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	method := req.Method
