@@ -1,14 +1,12 @@
 package httpclient
 
 import (
-	"crypto/rand"
-	"encoding/binary"
 	"math"
-	mathRand "math/rand"
+	"math/rand"
 	"time"
 )
 
-// CalculateBackoffDelay вычисляет задержку для exponential backoff с full jitter
+// CalculateBackoffDelay вычисляет задержку для exponential backoff с jitter
 func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitter float64) time.Duration {
 	if attempt <= 1 {
 		return 0
@@ -23,13 +21,13 @@ func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitte
 		delay = maxDelay
 	}
 
-	// Применяем full jitter
+	// Применяем jitter (простое случайное распределение, не криптографическое)
 	if jitter > 0 && jitter <= 1 && delay > 0 {
 		// Full jitter: random между 0 и вычисленной задержкой
 		jitterRange := time.Duration(float64(delay) * jitter)
 		if jitterRange > 0 {
-			// Используем криптографически стойкий источник случайных чисел для seed
-			rnd := getSecureRandom()
+			// Простое случайное число с time-based seed
+			rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
 			jitterOffset := time.Duration(rnd.Int63n(int64(jitterRange)))
 
 			// Применяем jitter симметрично
@@ -69,19 +67,4 @@ func CalculateLinearBackoff(attempt int, baseDelay, maxDelay time.Duration) time
 // CalculateConstantBackoff возвращает константную задержку
 func CalculateConstantBackoff(baseDelay time.Duration) time.Duration {
 	return baseDelay
-}
-
-// getSecureRandom создает криптографически стойкий генератор случайных чисел
-func getSecureRandom() *mathRand.Rand {
-	// Генерируем случайный seed с помощью crypto/rand
-	var seedBytes [8]byte
-	if _, err := rand.Read(seedBytes[:]); err != nil {
-		// В случае ошибки используем текущее время в наносекундах
-		// Это менее безопасно, но гарантирует работоспособность
-		return mathRand.New(mathRand.NewSource(time.Now().UnixNano()))
-	}
-
-	// Преобразуем байты в int64 seed
-	seed := int64(binary.BigEndian.Uint64(seedBytes[:]))
-	return mathRand.New(mathRand.NewSource(seed))
 }
