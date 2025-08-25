@@ -7,6 +7,12 @@ import (
 	"strings"
 )
 
+// Константы для классификации причин retry
+const (
+	RetryReasonTimeout = "timeout"
+	RetryReasonNetwork = "net"
+)
+
 // RetryableError интерфейс для ошибок, которые можно повторить
 type RetryableError interface {
 	error
@@ -148,11 +154,11 @@ func ClassifyError(err error) string {
 	}
 
 	if isTimeoutRetryableError(err) {
-		return "timeout"
+		return RetryReasonTimeout
 	}
 
 	if isNetworkRetryableError(err) {
-		return "net"
+		return RetryReasonNetwork
 	}
 
 	return "other"

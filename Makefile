@@ -29,6 +29,7 @@ build: ## Собрать проект
 test: ## Запустить тесты
 	@echo "Запуск тестов..."
 	$(GO) test -v -race ./...
+	$(GO) test -v -race -tags=integration ./... -timeout 120s
 
 test-short: ## Запустить быстрые тесты
 	@echo "Запуск быстрых тестов..."

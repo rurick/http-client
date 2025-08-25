@@ -92,7 +92,11 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	if len(ts.responses) == 0 {
 		// Дефолтный ответ если не настроен
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{"status": "ok"}`))
+		if _, err := w.Write([]byte(`{"status": "ok"}`)); err != nil {
+			// В тестовом сервере ошибка записи критична
+			// Логируем её, но не можем её обработать в рамках handler'а
+			return
+		}
 		return
 	}
 
@@ -119,7 +123,11 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 
 	// Отправляем тело ответа
 	if response.Body != "" {
-		w.Write([]byte(response.Body))
+		if _, err := w.Write([]byte(response.Body)); err != nil {
+			// В тестовом сервере ошибка записи критична
+			// Логируем её, но не можем её обработать в рамках handler'а
+			return
+		}
 	}
 }
 

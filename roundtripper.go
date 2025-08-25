@@ -11,11 +11,41 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 )
+
+// contextAwareBody оборачивает http.Response.Body для отложенной отмены context
+// до закрытия body, предотвращая ошибки "context canceled" во время чтения body
+type contextAwareBody struct {
+	io.ReadCloser
+	cancel context.CancelFunc
+	once   sync.Once
+}
+
+// Close закрывает базовое body и отменяет связанный context
+func (c *contextAwareBody) Close() error {
+	c.once.Do(func() {
+		if c.cancel != nil {
+			c.cancel()
+		}
+	})
+	return c.ReadCloser.Close()
+}
+
+// retryContext содержит контекст для выполнения retry
+type retryContext struct {
+	ctx          context.Context
+	originalReq  *http.Request
+	originalBody []byte
+	host         string
+	span         trace.Span
+	startTime    time.Time
+	maxAttempts  int
+}
 
 // RoundTripper реализует http.RoundTripper с автоматическими метриками и retry
 type RoundTripper struct {
@@ -27,29 +57,14 @@ type RoundTripper struct {
 
 // RoundTrip выполняет HTTP запрос с автоматическими метриками и retry
 func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	ctx := req.Context()
-
-	// Создаём span для трассировки (если включено)
-	var span trace.Span
-	if rt.tracer != nil {
-		ctx, span = rt.tracer.StartSpan(ctx, fmt.Sprintf("HTTP %s", req.Method))
+	ctx, span := rt.setupTracing(req)
+	if span != nil {
 		defer span.End()
-
-		// Добавляем атрибуты к span
-		span.SetAttributes(
-			attribute.String("http.method", req.Method),
-			attribute.String("http.url", req.URL.String()),
-			attribute.String("http.host", req.URL.Host),
-		)
 	}
-
-	// Обновляем контекст в запросе
 	req = req.WithContext(ctx)
-
-	// Получаем хост для метрик
 	host := getHost(req.URL)
 
-	// Увеличиваем счётчик активных запросов
+	// Управляем метриками активных запросов
 	rt.metrics.IncrementInflight(ctx, req.Method, host)
 	defer rt.metrics.DecrementInflight(ctx, req.Method, host)
 
@@ -57,104 +72,24 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	requestSize := getRequestSize(req)
 	rt.metrics.RecordRequestSize(ctx, requestSize, req.Method, host)
 
-	startTime := time.Now()
-
-	var lastResponse *http.Response
-	var lastError error
-
-	// Сохраняем тело запроса ДО первого выполнения для возможных повторов
-	var originalBody []byte
-	if req.Body != nil && rt.config.RetryEnabled {
-		var err error
-		originalBody, err = io.ReadAll(req.Body)
-		if err != nil {
-			return nil, fmt.Errorf("failed to read request body: %w", err)
-		}
-		req.Body.Close()
-		// Восстанавливаем для первого запроса
-		req.Body = io.NopCloser(bytes.NewReader(originalBody))
+	// Подготавливаем тело запроса для retry
+	originalBody, err := rt.prepareRequestBody(req)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read request body: %w", err)
 	}
 
-	// Определяем максимальное количество попыток
-	maxAttempts := 1
-	if rt.config.RetryEnabled {
-		maxAttempts = rt.config.RetryConfig.MaxAttempts
+	// Выполняем цикл попыток
+	retryCtx := &retryContext{
+		ctx:          ctx,
+		originalReq:  req,
+		originalBody: originalBody,
+		host:         host,
+		span:         span,
+		startTime:    time.Now(),
+		maxAttempts:  rt.getMaxAttempts(),
 	}
 
-	for attempt := 1; attempt <= maxAttempts; attempt++ {
-		// Создаём контекст с per-try timeout
-		attemptCtx, cancel := context.WithTimeout(ctx, rt.config.PerTryTimeout)
-		attemptReq := req.WithContext(attemptCtx)
-
-		// Восстанавливаем тело запроса для повторных попыток
-		if attempt > 1 && originalBody != nil {
-			attemptReq.Body = io.NopCloser(bytes.NewReader(originalBody))
-		}
-
-		// Выполняем запрос (через CircuitBreaker, если включен)
-		var resp *http.Response
-		var err error
-		resp, err = rt.doTransport(attemptReq)
-		cancel()
-
-		duration := time.Since(startTime)
-		isRetry := attempt > 1
-
-		// Записываем метрики для этой попытки
-		status := 0
-		isError := err != nil
-		if resp != nil {
-			status = resp.StatusCode
-		}
-		rt.recordAttemptMetrics(ctx, req.Method, host, resp, status, attempt, isRetry, isError, duration)
-
-		// Обновляем атрибуты span
-		if span != nil {
-			span.SetAttributes(
-				attribute.Int("http.status_code", status),
-				attribute.Int("http.attempt", attempt),
-				attribute.Bool("http.retry", isRetry),
-				attribute.Bool("http.error", isError),
-				attribute.Float64("http.duration_seconds", duration.Seconds()),
-			)
-		}
-
-		lastResponse = resp
-		lastError = err
-
-		// Решение о retry
-		deadline, _ := ctx.Deadline()
-		shouldRetry, retryReason := shouldRetryAttempt(rt.config, req, attempt, maxAttempts, err, status, deadline)
-		if !shouldRetry {
-			return resp, err
-		}
-
-		// Записываем метрику retry
-		rt.recordRetry(ctx, retryReason, req.Method, host)
-
-		// Вычисляем задержку перед следующей попыткой
-		delay := rt.calculateRetryDelay(attempt, resp)
-
-		// Проверяем, что задержка не превышает оставшееся время общего таймаута
-		if deadline, ok := ctx.Deadline(); ok {
-			remainingTime := time.Until(deadline)
-			if delay >= remainingTime {
-				break // Недостаточно времени для retry
-			}
-		}
-
-		// Ждём перед следующей попыткой
-		select {
-		case <-ctx.Done():
-			return nil, ctx.Err()
-		case <-time.After(delay):
-			// Продолжаем к следующей попытке
-		}
-
-		startTime = time.Now() // Сбрасываем время для следующей попытки
-	}
-
-	return lastResponse, lastError
+	return rt.executeWithRetry(retryCtx)
 }
 
 // calculateRetryDelay вычисляет задержку перед следующей попыткой
@@ -186,10 +121,10 @@ func shouldRetryStatus(status int) bool {
 func getRetryReason(err error, status int) string {
 	if err != nil {
 		if isNetworkError(err) {
-			return "net"
+			return RetryReasonNetwork
 		}
 		if isTimeoutError(err) {
-			return "timeout"
+			return RetryReasonTimeout
 		}
 		return ""
 	}
@@ -205,10 +140,10 @@ func getRetryReason(err error, status int) string {
 func getRetryReasonWithConfig(cfg RetryConfig, err error, status int) string {
 	if err != nil {
 		if isNetworkError(err) {
-			return "net"
+			return RetryReasonNetwork
 		}
 		if isTimeoutError(err) {
-			return "timeout"
+			return RetryReasonTimeout
 		}
 		return ""
 	}
@@ -371,4 +306,182 @@ func cloneRequestBody(req *http.Request) (io.ReadCloser, error) {
 
 	// Возвращаем клон
 	return io.NopCloser(bytes.NewReader(body)), nil
+}
+
+// setupTracing настраивает трассировку для запроса
+func (rt *RoundTripper) setupTracing(req *http.Request) (context.Context, trace.Span) {
+	ctx := req.Context()
+
+	// Создаём span для трассировки (если включено)
+	if rt.tracer == nil {
+		return ctx, nil
+	}
+
+	ctx, span := rt.tracer.StartSpan(ctx, fmt.Sprintf("HTTP %s", req.Method))
+
+	// Добавляем атрибуты к span
+	span.SetAttributes(
+		attribute.String("http.method", req.Method),
+		attribute.String("http.url", req.URL.String()),
+		attribute.String("http.host", req.URL.Host),
+	)
+
+	return ctx, span
+}
+
+// prepareRequestBody подготавливает тело запроса для retry
+func (rt *RoundTripper) prepareRequestBody(req *http.Request) ([]byte, error) {
+	if req.Body == nil || !rt.config.RetryEnabled {
+		return nil, nil
+	}
+
+	originalBody, err := io.ReadAll(req.Body)
+	if err != nil {
+		return nil, err
+	}
+	req.Body.Close()
+
+	// Восстанавливаем для первого запроса
+	req.Body = io.NopCloser(bytes.NewReader(originalBody))
+	return originalBody, nil
+}
+
+// getMaxAttempts возвращает максимальное количество попыток
+func (rt *RoundTripper) getMaxAttempts() int {
+	if rt.config.RetryEnabled {
+		return rt.config.RetryConfig.MaxAttempts
+	}
+	return 1
+}
+
+// executeWithRetry выполняет HTTP запрос с retry
+func (rt *RoundTripper) executeWithRetry(retryCtx *retryContext) (*http.Response, error) {
+	var lastResponse *http.Response
+	var lastError error
+
+	for attempt := 1; attempt <= retryCtx.maxAttempts; attempt++ {
+		resp, err := rt.executeSingleAttempt(retryCtx, attempt)
+		lastResponse = resp
+		lastError = err
+
+		// Проверяем, нужно ли повторять
+		if !rt.shouldRetryResponse(retryCtx, attempt, resp, err) {
+			return resp, err
+		}
+
+		// Ждём перед следующей попыткой
+		if !rt.waitForRetry(retryCtx, attempt, resp) {
+			return lastResponse, lastError
+		}
+	}
+
+	return lastResponse, lastError
+}
+
+// executeSingleAttempt выполняет одну попытку HTTP запроса
+func (rt *RoundTripper) executeSingleAttempt(retryCtx *retryContext, attempt int) (*http.Response, error) {
+	// Создаём контекст с per-try timeout
+	attemptCtx, cancel := context.WithTimeout(retryCtx.ctx, rt.config.PerTryTimeout)
+	attemptReq := retryCtx.originalReq.WithContext(attemptCtx)
+
+	// Восстанавливаем тело запроса для повторных попыток
+	if attempt > 1 && retryCtx.originalBody != nil {
+		attemptReq.Body = io.NopCloser(bytes.NewReader(retryCtx.originalBody))
+	}
+
+	// Выполняем запрос
+	resp, err := rt.doTransport(attemptReq)
+
+	// Обрабатываем тело ответа
+	resp = rt.wrapResponseBody(resp, err, cancel)
+
+	// Записываем метрики и обновляем tracing
+	rt.recordAttemptResults(retryCtx, attempt, resp, err)
+
+	return resp, err
+}
+
+// wrapResponseBody оборачивает тело ответа для управления context
+func (rt *RoundTripper) wrapResponseBody(resp *http.Response, err error, cancel context.CancelFunc) *http.Response {
+	if err == nil && resp != nil && resp.Body != nil {
+		resp.Body = &contextAwareBody{
+			ReadCloser: resp.Body,
+			cancel:     cancel,
+		}
+	} else {
+		cancel() // Отменяем context, если нет body или есть ошибка
+	}
+	return resp
+}
+
+// recordAttemptResults записывает метрики и обновляет tracing
+func (rt *RoundTripper) recordAttemptResults(retryCtx *retryContext, attempt int, resp *http.Response, err error) {
+	duration := time.Since(retryCtx.startTime)
+	isRetry := attempt > 1
+	status := 0
+	isError := err != nil
+	if resp != nil {
+		status = resp.StatusCode
+	}
+
+	// Записываем метрики
+	rt.recordAttemptMetrics(retryCtx.ctx, retryCtx.originalReq.Method, retryCtx.host, resp, status, attempt, isRetry, isError, duration)
+
+	// Обновляем span
+	rt.updateSpan(retryCtx.span, status, attempt, isRetry, isError, duration)
+
+	// Сбрасываем время для следующей попытки
+	retryCtx.startTime = time.Now()
+}
+
+// updateSpan обновляет атрибуты span
+func (rt *RoundTripper) updateSpan(span trace.Span, status, attempt int, isRetry, isError bool, duration time.Duration) {
+	if span != nil {
+		span.SetAttributes(
+			attribute.Int("http.status_code", status),
+			attribute.Int("http.attempt", attempt),
+			attribute.Bool("http.retry", isRetry),
+			attribute.Bool("http.error", isError),
+			attribute.Float64("http.duration_seconds", duration.Seconds()),
+		)
+	}
+}
+
+// shouldRetryResponse проверяет, нужно ли повторять запрос
+func (rt *RoundTripper) shouldRetryResponse(retryCtx *retryContext, attempt int, resp *http.Response, err error) bool {
+	status := 0
+	if resp != nil {
+		status = resp.StatusCode
+	}
+
+	deadline, _ := retryCtx.ctx.Deadline()
+	shouldRetry, retryReason := shouldRetryAttempt(rt.config, retryCtx.originalReq, attempt, retryCtx.maxAttempts, err, status, deadline)
+
+	if shouldRetry {
+		rt.recordRetry(retryCtx.ctx, retryReason, retryCtx.originalReq.Method, retryCtx.host)
+	}
+
+	return shouldRetry
+}
+
+// waitForRetry ждёт перед следующей попыткой
+func (rt *RoundTripper) waitForRetry(retryCtx *retryContext, attempt int, resp *http.Response) bool {
+	// Вычисляем задержку
+	delay := rt.calculateRetryDelay(attempt, resp)
+
+	// Проверяем, что задержка не превышает оставшееся время
+	if deadline, ok := retryCtx.ctx.Deadline(); ok {
+		remainingTime := time.Until(deadline)
+		if delay >= remainingTime {
+			return false // Недостаточно времени
+		}
+	}
+
+	// Ждём
+	select {
+	case <-retryCtx.ctx.Done():
+		return false
+	case <-time.After(delay):
+		return true
+	}
 }

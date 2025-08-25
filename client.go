@@ -1,5 +1,5 @@
-// Package httpclient provides an HTTP client with automatic metrics collection,
-// configurable retry mechanisms, and OpenTelemetry integration.
+// Package httpclient предоставляет HTTP клиент с автоматическим сбором метрик,
+// настраиваемыми механизмами retry и интеграцией с OpenTelemetry.
 package httpclient
 
 import (
@@ -62,53 +62,62 @@ func New(config Config, meterName string) *Client {
 }
 
 // Get выполняет GET запрос
-func (c *Client) Get(ctx context.Context, url string) (*http.Response, error) {
+func (c *Client) Get(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	applyOptions(req, opts)
 	return c.httpClient.Do(req)
 }
 
 // Post выполняет POST запрос
-func (c *Client) Post(ctx context.Context, url, contentType string, body io.Reader) (*http.Response, error) {
+func (c *Client) Post(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
 		return nil, err
 	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
+	applyOptions(req, opts)
 	return c.httpClient.Do(req)
 }
 
 // Put выполняет PUT запрос
-func (c *Client) Put(ctx context.Context, url, contentType string, body io.Reader) (*http.Response, error) {
+func (c *Client) Put(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, body)
 	if err != nil {
 		return nil, err
 	}
-	if contentType != "" {
-		req.Header.Set("Content-Type", contentType)
-	}
+	applyOptions(req, opts)
 	return c.httpClient.Do(req)
 }
 
 // Delete выполняет DELETE запрос
-func (c *Client) Delete(ctx context.Context, url string) (*http.Response, error) {
+func (c *Client) Delete(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	applyOptions(req, opts)
 	return c.httpClient.Do(req)
 }
 
 // Head выполняет HEAD запрос
-func (c *Client) Head(ctx context.Context, url string) (*http.Response, error) {
+func (c *Client) Head(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return nil, err
 	}
+	applyOptions(req, opts)
+	return c.httpClient.Do(req)
+}
+
+// Patch выполняет PATCH запрос
+func (c *Client) Patch(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, body)
+	if err != nil {
+		return nil, err
+	}
+	applyOptions(req, opts)
 	return c.httpClient.Do(req)
 }
 
@@ -119,7 +128,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 
 // PostForm выполняет POST запрос с form data
 func (c *Client) PostForm(ctx context.Context, url string, data url.Values) (*http.Response, error) {
-	return c.Post(ctx, url, "application/x-www-form-urlencoded", strings.NewReader(data.Encode()))
+	return c.Post(ctx, url, strings.NewReader(data.Encode()), WithContentType("application/x-www-form-urlencoded"))
 }
 
 // GetConfig возвращает конфигурацию клиента
@@ -133,4 +142,34 @@ func (c *Client) Close() error {
 		return c.metrics.Close()
 	}
 	return nil
+}
+
+// GetWithHeaders выполняет GET запрос с заголовками
+func (c *Client) GetWithHeaders(ctx context.Context, url string, headers map[string]string) (*http.Response, error) {
+	return c.Get(ctx, url, WithHeaders(headers))
+}
+
+// PostWithHeaders выполняет POST запрос с заголовками
+func (c *Client) PostWithHeaders(ctx context.Context, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	return c.Post(ctx, url, body, WithHeaders(headers))
+}
+
+// PutWithHeaders выполняет PUT запрос с заголовками
+func (c *Client) PutWithHeaders(ctx context.Context, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	return c.Put(ctx, url, body, WithHeaders(headers))
+}
+
+// DeleteWithHeaders выполняет DELETE запрос с заголовками
+func (c *Client) DeleteWithHeaders(ctx context.Context, url string, headers map[string]string) (*http.Response, error) {
+	return c.Delete(ctx, url, WithHeaders(headers))
+}
+
+// HeadWithHeaders выполняет HEAD запрос с заголовками
+func (c *Client) HeadWithHeaders(ctx context.Context, url string, headers map[string]string) (*http.Response, error) {
+	return c.Head(ctx, url, WithHeaders(headers))
+}
+
+// PatchWithHeaders выполняет PATCH запрос с заголовками
+func (c *Client) PatchWithHeaders(ctx context.Context, url string, body io.Reader, headers map[string]string) (*http.Response, error) {
+	return c.Patch(ctx, url, body, WithHeaders(headers))
 }

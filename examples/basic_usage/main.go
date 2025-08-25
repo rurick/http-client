@@ -93,8 +93,7 @@ func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 	fmt.Println("Performing POST request...")
 
 	jsonData := `{"key": "value", "message": "test from http-client"}`
-	resp, err := client.Post(ctx, "https://httpbin.org/post", "application/json",
-		strings.NewReader(jsonData))
+	resp, err := client.Post(ctx, "https://httpbin.org/post", strings.NewReader(jsonData), httpclient.WithContentType("application/json"))
 	if err != nil {
 		return fmt.Errorf("POST request failed: %w", err)
 	}

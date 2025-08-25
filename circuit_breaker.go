@@ -90,7 +90,8 @@ func newStrictReadCloser(b []byte) io.ReadCloser {
 func NewSimpleCircuitBreaker() *SimpleCircuitBreaker {
 	return NewCircuitBreakerWithConfig(CircuitBreakerConfig{
 		FailStatusCodes: nil,
-		OnStateChange: func(from, to CircuitBreakerState) {
+		OnStateChange: func(_, _ CircuitBreakerState) {
+			// Пустой обработчик по умолчанию
 		},
 		FailureThreshold: 5,
 		SuccessThreshold: 3,
@@ -112,8 +113,10 @@ func NewCircuitBreakerWithConfig(config CircuitBreakerConfig) *SimpleCircuitBrea
 
 // Execute выполняет функцию через автоматический выключатель
 func (cb *SimpleCircuitBreaker) Execute(fn func() (*http.Response, error)) (*http.Response, error) {
-	if !cb.canExecute() {
-		return cb.cloneHttpResponse(cb.lastFailResponse), ErrCircuitBreakerOpen
+	// Check if we can execute and get the last fail response atomically
+	canExec, lastFailResp := cb.canExecuteAndGetLastFailResponse()
+	if !canExec {
+		return cb.cloneHTTPResponse(lastFailResp), ErrCircuitBreakerOpen
 	}
 
 	resp, err := fn()
@@ -123,7 +126,7 @@ func (cb *SimpleCircuitBreaker) Execute(fn func() (*http.Response, error)) (*htt
 	return resp, err
 }
 
-func (cb *SimpleCircuitBreaker) cloneHttpResponse(resp *http.Response) *http.Response {
+func (cb *SimpleCircuitBreaker) cloneHTTPResponse(resp *http.Response) *http.Response {
 	if resp == nil {
 		return nil
 	}
@@ -150,18 +153,21 @@ func (cb *SimpleCircuitBreaker) cloneHttpResponse(resp *http.Response) *http.Res
 		clone.Trailer[k] = v
 	}
 
+	// Handle body cloning safely - avoid concurrent reading
 	if resp.Body != nil {
+		// Try to read the body, but handle the case where it might already be read
 		bodyBytes, err := io.ReadAll(resp.Body)
-		if err == nil {
-			// Восстанавливаем оригинальное тело для вызывающего
+		if err == nil && len(bodyBytes) > 0 {
+			// Restore original body for the caller
 			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			// В клон кладем «строгое» тело, которое после Close() не даст читать
+			// Clone gets its own copy of the body
 			clone.Body = newStrictReadCloser(bodyBytes)
-			// Опционально: установить точную длину
 			clone.ContentLength = int64(len(bodyBytes))
 		} else {
-			// Не удалось прочитать — оставляем клон без тела
-			clone.Body = nil
+			// Body was already read, empty, or there was an error
+			// Create an empty body for the clone to avoid nil pointer issues
+			clone.Body = newStrictReadCloser(nil)
+			clone.ContentLength = 0
 		}
 	}
 
@@ -191,25 +197,31 @@ func (cb *SimpleCircuitBreaker) Reset() {
 	}
 }
 
-// canExecute определяет, позволяет ли автоматический выключатель выполнение
-func (cb *SimpleCircuitBreaker) canExecute() bool {
+// canExecuteAndGetLastFailResponse atomically checks if we can execute and gets the last fail response
+func (cb *SimpleCircuitBreaker) canExecuteAndGetLastFailResponse() (bool, *http.Response) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
+	var lastFailResp *http.Response
+	if cb.lastFailResponse != nil {
+		// Make a copy of the last fail response to avoid races
+		lastFailResp = cb.lastFailResponse
+	}
+
 	switch cb.state {
 	case CircuitBreakerClosed:
-		return true
+		return true, lastFailResp
 	case CircuitBreakerOpen:
 		// Проверяем, следует ли перейти в полуустановленное состояние
 		if time.Since(cb.lastFailureTime) > cb.timeout {
 			cb.setState(CircuitBreakerHalfOpen)
-			return true
+			return true, lastFailResp
 		}
-		return false
+		return false, lastFailResp
 	case CircuitBreakerHalfOpen:
-		return true
+		return true, lastFailResp
 	default:
-		return false
+		return false, lastFailResp
 	}
 }
 
@@ -220,8 +232,10 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 
 	isSuccess := cb.isSuccess(resp, err)
 
-	if !isSuccess {
-		cb.lastFailResponse = cb.cloneHttpResponse(resp)
+	// Store a clone of the failed response for later use
+	if !isSuccess && resp != nil {
+		// Clone the response before storing it to avoid sharing mutable state
+		cb.lastFailResponse = cb.safeCloneResponse(resp)
 	}
 
 	switch cb.state {
@@ -253,6 +267,57 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 			cb.lastFailureTime = time.Now()
 		}
 	}
+}
+
+// safeCloneResponse creates a safe clone of the HTTP response without concurrent body reading
+func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Response {
+	if resp == nil {
+		return nil
+	}
+
+	clone := &http.Response{
+		StatusCode:       resp.StatusCode,
+		Proto:            resp.Proto,
+		ProtoMajor:       resp.ProtoMajor,
+		ProtoMinor:       resp.ProtoMinor,
+		Header:           make(http.Header, len(resp.Header)),
+		ContentLength:    resp.ContentLength,
+		TransferEncoding: resp.TransferEncoding,
+		Close:            resp.Close,
+		Uncompressed:     resp.Uncompressed,
+		Trailer:          make(http.Header, len(resp.Trailer)),
+		Request:          resp.Request,
+		TLS:              resp.TLS,
+	}
+
+	// Copy headers
+	for k, v := range resp.Header {
+		clone.Header[k] = append([]string(nil), v...)
+	}
+	for k, v := range resp.Trailer {
+		clone.Trailer[k] = append([]string(nil), v...)
+	}
+
+	// Try to safely read and clone the body, but don't risk race conditions
+	if resp.Body != nil {
+		// Try to read the body safely
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if err == nil && len(bodyBytes) > 0 {
+			// Successfully read the body, restore it and clone it
+			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+			clone.Body = newStrictReadCloser(bodyBytes)
+			clone.ContentLength = int64(len(bodyBytes))
+		} else {
+			// Could not read body or body is empty, create empty body
+			clone.Body = newStrictReadCloser(nil)
+			clone.ContentLength = 0
+		}
+	} else {
+		// Original had no body
+		clone.Body = nil
+	}
+
+	return clone
 }
 
 // isSuccess определяет, считается ли комбинация ответа/ошибки успешной

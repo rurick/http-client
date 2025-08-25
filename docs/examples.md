@@ -2,6 +2,118 @@
 
 Практические примеры использования HTTP клиент пакета для различных сценариев.
 
+## RequestOption - новые возможности
+
+Начиная с новой версии, все HTTP методы поддерживают функциональные опции RequestOption.
+
+### Краткий обзор RequestOption
+```go
+// Основные опции заголовков
+resp, err := client.Get(ctx, url,
+    httpclient.WithBearerToken("token123"),
+    httpclient.WithAccept("application/json"),
+    httpclient.WithHeader("X-Request-ID", "unique-id"),
+)
+
+// Опции тела запроса
+resp, err := client.Post(ctx, url, nil,
+    httpclient.WithJSONBody(data),                    // Автоматическая JSON сериализация
+    httpclient.WithIdempotencyKey("operation-123"),  // Безопасные повторы
+    httpclient.WithBearerToken("token123"),
+)
+
+// Комбинирование опций
+resp, err := client.Put(ctx, url, nil,
+    httpclient.WithFormBody(formData),
+    httpclient.WithHeaders(map[string]string{
+        "X-API-Version": "v2",
+        "X-Client-Type": "web",
+    }),
+    httpclient.WithUserAgent("MyApp/1.0"),
+)
+```
+
+### Полные примеры с RequestOption
+
+#### JSON запросы
+```go
+type User struct {
+    ID    int    `json:"id"`
+    Name  string `json:"name"`
+    Email string `json:"email"`
+}
+
+// POST с автоматической JSON сериализацией
+user := User{Name: "John", Email: "john@example.com"}
+resp, err := client.Post(ctx, "/api/users", nil,
+    httpclient.WithJSONBody(user),
+    httpclient.WithBearerToken("your-token"),
+    httpclient.WithIdempotencyKey("create-user-123"),
+)
+
+// PATCH для обновления
+updates := map[string]interface{}{"status": "active"}
+resp, err := client.Patch(ctx, "/api/users/123", nil,
+    httpclient.WithJSONBody(updates),
+    httpclient.WithIdempotencyKey("update-user-123"),
+)
+```
+
+#### Form данные
+```go
+// POST с form данными
+formData := url.Values{}
+formData.Set("username", "john")
+formData.Set("password", "secret")
+formData.Set("remember_me", "true")
+
+resp, err := client.Post(ctx, "/login", nil,
+    httpclient.WithFormBody(formData),
+    httpclient.WithHeader("X-CSRF-Token", csrfToken),
+)
+```
+
+#### XML и текст
+```go
+type Config struct {
+    XMLName xml.Name `xml:"config"`
+    Setting string   `xml:"setting"`
+    Value   int      `xml:"value"`
+}
+
+// XML запрос
+config := Config{Setting: "timeout", Value: 30}
+resp, err := client.Put(ctx, "/api/config", nil,
+    httpclient.WithXMLBody(config),
+    httpclient.WithAuthorization("Basic "+basicAuth),
+)
+
+// Простой текст
+resp, err := client.Post(ctx, "/api/webhook", nil,
+    httpclient.WithTextBody("webhook payload data"),
+    httpclient.WithContentType("text/plain"),
+)
+```
+
+#### Полный контроль над телом
+```go
+// Бинарные данные
+imageData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG header
+resp, err := client.Post(ctx, "/api/upload", nil,
+    httpclient.WithRawBody(bytes.NewReader(imageData)),
+    httpclient.WithContentType("image/png"),
+    httpclient.WithHeader("X-Upload-Type", "avatar"),
+)
+
+// Файл
+file, _ := os.Open("document.pdf")
+defer file.Close()
+resp, err := client.Post(ctx, "/api/documents", nil,
+    httpclient.WithRawBody(file),
+    httpclient.WithContentType("application/pdf"),
+)
+```
+
 ## Базовые примеры
 
 ### Простой GET запрос
@@ -35,15 +147,14 @@ func main() {
 }
 ```
 
-### POST запрос с JSON
+### POST запрос с JSON (новый API с RequestOption)
 ```go
 package main
 
 import (
     "context"
-    "encoding/json"
     "fmt"
-    "strings"
+    "log"
     httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
@@ -63,13 +174,13 @@ func main() {
         UserID: 1,
     }
     
-    jsonData, _ := json.Marshal(post)
-    
+    // Новый подход с автоматической JSON сериализацией
     resp, err := client.Post(
         context.Background(),
         "https://jsonplaceholder.typicode.com/posts",
-        "application/json",
-        strings.NewReader(string(jsonData)),
+        nil, // body = nil, используем WithJSONBody
+        httpclient.WithJSONBody(post),
+        httpclient.WithHeader("X-Request-ID", "example-123"),
     )
     if err != nil {
         log.Fatal(err)
@@ -255,13 +366,13 @@ func (us *UserService) GetUser(ctx context.Context, userID int) (*User, error) {
 }
 
 func (us *UserService) CreateUser(ctx context.Context, user User) (*User, error) {
-    userData, err := json.Marshal(user)
-    if err != nil {
-        return nil, fmt.Errorf("ошибка кодирования пользователя: %w", err)
-    }
-    
     url := fmt.Sprintf("%s/users", us.baseURL)
-    resp, err := us.client.Post(ctx, url, "application/json", strings.NewReader(string(userData)))
+    
+    // Новый подход с WithJSONBody - без ручной сериализации
+    resp, err := us.client.Post(ctx, url, nil,
+        httpclient.WithJSONBody(user),
+        httpclient.WithHeader("X-Service", "user-service"),
+    )
     if err != nil {
         return nil, fmt.Errorf("ошибка создания пользователя: %w", err)
     }
