@@ -26,7 +26,7 @@ func TestMetricsWithRetryPolicy(t *testing.T) {
 	// Создаём тестовый сервер который сначала возвращает ошибки, потом успех
 	server := NewTestServer(
 		TestResponse{StatusCode: 500, Body: `{"error": "server error 1"}`},
-		TestResponse{StatusCode: 503, Body: `{"error": "server error 2"}`}, 
+		TestResponse{StatusCode: 503, Body: `{"error": "server error 2"}`},
 		TestResponse{StatusCode: 200, Body: `{"success": true}`},
 	)
 	defer server.Close()
@@ -68,17 +68,17 @@ func TestMetricsWithRetryPolicy(t *testing.T) {
 	// 1. Должно быть 3 записи в http_client_requests_total (по одной на каждую попытку)
 	requestsTotal, ok := metricsMap["http_client_requests_total"]
 	assert.True(t, ok, "Метрика http_client_requests_total должна существовать")
-	
+
 	// Проверяем что есть записи для разных статусов
 	requestCounts := getCounterSumByAttribute(requestsTotal, "status")
 	assert.Contains(t, requestCounts, "500", "Должна быть запись для статуса 500")
-	assert.Contains(t, requestCounts, "503", "Должна быть запись для статуса 503") 
+	assert.Contains(t, requestCounts, "503", "Должна быть запись для статуса 503")
 	assert.Contains(t, requestCounts, "200", "Должна быть запись для статуса 200")
 
 	// 2. Должно быть 3 записи в http_client_request_duration_seconds (по одной на каждую попытку)
 	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
 	assert.True(t, ok, "Метрика http_client_request_duration_seconds должна существовать")
-	
+
 	// Проверяем что есть записи с разными attempt номерами
 	durationCounts := getHistogramCountByAttribute(requestDuration, "attempt")
 	assert.Contains(t, durationCounts, "1", "Должна быть запись для attempt=1")
@@ -88,7 +88,7 @@ func TestMetricsWithRetryPolicy(t *testing.T) {
 	// 3. Должно быть 2 записи в http_client_retries_total (2 retry попытки)
 	retriesTotal, ok := metricsMap["http_client_retries_total"]
 	assert.True(t, ok, "Метрика http_client_retries_total должна существовать")
-	
+
 	// Должно быть 2 retry (первый на 500, второй на 503)
 	retrySum := getCounterSum(retriesTotal)
 	assert.Equal(t, int64(2), retrySum, "Должно быть 2 retry")
@@ -145,7 +145,7 @@ func TestMetricsWithCircuitBreaker(t *testing.T) {
 	}
 
 	// Проверяем что дополнительный запрос к серверу НЕ был сделан
-	requestsAfter := server.GetRequestCount() 
+	requestsAfter := server.GetRequestCount()
 	assert.Equal(t, requestsBefore, requestsAfter, "Запрос к серверу не должен был быть сделан")
 
 	// Собираем метрики
@@ -158,15 +158,15 @@ func TestMetricsWithCircuitBreaker(t *testing.T) {
 	// 1. Должны быть записаны метрики для всех запросов (включая cached)
 	requestsTotal, ok := metricsMap["http_client_requests_total"]
 	assert.True(t, ok, "Метрика http_client_requests_total должна существовать")
-	
+
 	// Должны быть записи и для реальных запросов, и для cached
 	requestCounts := getCounterSumByAttribute(requestsTotal, "status")
 	assert.Contains(t, requestCounts, "500", "Должны быть записи для статуса 500")
 
 	// 2. Duration метрики должны записываться даже для cached ответов
-	requestDuration, ok := metricsMap["http_client_request_duration_seconds"] 
+	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
 	assert.True(t, ok, "Метрика http_client_request_duration_seconds должна существовать")
-	
+
 	// Должно быть минимум 3 записи (2 реальных + 1 cached)
 	durationCount := getHistogramTotalCount(requestDuration)
 	assert.GreaterOrEqual(t, durationCount, uint64(3), "Должно быть минимум 3 записи duration")
@@ -224,7 +224,7 @@ func TestMetricsWithRetryAndCircuitBreaker(t *testing.T) {
 	// 1. Должны быть записаны все attempts (включая retry)
 	requestsTotal, ok := metricsMap["http_client_requests_total"]
 	assert.True(t, ok, "Метрика http_client_requests_total должна существовать")
-	
+
 	totalRequests := getCounterSum(requestsTotal)
 	// Каждый из 3 запросов может делать до 3 попыток = до 9 total requests
 	assert.Greater(t, totalRequests, int64(6), "Должно быть больше 6 запросов с учётом retry")
@@ -232,14 +232,14 @@ func TestMetricsWithRetryAndCircuitBreaker(t *testing.T) {
 	// 2. Duration записывается для каждой попытки
 	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
 	assert.True(t, ok, "Метрика http_client_request_duration_seconds должна существовать")
-	
+
 	durationCount := getHistogramTotalCount(requestDuration)
 	assert.Greater(t, durationCount, uint64(6), "Должно быть больше 6 duration записей")
 
 	// 3. Retry метрики должны быть записаны
 	retriesTotal, ok := metricsMap["http_client_retries_total"]
 	assert.True(t, ok, "Метрика http_client_retries_total должна существовать")
-	
+
 	retryCount := getCounterSum(retriesTotal)
 	assert.Greater(t, retryCount, int64(0), "Должны быть retry попытки")
 }
@@ -298,7 +298,7 @@ func TestMetricsWithIdempotentRetry(t *testing.T) {
 	// Должны быть записи для POST метода
 	methodCounts := getCounterSumByAttribute(requestsTotal, "method")
 	assert.Contains(t, methodCounts, "POST", "Должна быть запись для метода POST")
-	
+
 	// Должно быть 2 запроса (первый неудачный + retry успешный)
 	postCount := methodCounts["POST"]
 	assert.Equal(t, int64(2), postCount, "Должно быть 2 POST запроса")
@@ -306,10 +306,10 @@ func TestMetricsWithIdempotentRetry(t *testing.T) {
 	// Duration должен записываться для каждой попытки
 	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
 	assert.True(t, ok, "Метрика request_duration должна существовать")
-	
+
 	durationCounts := getHistogramCountByAttribute(requestDuration, "method")
 	assert.Contains(t, durationCounts, "POST", "Duration должен записываться для POST")
-	
+
 	postDurationCount := durationCounts["POST"]
 	assert.Equal(t, uint64(2), postDurationCount, "Должно быть 2 duration записи для POST")
 }

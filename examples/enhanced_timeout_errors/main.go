@@ -25,19 +25,19 @@ type NalogRuAuthRequest struct {
 
 func main() {
 	fmt.Println("=== Демонстрация детализированных ошибок тайм-аута ===")
-	
+
 	// 1. Демонстрируем проблемную конфигурацию (как было)
 	fmt.Println("1. Проблемная конфигурация (как было):")
 	demonstrateProblematicConfig()
-	
+
 	fmt.Println("\n" + strings.Repeat("=", 70) + "\n")
-	
+
 	// 2. Демонстрируем улучшенную конфигурацию (как стало)
 	fmt.Println("2. Улучшенная конфигурация (как стало):")
 	demonstrateImprovedConfig()
-	
+
 	fmt.Println("\n" + strings.Repeat("=", 70) + "\n")
-	
+
 	// 3. Демонстрируем обработку не-тайм-аут ошибок
 	fmt.Println("3. Обработка других типов ошибок:")
 	demonstrateNonTimeoutErrors()
@@ -47,18 +47,18 @@ func main() {
 func demonstrateProblematicConfig() {
 	// Конфигурация с короткими тайм-аутами (как было раньше)
 	config := httpclient.Config{
-		Timeout:       5 * time.Second,  // Слишком короткий для API ФНС
-		PerTryTimeout: 2 * time.Second,  // Слишком короткий
-		RetryEnabled:  false,            // Retry отключён
+		Timeout:       5 * time.Second, // Слишком короткий для API ФНС
+		PerTryTimeout: 2 * time.Second, // Слишком короткий
+		RetryEnabled:  false,           // Retry отключён
 	}
-	
+
 	client := httpclient.New(config, "refuel-receipts-old")
 	defer client.Close()
-	
+
 	// Создаём контекст с коротким тайм-аутом для симуляции проблемы
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
 	defer cancel()
-	
+
 	// Подготавливаем запрос
 	authRequest := NalogRuAuthRequest{
 		Inn:      "1234567890",
@@ -66,19 +66,19 @@ func demonstrateProblematicConfig() {
 		DeviceOS: "iOS",
 		DeviceId: "device123",
 	}
-	
+
 	jsonBody, _ := json.Marshal(authRequest)
-	
+
 	// Делаем запрос к "медленному" эндпоинту (симуляция API ФНС)
 	resp, err := client.Post(ctx, "https://httpbin.org/delay/10", bytes.NewReader(jsonBody),
 		httpclient.WithContentType("application/json"),
 		httpclient.WithIdempotencyKey("auth-request-12345"),
 	)
-	
+
 	if err != nil {
 		// Демонстрируем детализированную ошибку
 		fmt.Printf("❌ Детализированная ошибка:\n%s\n", err.Error())
-		
+
 		// Проверяем, является ли это детализированной ошибкой тайм-аута
 		var timeoutErr *httpclient.TimeoutError
 		if errors.As(err, &timeoutErr) {
@@ -92,7 +92,7 @@ func demonstrateProblematicConfig() {
 			fmt.Printf("  • Время выполнения: %v\n", timeoutErr.Elapsed)
 			fmt.Printf("  • Тип тайм-аута: %s\n", timeoutErr.TimeoutType)
 			fmt.Printf("  • Retry включён: %t\n", timeoutErr.RetryEnabled)
-			
+
 			fmt.Printf("\n💡 Предложения по исправлению:\n")
 			for i, suggestion := range timeoutErr.Suggestions {
 				fmt.Printf("  %d. %s\n", i+1, suggestion)
@@ -100,7 +100,7 @@ func demonstrateProblematicConfig() {
 		}
 		return
 	}
-	
+
 	if resp != nil {
 		resp.Body.Close()
 		fmt.Printf("✅ Неожиданный успех: %s\n", resp.Status)
@@ -115,42 +115,42 @@ func demonstrateImprovedConfig() {
 		PerTryTimeout: 20 * time.Second, // Увеличенный per-try тайм-аут
 		RetryEnabled:  true,             // Включён retry
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts:       4,    // 4 попытки
+			MaxAttempts:       4, // 4 попытки
 			BaseDelay:         500 * time.Millisecond,
 			MaxDelay:          15 * time.Second,
-			Jitter:            0.3,  // 30% jitter
+			Jitter:            0.3, // 30% jitter
 			RespectRetryAfter: true,
 			// Дополнительные статусы для retry
 			RetryStatusCodes: []int{408, 429, 500, 502, 503, 504, 520, 521, 522, 524},
 		},
 		TracingEnabled: true,
 	}
-	
+
 	client := httpclient.New(config, "refuel-receipts-improved")
 	defer client.Close()
-	
+
 	ctx := context.Background()
-	
+
 	authRequest := NalogRuAuthRequest{
-		Inn:      "1234567890", 
+		Inn:      "1234567890",
 		Password: "password",
 		DeviceOS: "iOS",
 		DeviceId: "device123",
 	}
-	
+
 	jsonBody, _ := json.Marshal(authRequest)
-	
+
 	fmt.Println("Попытка запроса с улучшенной конфигурацией...")
-	
+
 	// Делаем запрос к быстрому эндпоинту для демонстрации успеха
 	resp, err := client.Post(ctx, "https://httpbin.org/delay/1", bytes.NewReader(jsonBody),
 		httpclient.WithContentType("application/json"),
 		httpclient.WithIdempotencyKey("auth-request-improved-12345"),
 	)
-	
+
 	if err != nil {
 		fmt.Printf("❌ Ошибка (даже с улучшенной конфигурацией):\n%s\n", err.Error())
-		
+
 		var timeoutErr *httpclient.TimeoutError
 		if errors.As(err, &timeoutErr) {
 			fmt.Printf("\n💡 Предложения:\n")
@@ -160,7 +160,7 @@ func demonstrateImprovedConfig() {
 		}
 		return
 	}
-	
+
 	if resp != nil {
 		defer resp.Body.Close()
 		fmt.Printf("✅ Успешный запрос: %s\n", resp.Status)
@@ -182,14 +182,14 @@ func demonstrateNonTimeoutErrors() {
 			MaxAttempts: 3,
 		},
 	}
-	
+
 	client := httpclient.New(config, "error-demo")
 	defer client.Close()
-	
+
 	ctx := context.Background()
-	
+
 	fmt.Println("Демонстрация различных типов ошибок:")
-	
+
 	// 1. DNS ошибка
 	fmt.Println("\n1. DNS ошибка:")
 	_, err := client.Get(ctx, "https://nonexistent-domain-12345.com/api")
@@ -199,7 +199,7 @@ func demonstrateNonTimeoutErrors() {
 		fmt.Printf("   Ошибка: %s\n", err.Error())
 		fmt.Printf("   Это TimeoutError? %t\n", isTimeoutErr)
 	}
-	
+
 	// 2. Connection refused
 	fmt.Println("\n2. Connection refused:")
 	_, err = client.Get(ctx, "http://127.0.0.1:99999/api")
@@ -209,7 +209,7 @@ func demonstrateNonTimeoutErrors() {
 		fmt.Printf("   Ошибка: %s\n", err.Error())
 		fmt.Printf("   Это TimeoutError? %t\n", isTimeoutErr)
 	}
-	
+
 	// 3. HTTP статус ошибка
 	fmt.Println("\n3. HTTP статус ошибка:")
 	resp, err := client.Get(ctx, "https://httpbin.org/status/500")
@@ -223,7 +223,7 @@ func demonstrateNonTimeoutErrors() {
 		fmt.Printf("   HTTP статус: %s (не ошибка, а ответ)\n", resp.Status)
 		fmt.Printf("   Это не обрабатывается как TimeoutError\n")
 	}
-	
+
 	fmt.Printf("\n✅ Как видите, только реальные тайм-аут ошибки улучшаются.\n")
 	fmt.Printf("   Все остальные ошибки остаются неизменными.\n")
 }
@@ -233,7 +233,7 @@ func handleError(err error, operation string) {
 	if err == nil {
 		return
 	}
-	
+
 	// Проверяем, является ли это детализированной ошибкой тайм-аута
 	var timeoutErr *httpclient.TimeoutError
 	if errors.As(err, &timeoutErr) {
@@ -242,7 +242,7 @@ func handleError(err error, operation string) {
 		log.Printf("   Попытка: %d/%d", timeoutErr.Attempt, timeoutErr.MaxAttempts)
 		log.Printf("   Время выполнения: %v", timeoutErr.Elapsed)
 		log.Printf("   Тип: %s", timeoutErr.TimeoutType)
-		
+
 		// Программно обрабатываем разные типы тайм-аутов
 		switch timeoutErr.TimeoutType {
 		case "overall":
@@ -252,10 +252,10 @@ func handleError(err error, operation string) {
 		case "context":
 			log.Printf("   → Рекомендация: проверьте настройки контекста вызывающего кода")
 		}
-		
+
 		return
 	}
-	
+
 	// Обрабатываем другие типы ошибок как обычно
 	log.Printf("❌ Ошибка при %s: %v", operation, err)
 }

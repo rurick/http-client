@@ -15,11 +15,11 @@ import (
 
 func TestTimeoutError_DetailedMessage(t *testing.T) {
 	// Тест детализированных сообщений об ошибках тайм-аута
-	
+
 	// Подготавливаем тестовый запрос
 	req, err := http.NewRequest("POST", "https://api.example.com/slow-endpoint", nil)
 	require.NoError(t, err)
-	
+
 	config := Config{
 		Timeout:       30 * time.Second,
 		PerTryTimeout: 10 * time.Second,
@@ -28,38 +28,38 @@ func TestTimeoutError_DetailedMessage(t *testing.T) {
 			MaxAttempts: 3,
 		},
 	}
-	
+
 	// Создаём детализированную ошибку тайм-аута
 	originalErr := errors.New("context deadline exceeded")
 	timeoutErr := NewTimeoutError(req, config, 3, 3, 9*time.Second, "per-try", originalErr)
-	
+
 	// Проверяем, что ошибка содержит все необходимые детали
 	errorMsg := timeoutErr.Error()
-	
+
 	t.Logf("Детализированная ошибка тайм-аута:\n%s", errorMsg)
-	
+
 	// Проверяем наличие ключевой информации в сообщении об ошибке
-	assert.Contains(t, errorMsg, "POST")                           // HTTP метод
-	assert.Contains(t, errorMsg, "api.example.com")               // Хост
-	assert.Contains(t, errorMsg, "attempt 3/3")                   // Информация о попытках
-	assert.Contains(t, errorMsg, "overall=30s")                   // Общий тайм-аут
-	assert.Contains(t, errorMsg, "per-try=10s")                   // Per-try тайм-аут
-	assert.Contains(t, errorMsg, "retry=true")                    // Статус retry
-	assert.Contains(t, errorMsg, "Type: per-try")                 // Тип тайм-аута
-	assert.Contains(t, errorMsg, "увеличьте количество попыток")    // Предложения
-	
+	assert.Contains(t, errorMsg, "POST")                         // HTTP метод
+	assert.Contains(t, errorMsg, "api.example.com")              // Хост
+	assert.Contains(t, errorMsg, "attempt 3/3")                  // Информация о попытках
+	assert.Contains(t, errorMsg, "overall=30s")                  // Общий тайм-аут
+	assert.Contains(t, errorMsg, "per-try=10s")                  // Per-try тайм-аут
+	assert.Contains(t, errorMsg, "retry=true")                   // Статус retry
+	assert.Contains(t, errorMsg, "Type: per-try")                // Тип тайм-аута
+	assert.Contains(t, errorMsg, "увеличьте количество попыток") // Предложения
+
 	// Проверяем, что можно развернуть оригинальную ошибку
 	assert.Equal(t, originalErr, errors.Unwrap(timeoutErr))
 }
 
 func TestTimeoutError_Suggestions(t *testing.T) {
 	tests := []struct {
-		name            string
-		config          Config
-		elapsed         time.Duration
-		timeoutType     string
-		attempt         int
-		maxAttempts     int
+		name                string
+		config              Config
+		elapsed             time.Duration
+		timeoutType         string
+		attempt             int
+		maxAttempts         int
 		expectedSuggestions []string
 	}{
 		{
@@ -120,7 +120,7 @@ func TestTimeoutError_Suggestions(t *testing.T) {
 				RetryEnabled:  true,
 			},
 			elapsed:     15 * time.Second,
-			timeoutType: "per-try", 
+			timeoutType: "per-try",
 			attempt:     2,
 			maxAttempts: 3,
 			expectedSuggestions: []string{
@@ -128,13 +128,13 @@ func TestTimeoutError_Suggestions(t *testing.T) {
 			},
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, _ := http.NewRequest("GET", "https://slow.example.com/api", nil)
-			
+
 			suggestions := generateTimeoutSuggestions(tt.config, tt.elapsed, tt.timeoutType, tt.attempt, tt.maxAttempts)
-			
+
 			for _, expected := range tt.expectedSuggestions {
 				found := false
 				for _, suggestion := range suggestions {
@@ -145,11 +145,11 @@ func TestTimeoutError_Suggestions(t *testing.T) {
 				}
 				assert.True(t, found, "Ожидалось предложение: '%s', но получены: %v", expected, suggestions)
 			}
-			
+
 			// Создаём ошибку и проверяем, что предложения включены в сообщение
 			timeoutErr := NewTimeoutError(req, tt.config, tt.attempt, tt.maxAttempts, tt.elapsed, tt.timeoutType, errors.New("deadline exceeded"))
 			errorMsg := timeoutErr.Error()
-			
+
 			t.Logf("Сценарий '%s':\n%s\n", tt.name, errorMsg)
 		})
 	}
@@ -161,7 +161,7 @@ func TestDetermineTimeoutType(t *testing.T) {
 		Timeout:       30 * time.Second,
 		PerTryTimeout: 10 * time.Second,
 	}
-	
+
 	tests := []struct {
 		name         string
 		err          error
@@ -199,7 +199,7 @@ func TestDetermineTimeoutType(t *testing.T) {
 			expectedType: "network",
 		},
 	}
-	
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			actualType := rt.determineTimeoutType(tt.err, config, tt.elapsed)
@@ -210,7 +210,7 @@ func TestDetermineTimeoutType(t *testing.T) {
 
 func TestEnhanceTimeoutError_Integration(t *testing.T) {
 	// Интеграционный тест: проверяем, что RoundTripper правильно улучшает ошибки тайм-аута
-	
+
 	config := Config{
 		Timeout:       5 * time.Second,
 		PerTryTimeout: 2 * time.Second,
@@ -219,23 +219,23 @@ func TestEnhanceTimeoutError_Integration(t *testing.T) {
 			MaxAttempts: 2,
 		},
 	}
-	
+
 	rt := &RoundTripper{
 		config: config,
 	}
-	
+
 	req, err := http.NewRequest("GET", "https://example.com/api", nil)
 	require.NoError(t, err)
-	
+
 	// Симулируем ошибку тайм-аута
 	originalErr := &url.Error{
 		Op:  "Get",
 		URL: "https://example.com/api",
 		Err: errors.New("context deadline exceeded"),
 	}
-	
+
 	enhanced := rt.enhanceTimeoutError(originalErr, req, config, 1, 2, 2*time.Second)
-	
+
 	// Проверяем, что ошибка была улучшена
 	var timeoutErr *TimeoutError
 	assert.True(t, errors.As(enhanced, &timeoutErr))
@@ -246,14 +246,14 @@ func TestEnhanceTimeoutError_Integration(t *testing.T) {
 	assert.Equal(t, 2, timeoutErr.MaxAttempts)
 	assert.Equal(t, "per-try", timeoutErr.TimeoutType)
 	assert.True(t, len(timeoutErr.Suggestions) > 0)
-	
+
 	// Проверяем, что оригинальная ошибка сохранена
 	assert.Equal(t, originalErr, errors.Unwrap(enhanced))
 }
 
 func TestEnhanceTimeoutError_NonTimeoutErrors(t *testing.T) {
 	// Тест для проверки, что не-тайм-аут ошибки НЕ изменяются функцией enhanceTimeoutError
-	
+
 	config := Config{
 		Timeout:       5 * time.Second,
 		PerTryTimeout: 2 * time.Second,
@@ -262,14 +262,14 @@ func TestEnhanceTimeoutError_NonTimeoutErrors(t *testing.T) {
 			MaxAttempts: 3,
 		},
 	}
-	
+
 	rt := &RoundTripper{
 		config: config,
 	}
-	
+
 	req, err := http.NewRequest("POST", "https://api.nalog.ru/endpoint", nil)
 	require.NoError(t, err)
-	
+
 	testCases := []struct {
 		name        string
 		err         error
@@ -316,22 +316,22 @@ func TestEnhanceTimeoutError_NonTimeoutErrors(t *testing.T) {
 			description: "нет ошибки",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			// Вызываем enhanceTimeoutError с не-тайм-аут ошибкой
 			result := rt.enhanceTimeoutError(tc.err, req, config, 1, 3, 500*time.Millisecond)
-			
+
 			// Проверяем, что ошибка НЕ была изменена
-			assert.Equal(t, tc.err, result, 
-				"Ошибка '%s' не должна быть изменена функцией enhanceTimeoutError. Описание: %s", 
+			assert.Equal(t, tc.err, result,
+				"Ошибка '%s' не должна быть изменена функцией enhanceTimeoutError. Описание: %s",
 				tc.name, tc.description)
-			
+
 			// Дополнительно проверяем, что результат НЕ является TimeoutError
 			var timeoutErr *TimeoutError
-			assert.False(t, errors.As(result, &timeoutErr), 
+			assert.False(t, errors.As(result, &timeoutErr),
 				"Не-тайм-аут ошибка '%s' не должна быть преобразована в TimeoutError", tc.name)
-				
+
 			t.Logf("✓ Ошибка '%s' корректно не изменена: %v", tc.name, result)
 		})
 	}
@@ -339,17 +339,17 @@ func TestEnhanceTimeoutError_NonTimeoutErrors(t *testing.T) {
 
 func TestTimeoutError_IsTimeoutError(t *testing.T) {
 	// Проверяем, что детализированная ошибка правильно определяется как тайм-аут
-	
+
 	req, _ := http.NewRequest("GET", "https://example.com", nil)
 	config := Config{Timeout: 5 * time.Second}
 	originalErr := errors.New("context deadline exceeded")
-	
+
 	timeoutErr := NewTimeoutError(req, config, 1, 1, 5*time.Second, "overall", originalErr)
-	
+
 	// Проверяем, что isTimeoutError правильно определяет нашу ошибку как тайм-аут
 	assert.True(t, isTimeoutError(timeoutErr))
 	assert.True(t, isTimeoutError(originalErr))
-	
+
 	// Проверяем различные типы тайм-аут ошибок
 	timeoutErrors := []error{
 		errors.New("context deadline exceeded"),
@@ -358,11 +358,11 @@ func TestTimeoutError_IsTimeoutError(t *testing.T) {
 		&url.Error{Op: "Get", URL: "http://example.com", Err: errors.New("context deadline exceeded")},
 		timeoutErr, // наша детализированная ошибка
 	}
-	
+
 	for i, err := range timeoutErrors {
 		assert.True(t, isTimeoutError(err), "Ошибка #%d должна определяться как тайм-аут: %v", i, err)
 	}
-	
+
 	// Проверяем, что обычные ошибки НЕ определяются как тайм-аут
 	nonTimeoutErrors := []error{
 		errors.New("connection refused"),
@@ -372,7 +372,7 @@ func TestTimeoutError_IsTimeoutError(t *testing.T) {
 		ErrCircuitBreakerOpen,
 		nil,
 	}
-	
+
 	for i, err := range nonTimeoutErrors {
 		assert.False(t, isTimeoutError(err), "Ошибка #%d НЕ должна определяться как тайм-аут: %v", i, err)
 	}
@@ -380,29 +380,29 @@ func TestTimeoutError_IsTimeoutError(t *testing.T) {
 
 func TestTimeoutError_RealWorldScenarios(t *testing.T) {
 	// Тест реальных сценариев, подобных проблеме с API налоговой
-	
+
 	testCases := []struct {
-		name            string
-		url             string
-		config          Config
-		attempt         int
-		maxAttempts     int
-		elapsed         time.Duration
-		timeoutType     string
+		name               string
+		url                string
+		config             Config
+		attempt            int
+		maxAttempts        int
+		elapsed            time.Duration
+		timeoutType        string
 		expectedSuggestion string
 	}{
 		{
 			name: "API налоговой - медленный ответ",
 			url:  "https://openapi.nalog.ru:8090/open-api/AuthService/0.1",
 			config: Config{
-				Timeout:       5 * time.Second,  // Текущая настройка - слишком мало
-				PerTryTimeout: 2 * time.Second,  // Слишком мало для API налоговой
-				RetryEnabled:  false,            // Retry отключён
+				Timeout:       5 * time.Second, // Текущая настройка - слишком мало
+				PerTryTimeout: 2 * time.Second, // Слишком мало для API налоговой
+				RetryEnabled:  false,           // Retry отключён
 			},
-			attempt:         1,
-			maxAttempts:     1,
-			elapsed:         5 * time.Second,
-			timeoutType:     "overall",
+			attempt:            1,
+			maxAttempts:        1,
+			elapsed:            5 * time.Second,
+			timeoutType:        "overall",
 			expectedSuggestion: "увеличьте общий тайм-аут",
 		},
 		{
@@ -416,36 +416,36 @@ func TestTimeoutError_RealWorldScenarios(t *testing.T) {
 					MaxAttempts: 4,
 				},
 			},
-			attempt:         2,
-			maxAttempts:     4,
-			elapsed:         18 * time.Second, // Долгий ответ, но в пределах нормы
-			timeoutType:     "per-try",
+			attempt:            2,
+			maxAttempts:        4,
+			elapsed:            18 * time.Second, // Долгий ответ, но в пределах нормы
+			timeoutType:        "per-try",
 			expectedSuggestion: "проверьте доступность и производительность удалённого сервиса",
 		},
 	}
-	
+
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
 			req, err := http.NewRequest("POST", tc.url, nil)
 			require.NoError(t, err)
-			
+
 			originalErr := errors.New("context deadline exceeded")
 			timeoutErr := NewTimeoutError(req, tc.config, tc.attempt, tc.maxAttempts, tc.elapsed, tc.timeoutType, originalErr)
-			
+
 			errorMsg := timeoutErr.Error()
-			
+
 			// Проверяем наличие ожидаемого предложения
 			assert.Contains(t, errorMsg, tc.expectedSuggestion)
-			
+
 			// Проверяем, что в ошибке есть информация о налоговой
 			assert.Contains(t, errorMsg, "nalog.ru")
-			
+
 			t.Logf("Сценарий '%s':\n%s\n", tc.name, errorMsg)
-			
+
 			// Демонстрируем, что можно анализировать тип ошибки программно
 			suggestions := timeoutErr.Suggestions
 			assert.True(t, len(suggestions) > 0, "Должны быть предложения по исправлению")
-			
+
 			t.Logf("Предложения по исправлению для '%s':", tc.name)
 			for i, suggestion := range suggestions {
 				t.Logf("  %d. %s", i+1, suggestion)

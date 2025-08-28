@@ -77,8 +77,8 @@ func isNetworkRetryableError(err error) bool {
 	// Проверяем net.Error
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		// Временные ошибки можно повторить
-		if netErr.Temporary() {
+		// Проверяем таймауты как повторяемые ошибки
+		if netErr.Timeout() {
 			return true
 		}
 	}

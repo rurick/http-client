@@ -261,7 +261,8 @@ func TestRoundTripper_ContextCancellation(t *testing.T) {
 }
 
 func TestRoundTripper_NetworkError(t *testing.T) {
-	networkErr := &mockNetworkError{temporary: true}
+	// Use a timeout error instead of temporary error since we removed Temporary() support
+	networkErr := &mockNetworkError{timeout: true}
 
 	mock := &mockRoundTripper{
 		errors: []error{networkErr, nil},
