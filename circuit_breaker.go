@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"io"
+	"log"
 	"net/http"
 	"slices"
 	"strings"
@@ -320,7 +321,7 @@ func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Res
 		// Всегда закрываем оригинальное body после чтения для предотвращения утечек
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			// Логируем ошибку закрытия, но продолжаем работу
-			// В production коде это критично для мониторинга
+			log.Printf("Failed to close response body: %v", closeErr)
 		}
 		if err == nil && len(bodyBytes) > 0 {
 			// Successfully read the body, restore it and clone it
