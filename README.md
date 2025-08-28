@@ -64,6 +64,3 @@ func main() {
 - [Troubleshooting](docs/troubleshooting.md) - Решение проблем
 - [Примеры](docs/examples.md) - Готовые code snippets
 
-## Поддержка
-
-Для вопросов обращайтесь к команде Backend разработки CityDrive Tech.
