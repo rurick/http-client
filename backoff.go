@@ -2,7 +2,6 @@ package httpclient
 
 import (
 	"math"
-	"math/rand"
 	"time"
 )
 
@@ -21,17 +20,18 @@ func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitte
 		delay = maxDelay
 	}
 
-	// Применяем jitter (простое случайное распределение, не криптографическое)
+	// Применяем jitter (детерминированный на основе номера попытки)
 	if jitter > 0 && jitter <= 1 && delay > 0 {
-		// Full jitter: random между 0 и вычисленной задержкой
+		// Full jitter: детерминированное отклонение на основе номера попытки
 		jitterRange := time.Duration(float64(delay) * jitter)
 		if jitterRange > 0 {
-			// Простое случайное число с time-based seed
-			rnd := rand.New(rand.NewSource(time.Now().UnixNano()))
-			jitterOffset := time.Duration(rnd.Int63n(int64(jitterRange)))
+			// Детерминированное "случайное" число на основе attempt
+			// Используем простую хэш-функцию для получения псевдослучайного значения
+			hash := uint64(attempt)*2654435761 + uint64(time.Now().UnixNano()>>20) // берём старшие биты времени для стабильности
+			jitterOffset := time.Duration(hash % uint64(jitterRange))
 
-			// Применяем jitter симметрично
-			if rnd.Float64() < 0.5 {
+			// Применяем jitter симметрично (чётные/нечётные попытки)
+			if attempt%2 == 0 {
 				delay += jitterOffset
 			} else {
 				delay -= jitterOffset

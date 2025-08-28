@@ -92,24 +92,41 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	return rt.executeWithRetry(retryCtx)
 }
 
-// calculateRetryDelay вычисляет задержку перед следующей попыткой
+// calculateRetryDelay вычисляет задержку перед следующей попыткой.
 func (rt *RoundTripper) calculateRetryDelay(attempt int, resp *http.Response) time.Duration {
 	config := rt.config.RetryConfig
 
 	// Проверяем заголовок Retry-After
-	if config.RespectRetryAfter && resp != nil {
-		if retryAfter := resp.Header.Get("Retry-After"); retryAfter != "" {
-			if seconds, err := strconv.Atoi(retryAfter); err == nil {
-				return time.Duration(seconds) * time.Second
-			}
-			if t, err := time.Parse(time.RFC1123, retryAfter); err == nil {
-				return time.Until(t)
-			}
-		}
+	if delay := rt.parseRetryAfterHeader(config, resp); delay > 0 {
+		return delay
 	}
 
 	// Используем exponential backoff с full jitter
 	return CalculateBackoffDelay(attempt, config.BaseDelay, config.MaxDelay, config.Jitter)
+}
+
+// parseRetryAfterHeader парсит заголовок Retry-After.
+func (rt *RoundTripper) parseRetryAfterHeader(config RetryConfig, resp *http.Response) time.Duration {
+	if !config.RespectRetryAfter || resp == nil {
+		return 0
+	}
+
+	retryAfter := resp.Header.Get("Retry-After")
+	if retryAfter == "" {
+		return 0
+	}
+
+	// Пытаемся парсить как число секунд
+	if seconds, err := strconv.Atoi(retryAfter); err == nil {
+		return time.Duration(seconds) * time.Second
+	}
+
+	// Пытаемся парсить как дату
+	if t, err := time.Parse(time.RFC1123, retryAfter); err == nil {
+		return time.Until(t)
+	}
+
+	return 0
 }
 
 // getRetryReasonWithConfig аналогичен getRetryReason, но использует политику статусов из RetryConfig
@@ -180,7 +197,8 @@ func shouldRetryAttempt(
 
 // recordAttemptMetrics логирует метрики одной попытки
 func (rt *RoundTripper) recordAttemptMetrics(
-	ctx context.Context, method, host string, resp *http.Response, status int, attempt int, isRetry bool, isError bool, duration time.Duration,
+	ctx context.Context, method, host string, resp *http.Response, status int, attempt int,
+	isRetry bool, isError bool, duration time.Duration,
 ) {
 	rt.metrics.RecordRequest(ctx, method, host, strconv.Itoa(status), isRetry, isError)
 	rt.metrics.RecordDuration(ctx, duration.Seconds(), method, host, strconv.Itoa(status), attempt)
@@ -419,7 +437,9 @@ func (rt *RoundTripper) recordAttemptResults(retryCtx *retryContext, attempt int
 }
 
 // updateSpan обновляет атрибуты span
-func (rt *RoundTripper) updateSpan(span trace.Span, status, attempt int, isRetry, isError bool, duration time.Duration) {
+func (rt *RoundTripper) updateSpan(
+	span trace.Span, status, attempt int, isRetry, isError bool, duration time.Duration,
+) {
 	if span != nil {
 		span.SetAttributes(
 			attribute.Int("http.status_code", status),

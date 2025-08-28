@@ -93,9 +93,9 @@ func NewSimpleCircuitBreaker() *SimpleCircuitBreaker {
 		OnStateChange: func(_, _ CircuitBreakerState) {
 			// Пустой обработчик по умолчанию
 		},
-		FailureThreshold: 5,
-		SuccessThreshold: 3,
-		Timeout:          60 * time.Second,
+		FailureThreshold: defaultFailureThreshold,
+		SuccessThreshold: defaultSuccessThreshold,
+		Timeout:          defaultCircuitTimeout,
 	})
 }
 

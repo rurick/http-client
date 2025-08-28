@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -23,8 +24,8 @@ func (e *HTTPError) Error() string {
 
 // IsHTTPError проверяет, является ли ошибка HTTP ошибкой.
 func IsHTTPError(err error) bool {
-	_, ok := err.(*HTTPError)
-	return ok
+	var httpErr *HTTPError
+	return errors.As(err, &httpErr)
 }
 
 // NewHTTPError создаёт новую HTTP ошибку.
@@ -45,7 +46,7 @@ type MaxAttemptsExceededError struct {
 	LastStatus  int
 }
 
-// Error реализует интерфейс error
+// Error реализует интерфейс error.
 func (e *MaxAttemptsExceededError) Error() string {
 	if e.LastError != nil {
 		return fmt.Sprintf("max attempts (%d) exceeded, last error: %v", e.MaxAttempts, e.LastError)
@@ -53,30 +54,30 @@ func (e *MaxAttemptsExceededError) Error() string {
 	return fmt.Sprintf("max attempts (%d) exceeded, last status: %d", e.MaxAttempts, e.LastStatus)
 }
 
-// Unwrap возвращает последнюю ошибку для поддержки errors.Unwrap
+// Unwrap возвращает последнюю ошибку для поддержки errors.Unwrap.
 func (e *MaxAttemptsExceededError) Unwrap() error {
 	return e.LastError
 }
 
-// TimeoutExceededError представляет ошибку превышения таймаута
+// TimeoutExceededError представляет ошибку превышения таймаута.
 type TimeoutExceededError struct {
 	Timeout time.Duration
 	Elapsed time.Duration
 }
 
-// Error реализует интерфейс error
+// Error реализует интерфейс error.
 func (e *TimeoutExceededError) Error() string {
 	return fmt.Sprintf("timeout exceeded: %v elapsed, %v allowed", e.Elapsed, e.Timeout)
 }
 
-// ConfigurationError представляет ошибку конфигурации
+// ConfigurationError представляет ошибку конфигурации.
 type ConfigurationError struct {
 	Field   string
 	Value   interface{}
 	Message string
 }
 
-// Error реализует интерфейс error
+// Error реализует интерфейс error.
 func (e *ConfigurationError) Error() string {
 	return fmt.Sprintf("configuration error in field '%s': %s (value: %v)", e.Field, e.Message, e.Value)
 }

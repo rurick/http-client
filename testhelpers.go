@@ -11,6 +11,14 @@ import (
 	"time"
 )
 
+// Константы для тестов.
+const (
+	// Статус по умолчанию для тестовых ответов
+	testOKStatus = 200
+	
+	// Интервал поллинга для WaitForCondition
+	pollIntervalMs = 10
+)
 // TestServer предоставляет моковый HTTP сервер для тестирования
 type TestServer struct {
 	*httptest.Server
@@ -317,7 +325,7 @@ func WaitForCondition(timeout time.Duration, condition func() bool) bool {
 		if condition() {
 			return true
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(pollIntervalMs * time.Millisecond)
 	}
 	return false
 }

@@ -24,6 +24,16 @@ linters:
     - godot
     # Line length
     - lll
+    # Security
+    - gosec
+    # Error handling
+    - errorlint
+    # Body close
+    - bodyclose
+    # Magic numbers
+    - mnd
+    # Nested if complexity
+    - nestif
 
 run:
   # Timeout for analysis
