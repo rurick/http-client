@@ -244,6 +244,12 @@ func isTimeoutError(err error) bool {
 	if err == nil {
 		return false
 	}
+	
+	// Проверяем, является ли это нашей детализированной ошибкой тайм-аута
+	var timeoutErr *TimeoutError
+	if errors.As(err, &timeoutErr) {
+		return true
+	}
 
 	var netErr net.Error
 	if ok := errors.As(err, &netErr); ok && netErr.Timeout() {
@@ -254,9 +260,13 @@ func isTimeoutError(err error) bool {
 	if ok := errors.As(err, &urlErr); ok {
 		return isTimeoutError(urlErr.Err)
 	}
-
-	return strings.Contains(err.Error(), "timeout") ||
-		strings.Contains(err.Error(), "deadline exceeded")
+	
+	// Проверяем текст ошибки на наличие ключевых слов тайм-аута
+	errorMsg := err.Error()
+	return strings.Contains(errorMsg, "timeout") ||
+		strings.Contains(errorMsg, "deadline exceeded") ||
+		strings.Contains(errorMsg, "Client.Timeout exceeded") ||
+		strings.Contains(errorMsg, "request canceled while waiting for connection")
 }
 
 // getHost извлекает хост из URL для метрик
@@ -389,8 +399,16 @@ func (rt *RoundTripper) executeSingleAttempt(retryCtx *retryContext, attempt int
 		attemptReq.Body = io.NopCloser(bytes.NewReader(retryCtx.originalBody))
 	}
 
+	// Запоминаем время начала попытки для точного измерения
+	attemptStart := time.Now()
+
 	// Выполняем запрос
 	resp, err := rt.doTransport(attemptReq)
+
+	// Если произошла ошибка тайм-аута, заменяем её на детализированную
+	if err != nil {
+		err = rt.enhanceTimeoutError(err, attemptReq, rt.config, attempt, retryCtx.maxAttempts, time.Since(attemptStart))
+	}
 
 	// Обрабатываем тело ответа
 	resp = rt.wrapResponseBody(resp, err, cancel)
@@ -484,4 +502,45 @@ func (rt *RoundTripper) waitForRetry(retryCtx *retryContext, attempt int, resp *
 	case <-time.After(delay):
 		return true
 	}
+}
+
+// enhanceTimeoutError улучшает ошибки тайм-аута, добавляя детальный контекст
+func (rt *RoundTripper) enhanceTimeoutError(err error, req *http.Request, config Config, attempt, maxAttempts int, elapsed time.Duration) error {
+	if err == nil || !isTimeoutError(err) {
+		return err
+	}
+	
+	// Определяем тип тайм-аута
+	timeoutType := rt.determineTimeoutType(err, config, elapsed)
+	
+	// Создаём детализированную ошибку
+	return NewTimeoutError(req, config, attempt, maxAttempts, elapsed, timeoutType, err)
+}
+
+// determineTimeoutType определяет тип тайм-аута на основе ошибки и конфигурации
+func (rt *RoundTripper) determineTimeoutType(err error, config Config, elapsed time.Duration) string {
+	errorMsg := err.Error()
+	
+	// Проверяем, что это context deadline exceeded
+	if strings.Contains(errorMsg, "context deadline exceeded") {
+		// Если elapsed время близко к per-try timeout, это per-try timeout
+		if elapsed >= config.PerTryTimeout-100*time.Millisecond && elapsed <= config.PerTryTimeout+100*time.Millisecond {
+			return "per-try"
+		}
+		
+		// Если elapsed время близко к общему timeout, это overall timeout
+		if elapsed >= config.Timeout-500*time.Millisecond && elapsed <= config.Timeout+500*time.Millisecond {
+			return "overall"
+		}
+		
+		// Иначе это внешний context timeout
+		return "context"
+	}
+	
+	// Другие типы тайм-аутов
+	if strings.Contains(errorMsg, "timeout") {
+		return "network"
+	}
+	
+	return "unknown"
 }
