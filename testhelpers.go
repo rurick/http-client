@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -241,7 +242,7 @@ func (m *MockRoundTripper) AddResponse(resp *http.Response) {
 		bodyBytes, err := io.ReadAll(resp.Body)
 		if closeErr := resp.Body.Close(); closeErr != nil {
 			// В тестовой среде логируем предупреждение, но не прерываем выполнение
-			fmt.Printf("Warning: failed to close test response body: %v\n", closeErr)
+			log.Printf("Warning: failed to close test response body: %v", closeErr)
 		}
 
 		// Восстанавливаем body для использования в моке

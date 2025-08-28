@@ -241,50 +241,100 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 
 	isSuccess := cb.isSuccess(resp, err)
 
-	// Store a clone of the failed response for later use
-	if !isSuccess && resp != nil {
-		// Закрываем предыдущий сохранённый ответ чтобы избежать утечки памяти
-		if cb.lastFailResponse != nil && cb.lastFailResponse.Body != nil {
-			if closeErr := cb.lastFailResponse.Body.Close(); closeErr != nil {
-				log.Printf("Failed to close lastFailResponse body: %v", closeErr)
-			}
-		}
-		// Clone the response before storing it to avoid sharing mutable state
-		// Важно: исходный resp.Body будет закрыт внутри safeCloneResponse
-		clonedResp := cb.safeCloneResponse(resp) //nolint:bodyclose // body is properly closed inside safeCloneResponse
-		// Сохраняем клонированный response независимо от наличия body
-		cb.lastFailResponse = clonedResp
+	// Обрабатываем неуспешный ответ
+	if !isSuccess {
+		cb.handleFailedResponse(resp)
 	}
 
+	// Обновляем состояние в зависимости от текущего состояния автоматического выключателя
+	cb.updateStateOnResult(isSuccess)
+}
+
+// handleFailedResponse обрабатывает неуспешный ответ, клонируя его для последующего использования.
+func (cb *SimpleCircuitBreaker) handleFailedResponse(resp *http.Response) {
+	if resp == nil {
+		return
+	}
+
+	// Закрываем предыдущий сохранённый ответ чтобы избежать утечки памяти
+	cb.closeLastFailResponse()
+
+	// Clone the response before storing it to avoid sharing mutable state
+	// Важно: исходный resp.Body будет закрыт внутри safeCloneResponse
+	clonedResp := cb.safeCloneResponse(resp) //nolint:bodyclose // body is properly closed inside safeCloneResponse
+	// Сохраняем клонированный response независимо от наличия body
+	cb.lastFailResponse = clonedResp
+}
+
+// closeLastFailResponse безопасно закрывает предыдущий сохранённый ответ.
+func (cb *SimpleCircuitBreaker) closeLastFailResponse() {
+	if cb.lastFailResponse != nil && cb.lastFailResponse.Body != nil {
+		if closeErr := cb.lastFailResponse.Body.Close(); closeErr != nil {
+			log.Printf("Failed to close lastFailResponse body: %v", closeErr)
+		}
+	}
+}
+
+// updateStateOnResult обновляет состояние автоматического выключателя на основе результата запроса.
+func (cb *SimpleCircuitBreaker) updateStateOnResult(isSuccess bool) {
 	switch cb.state {
 	case CircuitBreakerClosed:
-		if isSuccess {
-			cb.failureCount = 0
-		} else {
-			cb.failureCount++
-			cb.lastFailureTime = time.Now()
-			if cb.failureThreshold > 0 && cb.failureCount >= cb.failureThreshold {
-				cb.setState(CircuitBreakerOpen)
-			}
-		}
+		cb.handleClosedState(isSuccess)
 	case CircuitBreakerOpen:
 		// В состоянии Open мы не записываем результаты, так как запросы не выполняются
 		// Переход в Half-Open происходит только по таймауту в canExecute()
 	case CircuitBreakerHalfOpen:
-		if isSuccess {
-			cb.successCount++
-			if cb.successCount >= cb.successThreshold {
-				cb.setState(CircuitBreakerClosed)
-				cb.failureCount = 0
-				cb.successCount = 0
-			}
-		} else {
-			cb.setState(CircuitBreakerOpen)
-			cb.failureCount++
-			cb.successCount = 0
-			cb.lastFailureTime = time.Now()
-		}
+		cb.handleHalfOpenState(isSuccess)
 	}
+}
+
+// handleClosedState обрабатывает результат в состоянии Closed.
+func (cb *SimpleCircuitBreaker) handleClosedState(isSuccess bool) {
+	if isSuccess {
+		cb.failureCount = 0
+		return
+	}
+
+	// Обрабатываем неуспешный результат
+	cb.failureCount++
+	cb.lastFailureTime = time.Now()
+
+	// Проверяем, нужно ли открыть автоматический выключатель
+	if cb.shouldOpenCircuit() {
+		cb.setState(CircuitBreakerOpen)
+	}
+}
+
+// handleHalfOpenState обрабатывает результат в состоянии Half-Open.
+func (cb *SimpleCircuitBreaker) handleHalfOpenState(isSuccess bool) {
+	if isSuccess {
+		cb.handleSuccessInHalfOpen()
+	} else {
+		cb.handleFailureInHalfOpen()
+	}
+}
+
+// handleSuccessInHalfOpen обрабатывает успешный результат в состоянии Half-Open.
+func (cb *SimpleCircuitBreaker) handleSuccessInHalfOpen() {
+	cb.successCount++
+	if cb.successCount >= cb.successThreshold {
+		cb.setState(CircuitBreakerClosed)
+		cb.failureCount = 0
+		cb.successCount = 0
+	}
+}
+
+// handleFailureInHalfOpen обрабатывает неуспешный результат в состоянии Half-Open.
+func (cb *SimpleCircuitBreaker) handleFailureInHalfOpen() {
+	cb.setState(CircuitBreakerOpen)
+	cb.failureCount++
+	cb.successCount = 0
+	cb.lastFailureTime = time.Now()
+}
+
+// shouldOpenCircuit определяет, следует ли открыть автоматический выключатель.
+func (cb *SimpleCircuitBreaker) shouldOpenCircuit() bool {
+	return cb.failureThreshold > 0 && cb.failureCount >= cb.failureThreshold
 }
 
 // safeCloneResponse creates a safe clone of the HTTP response without concurrent body reading.
