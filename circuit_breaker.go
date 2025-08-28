@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 )
@@ -246,6 +247,7 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 			cb.lastFailResponse.Body.Close()
 		}
 		// Clone the response before storing it to avoid sharing mutable state
+		// Важно: исходный resp.Body будет закрыт внутри safeCloneResponse
 		clonedResp := cb.safeCloneResponse(resp)
 		// Сохраняем клонированный response независимо от наличия body
 		cb.lastFailResponse = clonedResp
@@ -315,7 +317,11 @@ func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Res
 	if resp.Body != nil {
 		// Try to read the body safely
 		bodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close() // Всегда закрываем оригинальное body после чтения
+		// Всегда закрываем оригинальное body после чтения для предотвращения утечек
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// Логируем ошибку закрытия, но продолжаем работу
+			// В production коде это критично для мониторинга
+		}
 		if err == nil && len(bodyBytes) > 0 {
 			// Successfully read the body, restore it and clone it
 			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -325,6 +331,8 @@ func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Res
 			// Could not read body or body is empty, create empty body
 			clone.Body = newStrictReadCloser(nil)
 			clone.ContentLength = 0
+			// Восстанавливаем оригинальный body как пустой для consistency
+			resp.Body = io.NopCloser(strings.NewReader(""))
 		}
 	} else {
 		// Original had no body

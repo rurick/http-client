@@ -230,9 +230,9 @@ func (m *MockRoundTripper) AddResponse(resp *http.Response) {
 		return
 	}
 
-	// В тестовой среде мы не закрываем response.Body т.к. это должен делать тест
-	// Примечание: bodyclose linter предупреждает о незакрытом body, но в тестовом контексте
-	// это ожидаемое поведение - body будет закрыт в тестах
+	// В тестовой среде добавляем response как есть
+	// Примечание: bodyclose linter может предупреждать о незакрытом body,
+	// но в контексте тестового мока это ответственность вызывающего кода
 	m.responses = append(m.responses, resp)
 }
 
