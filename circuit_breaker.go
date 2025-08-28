@@ -67,18 +67,24 @@ type CircuitBreakerConfig struct {
 
 type strictReadCloser struct {
 	reader *bytes.Reader
+	mu     sync.RWMutex
 	closed bool
 }
 
 func (s *strictReadCloser) Read(p []byte) (int, error) {
-	if s.closed {
+	s.mu.RLock()
+	closed := s.closed
+	s.mu.RUnlock()
+	if closed {
 		return 0, errors.New("http: read on closed response body")
 	}
 	return s.reader.Read(p)
 }
 
 func (s *strictReadCloser) Close() error {
+	s.mu.Lock()
 	s.closed = true
+	s.mu.Unlock()
 	return nil
 }
 

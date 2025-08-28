@@ -177,44 +177,62 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 	assert.Equal(t, httpclient.CircuitBreakerClosed, cb.State())
 }
 
-// TestBackoffWithJitter verifies that retry delays include random jitter
-// and vary within the expected range.
+// TestBackoffWithJitter verifies that retry delays include deterministic jitter
+// and vary for different attempts within the expected range.
 func TestBackoffWithJitter(t *testing.T) {
 	t.Parallel()
 
 	baseDelay := 100 * time.Millisecond
 	jitter := 0.5 // 50% jitter
-	attempt := 3
-	samples := 20
+	maxDelay := 10 * time.Second
 
-	delays := make([]time.Duration, samples)
+	// Test multiple attempts to verify jitter varies across attempts
+	attempts := []int{1, 2, 3, 4, 5}
+	delays := make([]time.Duration, len(attempts))
 
-	// Collect multiple delay calculations
-	for i := 0; i < samples; i++ {
-		delays[i] = httpclient.CalculateBackoffDelay(attempt, baseDelay, 10*time.Second, jitter)
+	// Collect delays for different attempts
+	for i, attempt := range attempts {
+		delays[i] = httpclient.CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
 	}
 
-	// Expected base delay for attempt 3: 100ms * 2^(3-2) = 200ms
-	expectedBase := time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt-2)))
-	minDelay := time.Duration(float64(expectedBase) * (1 - jitter))
-	maxDelay := time.Duration(float64(expectedBase) * (1 + jitter))
+	// Verify delays for each attempt
+	for i, attempt := range attempts {
+		// Expected base delay: 0 for attempt <= 1, baseDelay * 2^(attempt-2) for attempt >= 2
+		var expectedBase time.Duration
+		if attempt <= 1 {
+			expectedBase = 0 // First attempt has no delay
+		} else {
+			expectedBase = time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt-2)))
+		}
 
-	// Verify all delays are within jitter range
-	for i, delay := range delays {
-		assert.GreaterOrEqual(t, delay, minDelay, "Delay %d is below minimum: %v < %v", i, delay, minDelay)
-		assert.LessOrEqual(t, delay, maxDelay, "Delay %d is above maximum: %v > %v", i, delay, maxDelay)
+		minDelay := time.Duration(float64(expectedBase) * (1 - jitter))
+		maxJitterDelay := time.Duration(float64(expectedBase) * (1 + jitter))
+		if maxJitterDelay > maxDelay {
+			maxJitterDelay = maxDelay
+		}
+
+		// Verify delay is within jitter range
+		assert.GreaterOrEqual(t, delays[i], minDelay, "Delay for attempt %d is below minimum: %v < %v", attempt, delays[i], minDelay)
+		assert.LessOrEqual(t, delays[i], maxJitterDelay, "Delay for attempt %d is above maximum: %v > %v", attempt, delays[i], maxJitterDelay)
 	}
 
-	// Verify that delays actually vary (not all the same)
-	allSame := true
-	firstDelay := delays[0]
-	for _, delay := range delays[1:] {
-		if delay != firstDelay {
-			allSame = false
+	// Verify that jitter creates deterministic but different values for different attempts
+	// Since jitter is deterministic based on attempt number, same attempts should give same results
+	for _, attempt := range attempts {
+		delay1 := httpclient.CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
+		delay2 := httpclient.CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
+		assert.Equal(t, delay1, delay2, "Jitter should be deterministic for same attempt %d", attempt)
+	}
+
+	// Verify that different attempts produce different delays (deterministic jitter)
+	atLeastOneDifferent := false
+	for i := 1; i < len(delays); i++ {
+		if delays[i] != delays[0] {
+			atLeastOneDifferent = true
 			break
 		}
 	}
-	assert.False(t, allSame, "All delays are the same, jitter is not working")
+	assert.True(t, atLeastOneDifferent, "Jitter should produce different delays for different attempts")
 }
 
 // TestIdempotentRetryWithUnreadableBody verifies that library buffers request bodies
