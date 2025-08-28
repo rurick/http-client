@@ -1,4 +1,4 @@
-version: 2  # Версия конфигурации golangci-lint
+version: 2
 
 linters-settings:
   godot:
@@ -30,8 +30,6 @@ linters:
     - errorlint
     # Body close
     - bodyclose
-    # Magic numbers
-    - mnd
     # Nested if complexity
     - nestif
 

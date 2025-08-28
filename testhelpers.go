@@ -1,6 +1,7 @@
 package httpclient
 
 import (
+	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -230,10 +231,29 @@ func (m *MockRoundTripper) AddResponse(resp *http.Response) {
 		return
 	}
 
-	// В тестовой среде добавляем response как есть
-	// Примечание: bodyclose linter может предупреждать о незакрытом body,
-	// но в контексте тестового мока это ответственность вызывающего кода
-	m.responses = append(m.responses, resp)
+	// В тестовой среде добавляем response как есть.
+	// Примечание: если response.Body не nil, то предполагается, что это NopCloser
+	// или другой ReadCloser, который безопасно использовать в тестах многократно.
+	// Для предотвращения предупреждений линтера о незакрытом body,
+	// мы клонируем body если это необходимо.
+	if resp.Body != nil {
+		// Читаем body для безопасного клонирования
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// В тестовой среде логируем предупреждение, но не прерываем выполнение
+			fmt.Printf("Warning: failed to close test response body: %v\n", closeErr)
+		}
+
+		// Восстанавливаем body для использования в моке
+		if err == nil {
+			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		} else {
+			// Если не удалось прочитать, создаем пустое body
+			resp.Body = io.NopCloser(strings.NewReader(""))
+		}
+	}
+
+	m.responses = append(m.responses, resp) //nolint:bodyclose // body is safely handled in mock context
 }
 
 // AddError добавляет ошибку для следующего вызова.

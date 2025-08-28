@@ -245,11 +245,13 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 	if !isSuccess && resp != nil {
 		// Закрываем предыдущий сохранённый ответ чтобы избежать утечки памяти
 		if cb.lastFailResponse != nil && cb.lastFailResponse.Body != nil {
-			cb.lastFailResponse.Body.Close()
+			if closeErr := cb.lastFailResponse.Body.Close(); closeErr != nil {
+				log.Printf("Failed to close lastFailResponse body: %v", closeErr)
+			}
 		}
 		// Clone the response before storing it to avoid sharing mutable state
 		// Важно: исходный resp.Body будет закрыт внутри safeCloneResponse
-		clonedResp := cb.safeCloneResponse(resp)
+		clonedResp := cb.safeCloneResponse(resp) //nolint:bodyclose // body is properly closed inside safeCloneResponse
 		// Сохраняем клонированный response независимо от наличия body
 		cb.lastFailResponse = clonedResp
 	}
