@@ -10,10 +10,10 @@ import (
 
 // Константы для метрик.
 const (
-	// Минимальное значение в бакетах длительности
+	// Минимальное значение в бакетах длительности.
 	minDurationBucketSeconds = 0.001
-	
-	// Минимальное значение в бакетах размера (в байтах)
+
+	// Минимальное значение в бакетах размера (в байтах).
 	minSizeBucketBytes = 256
 )
 
@@ -55,7 +55,8 @@ func NewMetrics(meterName string) *Metrics {
 		metric.WithDescription("HTTP client request duration in seconds"),
 		metric.WithUnit("s"),
 		metric.WithExplicitBucketBoundaries(
-			minDurationBucketSeconds, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
+			minDurationBucketSeconds, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+			1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
 		),
 	)
 
@@ -75,14 +76,18 @@ func NewMetrics(meterName string) *Metrics {
 		"http_client_request_size_bytes",
 		metric.WithDescription("HTTP client request size in bytes"),
 		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries(minSizeBucketBytes, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216),
+		metric.WithExplicitBucketBoundaries(
+			minSizeBucketBytes, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+		),
 	)
 
 	responseSize, _ := meter.Int64Histogram(
 		"http_client_response_size_bytes",
 		metric.WithDescription("HTTP client response size in bytes"),
 		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries(minSizeBucketBytes, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216),
+		metric.WithExplicitBucketBoundaries(
+			minSizeBucketBytes, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+		),
 	)
 
 	return &Metrics{

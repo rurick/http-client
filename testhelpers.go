@@ -13,13 +13,11 @@ import (
 
 // Константы для тестов.
 const (
-	// Статус по умолчанию для тестовых ответов
-	testOKStatus = 200
-	
-	// Интервал поллинга для WaitForCondition
+	// Интервал поллинга для WaitForCondition.
 	pollIntervalMs = 10
 )
-// TestServer предоставляет моковый HTTP сервер для тестирования
+
+// TestServer предоставляет моковый HTTP сервер для тестирования.
 type TestServer struct {
 	*httptest.Server
 	mu              sync.RWMutex
@@ -211,8 +209,9 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	// Дефолтный ответ
+	const defaultOKStatus = 200
 	return &http.Response{
-		StatusCode: 200,
+		StatusCode: defaultOKStatus,
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(`{"status": "ok"}`)),
 		Request:    req,
@@ -223,6 +222,9 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 func (m *MockRoundTripper) AddResponse(resp *http.Response) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
+	// Для тестовых ответов с body убеждаемся что они будут правильно обработаны
+	// Не закрываем здесь body, так как он будет использован в тестах
 	m.responses = append(m.responses, resp)
 }
 

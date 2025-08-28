@@ -82,7 +82,7 @@ func (e *ConfigurationError) Error() string {
 	return fmt.Sprintf("configuration error in field '%s': %s (value: %v)", e.Field, e.Message, e.Value)
 }
 
-// NewConfigurationError создаёт новую ошибку конфигурации
+// NewConfigurationError создаёт новую ошибку конфигурации.
 func NewConfigurationError(field string, value interface{}, message string) *ConfigurationError {
 	return &ConfigurationError{
 		Field:   field,
@@ -91,7 +91,7 @@ func NewConfigurationError(field string, value interface{}, message string) *Con
 	}
 }
 
-// TimeoutError представляет детализированную ошибку тайм-аута с контекстом
+// TimeoutError представляет детализированную ошибку тайм-аута с контекстом.
 type TimeoutError struct {
 	// Основная информация о запросе
 	Method string
@@ -112,7 +112,7 @@ type TimeoutError struct {
 	Suggestions []string
 }
 
-// Error реализует интерфейс error с детализированным сообщением
+// Error реализует интерфейс error с детализированным сообщением.
 func (e *TimeoutError) Error() string {
 	var suggestions string
 	if len(e.Suggestions) > 0 {
@@ -127,12 +127,12 @@ func (e *TimeoutError) Error() string {
 	)
 }
 
-// Unwrap возвращает оригинальную ошибку для поддержки errors.Unwrap
+// Unwrap возвращает оригинальную ошибку для поддержки errors.Unwrap.
 func (e *TimeoutError) Unwrap() error {
 	return e.OriginalErr
 }
 
-// NewTimeoutError создаёт детализированную ошибку тайм-аута
+// NewTimeoutError создаёт детализированную ошибку тайм-аута.
 func NewTimeoutError(
 	req *http.Request,
 	config Config,
@@ -162,7 +162,7 @@ func NewTimeoutError(
 	}
 }
 
-// generateTimeoutSuggestions генерирует предложения по решению проблем с тайм-аутом
+// generateTimeoutSuggestions генерирует предложения по решению проблем с тайм-аутом.
 func generateTimeoutSuggestions(
 	config Config,
 	elapsed time.Duration,

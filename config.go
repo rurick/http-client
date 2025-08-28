@@ -8,17 +8,17 @@ import (
 
 // Константы по умолчанию для конфигурации.
 const (
-	// Таймауты по умолчанию
+	// Таймауты по умолчанию.
 	defaultTimeout       = 5 * time.Second
 	defaultPerTryTimeout = 2 * time.Second
-	
-	// Retry настройки по умолчанию
-	defaultMaxAttempts  = 3
-	defaultBaseDelay    = 100 * time.Millisecond
-	defaultMaxDelay     = 2 * time.Second
-	defaultJitter       = 0.2
-	
-	// CircuitBreaker настройки по умолчанию
+
+	// Retry настройки по умолчанию.
+	defaultMaxAttempts = 3
+	defaultBaseDelay   = 100 * time.Millisecond
+	defaultMaxDelay    = 2 * time.Second
+	defaultJitter      = 0.2
+
+	// CircuitBreaker настройки по умолчанию.
 	defaultFailureThreshold = 5
 	defaultSuccessThreshold = 3
 	defaultCircuitTimeout   = 60 * time.Second

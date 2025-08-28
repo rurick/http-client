@@ -19,14 +19,14 @@ import (
 )
 
 // contextAwareBody оборачивает http.Response.Body для отложенной отмены context
-// до закрытия body, предотвращая ошибки "context canceled" во время чтения body
+// до закрытия body, предотвращая ошибки "context canceled" во время чтения body.
 type contextAwareBody struct {
 	io.ReadCloser
 	cancel context.CancelFunc
 	once   sync.Once
 }
 
-// Close закрывает базовое body и отменяет связанный context
+// Close закрывает базовое body и отменяет связанный context.
 func (c *contextAwareBody) Close() error {
 	c.once.Do(func() {
 		if c.cancel != nil {
@@ -36,7 +36,7 @@ func (c *contextAwareBody) Close() error {
 	return c.ReadCloser.Close()
 }
 
-// retryContext содержит контекст для выполнения retry
+// retryContext содержит контекст для выполнения retry.
 type retryContext struct {
 	ctx          context.Context
 	originalReq  *http.Request
@@ -47,7 +47,7 @@ type retryContext struct {
 	maxAttempts  int
 }
 
-// RoundTripper реализует http.RoundTripper с автоматическими метриками и retry
+// RoundTripper реализует http.RoundTripper с автоматическими метриками и retry.
 type RoundTripper struct {
 	base    http.RoundTripper
 	config  Config
@@ -55,7 +55,7 @@ type RoundTripper struct {
 	tracer  *Tracer
 }
 
-// RoundTrip выполняет HTTP запрос с автоматическими метриками и retry
+// RoundTrip выполняет HTTP запрос с автоматическими метриками и retry.
 func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	ctx, span := rt.setupTracing(req)
 	if span != nil {
@@ -129,7 +129,7 @@ func (rt *RoundTripper) parseRetryAfterHeader(config RetryConfig, resp *http.Res
 	return 0
 }
 
-// getRetryReasonWithConfig аналогичен getRetryReason, но использует политику статусов из RetryConfig
+// getRetryReasonWithConfig аналогичен getRetryReason, но использует политику статусов из RetryConfig.
 func getRetryReasonWithConfig(cfg RetryConfig, err error, status int) string {
 	if err != nil {
 		if isNetworkError(err) {
@@ -148,7 +148,7 @@ func getRetryReasonWithConfig(cfg RetryConfig, err error, status int) string {
 	return ""
 }
 
-// doTransport выполняет реальный HTTP-запрос, опционально через CircuitBreaker
+// doTransport выполняет реальный HTTP-запрос, опционально через CircuitBreaker.
 func (rt *RoundTripper) doTransport(req *http.Request) (*http.Response, error) {
 	if rt.config.CircuitBreakerEnable && rt.config.CircuitBreaker != nil {
 		return rt.config.CircuitBreaker.Execute(func() (*http.Response, error) {
@@ -158,7 +158,7 @@ func (rt *RoundTripper) doTransport(req *http.Request) (*http.Response, error) {
 	return rt.base.RoundTrip(req)
 }
 
-// shouldRetryAttempt принимает решение о повторе попытки и возвращает причину
+// shouldRetryAttempt принимает решение о повторе попытки и возвращает причину.
 func shouldRetryAttempt(
 	cfg Config, req *http.Request, attempt, maxAttempts int, err error, status int, deadline time.Time,
 ) (bool, string) {
@@ -195,7 +195,7 @@ func shouldRetryAttempt(
 	return true, reason
 }
 
-// recordAttemptMetrics логирует метрики одной попытки
+// recordAttemptMetrics логирует метрики одной попытки.
 func (rt *RoundTripper) recordAttemptMetrics(
 	ctx context.Context, method, host string, resp *http.Response, status int, attempt int,
 	isRetry bool, isError bool, duration time.Duration,

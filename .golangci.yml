@@ -1,4 +1,4 @@
-version: 2
+version: 2  # Версия конфигурации golangci-lint
 
 linters-settings:
   godot:

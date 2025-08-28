@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-// Константы для классификации причин retry
+// Константы для классификации причин retry.
 const (
 	RetryReasonTimeout = "timeout"
 	RetryReasonNetwork = "net"
 )
 
-// RetryableError интерфейс для ошибок, которые можно повторить
+// RetryableError интерфейс для ошибок, которые можно повторить.
 type RetryableError interface {
 	error
 	Retryable() bool
 }
 
-// retryableError обёртка для ошибок, которые можно повторить
+// retryableError обёртка для ошибок, которые можно повторить.
 type retryableError struct {
 	err       error
 	retryable bool
@@ -37,7 +37,7 @@ func (re *retryableError) Unwrap() error {
 	return re.err
 }
 
-// NewRetryableError создаёт новую ошибку, которую можно повторить
+// NewRetryableError создаёт новую ошибку, которую можно повторить.
 func NewRetryableError(err error) error {
 	return &retryableError{
 		err:       err,
@@ -45,7 +45,7 @@ func NewRetryableError(err error) error {
 	}
 }
 
-// NewNonRetryableError создаёт новую ошибку, которую нельзя повторить
+// NewNonRetryableError создаёт новую ошибку, которую нельзя повторить.
 func NewNonRetryableError(err error) error {
 	return &retryableError{
 		err:       err,
@@ -53,7 +53,7 @@ func NewNonRetryableError(err error) error {
 	}
 }
 
-// IsRetryableError проверяет, можно ли повторить ошибку
+// IsRetryableError проверяет, можно ли повторить ошибку.
 func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
@@ -68,7 +68,7 @@ func IsRetryableError(err error) bool {
 	return isNetworkRetryableError(err) || isTimeoutRetryableError(err)
 }
 
-// isNetworkRetryableError проверяет, является ли сетевая ошибка повторяемой
+// isNetworkRetryableError проверяет, является ли сетевая ошибка повторяемой.
 func isNetworkRetryableError(err error) bool {
 	if err == nil {
 		return false
@@ -110,7 +110,7 @@ func isNetworkRetryableError(err error) bool {
 	return false
 }
 
-// isTimeoutRetryableError проверяет, является ли ошибка таймаута повторяемой
+// isTimeoutRetryableError проверяет, является ли ошибка таймаута повторяемой.
 func isTimeoutRetryableError(err error) bool {
 	if err == nil {
 		return false
@@ -147,7 +147,7 @@ func isTimeoutRetryableError(err error) bool {
 	return false
 }
 
-// ClassifyError классифицирует ошибку для целей retry
+// ClassifyError классифицирует ошибку для целей retry.
 func ClassifyError(err error) string {
 	if err == nil {
 		return ""

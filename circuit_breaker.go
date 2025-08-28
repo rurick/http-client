@@ -241,6 +241,10 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 
 	// Store a clone of the failed response for later use
 	if !isSuccess && resp != nil {
+		// Закрываем предыдущий сохранённый ответ чтобы избежать утечки памяти
+		if cb.lastFailResponse != nil && cb.lastFailResponse.Body != nil {
+			cb.lastFailResponse.Body.Close()
+		}
 		// Clone the response before storing it to avoid sharing mutable state
 		cb.lastFailResponse = cb.safeCloneResponse(resp)
 	}
@@ -345,7 +349,8 @@ func (cb *SimpleCircuitBreaker) isSuccess(resp *http.Response, err error) bool {
 	if resp.StatusCode == http.StatusTooManyRequests {
 		return false
 	}
-	return resp.StatusCode < 500
+	const internalServerErrorThreshold = 500
+	return resp.StatusCode < internalServerErrorThreshold
 }
 
 // setState изменяет состояние автоматического выключателя и вызывает callback, если он установлен.
