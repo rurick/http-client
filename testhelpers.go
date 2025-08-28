@@ -69,7 +69,7 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	bodyBytes := make([]byte, 0)
 	if r.Body != nil {
 		bodyBytes, _ = io.ReadAll(r.Body)
-		r.Body.Close()
+		defer r.Body.Close() // Используем defer для надёжного закрытия
 	}
 
 	headers := make(map[string]string)

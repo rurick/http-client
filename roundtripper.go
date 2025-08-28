@@ -112,30 +112,6 @@ func (rt *RoundTripper) calculateRetryDelay(attempt int, resp *http.Response) ti
 	return CalculateBackoffDelay(attempt, config.BaseDelay, config.MaxDelay, config.Jitter)
 }
 
-// shouldRetryStatus проверяет, стоит ли повторять запрос для данного статуса
-func shouldRetryStatus(status int) bool {
-	return status == 429 || (status >= 500 && status <= 599)
-}
-
-// getRetryReason определяет причину retry
-func getRetryReason(err error, status int) string {
-	if err != nil {
-		if isNetworkError(err) {
-			return RetryReasonNetwork
-		}
-		if isTimeoutError(err) {
-			return RetryReasonTimeout
-		}
-		return ""
-	}
-
-	if shouldRetryStatus(status) {
-		return "status"
-	}
-
-	return ""
-}
-
 // getRetryReasonWithConfig аналогичен getRetryReason, но использует политику статусов из RetryConfig
 func getRetryReasonWithConfig(cfg RetryConfig, err error, status int) string {
 	if err != nil {
@@ -166,7 +142,9 @@ func (rt *RoundTripper) doTransport(req *http.Request) (*http.Response, error) {
 }
 
 // shouldRetryAttempt принимает решение о повторе попытки и возвращает причину
-func shouldRetryAttempt(cfg Config, req *http.Request, attempt, maxAttempts int, err error, status int, deadline time.Time) (bool, string) {
+func shouldRetryAttempt(
+	cfg Config, req *http.Request, attempt, maxAttempts int, err error, status int, deadline time.Time,
+) (bool, string) {
 	if !cfg.RetryEnabled {
 		return false, ""
 	}
@@ -201,7 +179,9 @@ func shouldRetryAttempt(cfg Config, req *http.Request, attempt, maxAttempts int,
 }
 
 // recordAttemptMetrics логирует метрики одной попытки
-func (rt *RoundTripper) recordAttemptMetrics(ctx context.Context, method, host string, resp *http.Response, status int, attempt int, isRetry bool, isError bool, duration time.Duration) {
+func (rt *RoundTripper) recordAttemptMetrics(
+	ctx context.Context, method, host string, resp *http.Response, status int, attempt int, isRetry bool, isError bool, duration time.Duration,
+) {
 	rt.metrics.RecordRequest(ctx, method, host, strconv.Itoa(status), isRetry, isError)
 	rt.metrics.RecordDuration(ctx, duration.Seconds(), method, host, strconv.Itoa(status), attempt)
 	if resp != nil {
@@ -300,25 +280,6 @@ func getResponseSize(resp *http.Response) int64 {
 		return resp.ContentLength
 	}
 	return 0
-}
-
-// cloneRequestBody клонирует тело запроса для повторных попыток
-func cloneRequestBody(req *http.Request) (io.ReadCloser, error) {
-	if req.Body == nil {
-		return nil, nil
-	}
-
-	// Читаем тело в память
-	body, err := io.ReadAll(req.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	// Восстанавливаем оригинальное тело
-	req.Body = io.NopCloser(bytes.NewReader(body))
-
-	// Возвращаем клон
-	return io.NopCloser(bytes.NewReader(body)), nil
 }
 
 // setupTracing настраивает трассировку для запроса
@@ -446,7 +407,9 @@ func (rt *RoundTripper) recordAttemptResults(retryCtx *retryContext, attempt int
 	}
 
 	// Записываем метрики
-	rt.recordAttemptMetrics(retryCtx.ctx, retryCtx.originalReq.Method, retryCtx.host, resp, status, attempt, isRetry, isError, duration)
+	rt.recordAttemptMetrics(
+		retryCtx.ctx, retryCtx.originalReq.Method, retryCtx.host, resp, status, attempt, isRetry, isError, duration,
+	)
 
 	// Обновляем span
 	rt.updateSpan(retryCtx.span, status, attempt, isRetry, isError, duration)
@@ -476,7 +439,9 @@ func (rt *RoundTripper) shouldRetryResponse(retryCtx *retryContext, attempt int,
 	}
 
 	deadline, _ := retryCtx.ctx.Deadline()
-	shouldRetry, retryReason := shouldRetryAttempt(rt.config, retryCtx.originalReq, attempt, retryCtx.maxAttempts, err, status, deadline)
+	shouldRetry, retryReason := shouldRetryAttempt(
+		rt.config, retryCtx.originalReq, attempt, retryCtx.maxAttempts, err, status, deadline,
+	)
 
 	if shouldRetry {
 		rt.recordRetry(retryCtx.ctx, retryReason, retryCtx.originalReq.Method, retryCtx.host)
@@ -533,12 +498,14 @@ func (rt *RoundTripper) determineTimeoutType(err error, config Config, elapsed t
 	// Проверяем, что это context deadline exceeded
 	if strings.Contains(errorMsg, "context deadline exceeded") {
 		// Если elapsed время близко к per-try timeout, это per-try timeout
-		if elapsed >= config.PerTryTimeout-100*time.Millisecond && elapsed <= config.PerTryTimeout+100*time.Millisecond {
+		if elapsed >= config.PerTryTimeout-100*time.Millisecond &&
+			elapsed <= config.PerTryTimeout+100*time.Millisecond {
 			return "per-try"
 		}
 
 		// Если elapsed время близко к общему timeout, это overall timeout
-		if elapsed >= config.Timeout-500*time.Millisecond && elapsed <= config.Timeout+500*time.Millisecond {
+		if elapsed >= config.Timeout-500*time.Millisecond &&
+			elapsed <= config.Timeout+500*time.Millisecond {
 			return "overall"
 		}
 

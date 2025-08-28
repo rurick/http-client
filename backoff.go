@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// CalculateBackoffDelay вычисляет задержку для exponential backoff с jitter
+// CalculateBackoffDelay вычисляет задержку для exponential backoff с jitter.
 func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitter float64) time.Duration {
 	if attempt <= 1 {
 		return 0
@@ -50,12 +50,12 @@ func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitte
 	return delay
 }
 
-// CalculateExponentialBackoff вычисляет exponential backoff без jitter
+// CalculateExponentialBackoff вычисляет exponential backoff без jitter.
 func CalculateExponentialBackoff(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
 	return CalculateBackoffDelay(attempt, baseDelay, maxDelay, 0)
 }
 
-// CalculateLinearBackoff вычисляет линейную задержку
+// CalculateLinearBackoff вычисляет линейную задержку.
 func CalculateLinearBackoff(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
 	delay := time.Duration(attempt-1) * baseDelay
 	if delay > maxDelay {
@@ -64,7 +64,7 @@ func CalculateLinearBackoff(attempt int, baseDelay, maxDelay time.Duration) time
 	return delay
 }
 
-// CalculateConstantBackoff возвращает константную задержку
+// CalculateConstantBackoff возвращает константную задержку.
 func CalculateConstantBackoff(baseDelay time.Duration) time.Duration {
 	return baseDelay
 }

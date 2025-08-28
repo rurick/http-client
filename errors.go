@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// HTTPError представляет HTTP ошибку с дополнительной информацией
+// HTTPError представляет HTTP ошибку с дополнительной информацией.
 type HTTPError struct {
 	StatusCode int
 	Status     string
@@ -16,18 +16,18 @@ type HTTPError struct {
 	Headers    http.Header
 }
 
-// Error реализует интерфейс error
+// Error реализует интерфейс error.
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("HTTP %d %s: %s %s", e.StatusCode, e.Status, e.Method, e.URL)
 }
 
-// IsHTTPError проверяет, является ли ошибка HTTP ошибкой
+// IsHTTPError проверяет, является ли ошибка HTTP ошибкой.
 func IsHTTPError(err error) bool {
 	_, ok := err.(*HTTPError)
 	return ok
 }
 
-// NewHTTPError создаёт новую HTTP ошибку
+// NewHTTPError создаёт новую HTTP ошибку.
 func NewHTTPError(resp *http.Response, req *http.Request) *HTTPError {
 	return &HTTPError{
 		StatusCode: resp.StatusCode,
@@ -38,7 +38,7 @@ func NewHTTPError(resp *http.Response, req *http.Request) *HTTPError {
 	}
 }
 
-// MaxAttemptsExceededError представляет ошибку превышения максимального количества попыток
+// MaxAttemptsExceededError представляет ошибку превышения максимального количества попыток.
 type MaxAttemptsExceededError struct {
 	MaxAttempts int
 	LastError   error

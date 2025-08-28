@@ -568,37 +568,46 @@ func TestClientCloseResourceCleanup(t *testing.T) {
 	assert.NoError(t, err2)
 }
 
-// TestRequestBodyCloning tests the request body cloning functionality
-func TestRequestBodyCloning(t *testing.T) {
+// TestRequestBodyPreparation tests the request body preparation functionality
+// (заменена с клонирования на подготовку, которая используется в RoundTripper)
+func TestRequestBodyPreparation(t *testing.T) {
 	t.Parallel()
 
 	originalData := []byte("test request data")
 	req, err := http.NewRequest("POST", "http://example.com", bytes.NewReader(originalData))
 	require.NoError(t, err)
 
-	clonedBody, err := cloneRequestBody(req)
-	require.NoError(t, err)
-	require.NotNil(t, clonedBody)
+	// Создаем RoundTripper для тестирования prepareRequestBody
+	rt := &RoundTripper{
+		config: Config{RetryEnabled: true},
+	}
 
-	// Read from cloned body
-	clonedData, err := io.ReadAll(clonedBody)
+	preparedBody, err := rt.prepareRequestBody(req)
 	require.NoError(t, err)
-	assert.Equal(t, originalData, clonedData)
+	require.NotNil(t, preparedBody)
 
-	// Original body should still be readable
+	// Проверяем, что подготовленное тело содержит оригинальные данные
+	assert.Equal(t, originalData, preparedBody)
+
+	// Проверяем, что оригинальное тело все еще читаемо
 	originalData2, err := io.ReadAll(req.Body)
 	require.NoError(t, err)
 	assert.Equal(t, originalData, originalData2)
 }
 
-// TestNilBodyCloning tests cloning when request has nil body
-func TestNilBodyCloning(t *testing.T) {
+// TestNilBodyPreparation tests preparation when request has nil body
+func TestNilBodyPreparation(t *testing.T) {
 	t.Parallel()
 
 	req, err := http.NewRequest("GET", "http://example.com", nil)
 	require.NoError(t, err)
 
-	clonedBody, err := cloneRequestBody(req)
+	// Создаем RoundTripper для тестирования prepareRequestBody
+	rt := &RoundTripper{
+		config: Config{RetryEnabled: true},
+	}
+
+	preparedBody, err := rt.prepareRequestBody(req)
 	require.NoError(t, err)
-	assert.Nil(t, clonedBody)
+	assert.Nil(t, preparedBody)
 }

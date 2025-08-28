@@ -1,0 +1,60 @@
+version: 2
+
+linters-settings:
+  godot:
+    # Check all top-level comments, not only declarations
+    check-all: false
+    # Check periods at the end of sentences
+    period: true
+  lll:
+    # Max line length
+    line-length: 120
+
+linters:
+  disable-all: true
+  enable:
+    # Basic Go linters
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+    # Comment formatting
+    - godot
+    # Line length
+    - lll
+
+run:
+  # Timeout for analysis
+  timeout: 5m
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+  # Include test files
+  tests: true
+
+issues:
+  # Maximum issues count per one linter
+  max-issues-per-linter: 0
+  # Maximum count of issues with the same text
+  max-same-issues: 0
+  
+  exclude-rules:
+    # Exclude some linters from running on tests files.
+    - path: _test\.go
+      linters:
+        - godot
+        - lll
+    # Exclude examples from godot and lll
+    - path: examples/
+      linters:
+        - godot
+        - lll
+
+output:
+  # Colored output
+  format: colored-line-number
+  # Print lines of code with issue
+  print-issued-lines: true
+  # Print linter name in the end of issue text
+  print-linter-name: true

@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// Config содержит конфигурацию HTTP клиента
+// Config содержит конфигурацию HTTP клиента.
 type Config struct {
 	// Timeout общий таймаут для всей операции (включая ретраи)
 	Timeout time.Duration
@@ -36,7 +36,7 @@ type Config struct {
 	CircuitBreaker CircuitBreaker
 }
 
-// RetryConfig содержит настройки retry механизма
+// RetryConfig содержит настройки retry механизма.
 type RetryConfig struct {
 	// MaxAttempts максимальное количество попыток (включая первоначальную)
 	MaxAttempts int
@@ -60,7 +60,7 @@ type RetryConfig struct {
 	RespectRetryAfter bool
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации
+// withDefaults применяет значения по умолчанию к конфигурации.
 func (c Config) withDefaults() Config {
 	if c.Timeout == 0 {
 		c.Timeout = 5 * time.Second
@@ -86,7 +86,7 @@ func (c Config) withDefaults() Config {
 	return c
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации retry
+// withDefaults применяет значения по умолчанию к конфигурации retry.
 func (rc RetryConfig) withDefaults() RetryConfig {
 	if rc.MaxAttempts == 0 {
 		rc.MaxAttempts = 3
@@ -126,7 +126,7 @@ func (rc RetryConfig) withDefaults() RetryConfig {
 	return rc
 }
 
-// isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности
+// isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности.
 func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	method := req.Method
 
@@ -143,7 +143,7 @@ func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	return false
 }
 
-// isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса
+// isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса.
 func (rc RetryConfig) isStatusRetryable(status int) bool {
 	return slices.Contains(rc.RetryStatusCodes, status)
 }

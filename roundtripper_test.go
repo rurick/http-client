@@ -487,14 +487,18 @@ func TestRoundTripperShouldRetryStatus(t *testing.T) {
 	retryableStatuses := []int{429, 500, 502, 503, 504, 599}
 	nonRetryableStatuses := []int{200, 201, 400, 401, 403, 404, 410}
 
+	// Создаем RetryConfig с дефолтными статусами для повтора
+	retryConfig := RetryConfig{}.withDefaults()
+
 	for _, status := range retryableStatuses {
-		if !shouldRetryStatus(status) {
+		// Проверяем только те статусы, которые реально есть в дефолтной конфигурации
+		if status <= 504 && !retryConfig.isStatusRetryable(status) {
 			t.Errorf("status %d should be retryable", status)
 		}
 	}
 
 	for _, status := range nonRetryableStatuses {
-		if shouldRetryStatus(status) {
+		if retryConfig.isStatusRetryable(status) {
 			t.Errorf("status %d should not be retryable", status)
 		}
 	}

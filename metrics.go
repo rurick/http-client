@@ -45,7 +45,9 @@ func NewMetrics(meterName string) *Metrics {
 		"http_client_request_duration_seconds",
 		metric.WithDescription("HTTP client request duration in seconds"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60),
+		metric.WithExplicitBucketBoundaries(
+			0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
+		),
 	)
 
 	retriesTotal, _ := meter.Int64Counter(
