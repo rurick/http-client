@@ -62,7 +62,7 @@ func WithAccept(accept string) RequestOption {
 	return WithHeader("Accept", accept)
 }
 
-// applyOptions применяет все RequestOption к запросу
+// applyOptions применяет все RequestOption к запросу.
 func applyOptions(req *http.Request, opts []RequestOption) {
 	for _, opt := range opts {
 		opt(req)
@@ -86,7 +86,8 @@ func WithJSONBody(v interface{}) RequestOption {
 	}
 }
 
-// WithFormBody устанавливает тело запроса как URL-encoded form данные и устанавливает Content-Type в application/x-www-form-urlencoded.
+// WithFormBody устанавливает тело запроса как URL-encoded form данные и устанавливает
+// Content-Type в application/x-www-form-urlencoded.
 func WithFormBody(values url.Values) RequestOption {
 	return func(req *http.Request) {
 		encoded := values.Encode()

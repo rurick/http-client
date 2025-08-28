@@ -208,12 +208,12 @@ func (rt *RoundTripper) recordAttemptMetrics(
 	}
 }
 
-// recordRetry логирует метрику повторной попытки
+// recordRetry логирует метрику повторной попытки.
 func (rt *RoundTripper) recordRetry(ctx context.Context, reason, method, host string) {
 	rt.metrics.RecordRetry(ctx, reason, method, host)
 }
 
-// isNetworkError проверяет, является ли ошибка сетевой
+// isNetworkError проверяет, является ли ошибка сетевой.
 func isNetworkError(err error) bool {
 	if err == nil {
 		return false
@@ -241,7 +241,7 @@ func isNetworkError(err error) bool {
 		strings.Contains(err.Error(), "connection refused")
 }
 
-// isTimeoutError проверяет, является ли ошибка таймаутом
+// isTimeoutError проверяет, является ли ошибка таймаутом.
 func isTimeoutError(err error) bool {
 	if err == nil {
 		return false
@@ -270,7 +270,7 @@ func isTimeoutError(err error) bool {
 		strings.Contains(errorMsg, "request canceled while waiting for connection")
 }
 
-// getHost извлекает хост из URL для метрик
+// getHost извлекает хост из URL для метрик.
 func getHost(u *url.URL) string {
 	if u.Port() != "" {
 		return u.Hostname()
@@ -278,7 +278,7 @@ func getHost(u *url.URL) string {
 	return u.Host
 }
 
-// getRequestSize вычисляет размер запроса
+// getRequestSize вычисляет размер запроса.
 func getRequestSize(req *http.Request) int64 {
 	if req.Body == nil {
 		return 0
@@ -292,7 +292,7 @@ func getRequestSize(req *http.Request) int64 {
 	return 0
 }
 
-// getResponseSize вычисляет размер ответа
+// getResponseSize вычисляет размер ответа.
 func getResponseSize(resp *http.Response) int64 {
 	if resp.ContentLength >= 0 {
 		return resp.ContentLength
@@ -300,7 +300,7 @@ func getResponseSize(resp *http.Response) int64 {
 	return 0
 }
 
-// setupTracing настраивает трассировку для запроса
+// setupTracing настраивает трассировку для запроса.
 func (rt *RoundTripper) setupTracing(req *http.Request) (context.Context, trace.Span) {
 	ctx := req.Context()
 
@@ -321,7 +321,7 @@ func (rt *RoundTripper) setupTracing(req *http.Request) (context.Context, trace.
 	return ctx, span
 }
 
-// prepareRequestBody подготавливает тело запроса для retry
+// prepareRequestBody подготавливает тело запроса для retry.
 func (rt *RoundTripper) prepareRequestBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil || !rt.config.RetryEnabled {
 		return nil, nil
@@ -338,7 +338,7 @@ func (rt *RoundTripper) prepareRequestBody(req *http.Request) ([]byte, error) {
 	return originalBody, nil
 }
 
-// getMaxAttempts возвращает максимальное количество попыток
+// getMaxAttempts возвращает максимальное количество попыток.
 func (rt *RoundTripper) getMaxAttempts() int {
 	if rt.config.RetryEnabled {
 		return rt.config.RetryConfig.MaxAttempts
@@ -346,7 +346,7 @@ func (rt *RoundTripper) getMaxAttempts() int {
 	return 1
 }
 
-// executeWithRetry выполняет HTTP запрос с retry
+// executeWithRetry выполняет HTTP запрос с retry.
 func (rt *RoundTripper) executeWithRetry(retryCtx *retryContext) (*http.Response, error) {
 	var lastResponse *http.Response
 	var lastError error
@@ -370,7 +370,7 @@ func (rt *RoundTripper) executeWithRetry(retryCtx *retryContext) (*http.Response
 	return lastResponse, lastError
 }
 
-// executeSingleAttempt выполняет одну попытку HTTP запроса
+// executeSingleAttempt выполняет одну попытку HTTP запроса.
 func (rt *RoundTripper) executeSingleAttempt(retryCtx *retryContext, attempt int) (*http.Response, error) {
 	// Создаём контекст с per-try timeout
 	attemptCtx, cancel := context.WithTimeout(retryCtx.ctx, rt.config.PerTryTimeout)
@@ -401,7 +401,7 @@ func (rt *RoundTripper) executeSingleAttempt(retryCtx *retryContext, attempt int
 	return resp, err
 }
 
-// wrapResponseBody оборачивает тело ответа для управления context
+// wrapResponseBody оборачивает тело ответа для управления context.
 func (rt *RoundTripper) wrapResponseBody(resp *http.Response, err error, cancel context.CancelFunc) *http.Response {
 	if err == nil && resp != nil && resp.Body != nil {
 		resp.Body = &contextAwareBody{
@@ -414,7 +414,7 @@ func (rt *RoundTripper) wrapResponseBody(resp *http.Response, err error, cancel 
 	return resp
 }
 
-// recordAttemptResults записывает метрики и обновляет tracing
+// recordAttemptResults записывает метрики и обновляет tracing.
 func (rt *RoundTripper) recordAttemptResults(retryCtx *retryContext, attempt int, resp *http.Response, err error) {
 	duration := time.Since(retryCtx.startTime)
 	isRetry := attempt > 1
@@ -436,7 +436,7 @@ func (rt *RoundTripper) recordAttemptResults(retryCtx *retryContext, attempt int
 	retryCtx.startTime = time.Now()
 }
 
-// updateSpan обновляет атрибуты span
+// updateSpan обновляет атрибуты span.
 func (rt *RoundTripper) updateSpan(
 	span trace.Span, status, attempt int, isRetry, isError bool, duration time.Duration,
 ) {
@@ -451,7 +451,7 @@ func (rt *RoundTripper) updateSpan(
 	}
 }
 
-// shouldRetryResponse проверяет, нужно ли повторять запрос
+// shouldRetryResponse проверяет, нужно ли повторять запрос.
 func (rt *RoundTripper) shouldRetryResponse(retryCtx *retryContext, attempt int, resp *http.Response, err error) bool {
 	status := 0
 	if resp != nil {
@@ -470,7 +470,7 @@ func (rt *RoundTripper) shouldRetryResponse(retryCtx *retryContext, attempt int,
 	return shouldRetry
 }
 
-// waitForRetry ждёт перед следующей попыткой
+// waitForRetry ждёт перед следующей попыткой.
 func (rt *RoundTripper) waitForRetry(retryCtx *retryContext, attempt int, resp *http.Response) bool {
 	// Вычисляем задержку
 	delay := rt.calculateRetryDelay(attempt, resp)
@@ -492,7 +492,7 @@ func (rt *RoundTripper) waitForRetry(retryCtx *retryContext, attempt int, resp *
 	}
 }
 
-// enhanceTimeoutError улучшает ошибки тайм-аута, добавляя детальный контекст
+// enhanceTimeoutError улучшает ошибки тайм-аута, добавляя детальный контекст.
 func (rt *RoundTripper) enhanceTimeoutError(
 	err error,
 	req *http.Request,
@@ -511,7 +511,7 @@ func (rt *RoundTripper) enhanceTimeoutError(
 	return NewTimeoutError(req, config, attempt, maxAttempts, elapsed, timeoutType, err)
 }
 
-// determineTimeoutType определяет тип тайм-аута на основе ошибки и конфигурации
+// determineTimeoutType определяет тип тайм-аута на основе ошибки и конфигурации.
 func (rt *RoundTripper) determineTimeoutType(err error, config Config, elapsed time.Duration) string {
 	errorMsg := err.Error()
 

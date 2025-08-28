@@ -246,7 +246,9 @@ func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 			cb.lastFailResponse.Body.Close()
 		}
 		// Clone the response before storing it to avoid sharing mutable state
-		cb.lastFailResponse = cb.safeCloneResponse(resp)
+		clonedResp := cb.safeCloneResponse(resp)
+		// Сохраняем клонированный response независимо от наличия body
+		cb.lastFailResponse = clonedResp
 	}
 
 	switch cb.state {
