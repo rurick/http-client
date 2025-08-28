@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
@@ -23,19 +24,19 @@ type NalogRuAuthRequest struct {
 }
 
 func main() {
-	fmt.Println("=== Демонстрация детализированных ошибок тайм-аута ===\n")
+	fmt.Println("=== Демонстрация детализированных ошибок тайм-аута ===")
 	
 	// 1. Демонстрируем проблемную конфигурацию (как было)
 	fmt.Println("1. Проблемная конфигурация (как было):")
 	demonstrateProblematicConfig()
 	
-	fmt.Println("\n" + "="*70 + "\n")
+	fmt.Println("\n" + strings.Repeat("=", 70) + "\n")
 	
 	// 2. Демонстрируем улучшенную конфигурацию (как стало)
 	fmt.Println("2. Улучшенная конфигурация (как стало):")
 	demonstrateImprovedConfig()
 	
-	fmt.Println("\n" + "="*70 + "\n")
+	fmt.Println("\n" + strings.Repeat("=", 70) + "\n")
 	
 	// 3. Демонстрируем обработку не-тайм-аут ошибок
 	fmt.Println("3. Обработка других типов ошибок:")
