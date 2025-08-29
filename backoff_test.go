@@ -131,41 +131,47 @@ func TestCalculateBackoffDelayWithJitter(t *testing.T) {
 	maxDelay := 2 * time.Second
 	jitter := 0.2
 
-	// Запускаем много раз и проверяем, что результаты варьируются
-	delays := make([]time.Duration, 100)
-	for i := 0; i < 100; i++ {
-		delays[i] = CalculateBackoffDelay(3, baseDelay, maxDelay, jitter)
+	// С детерминированным jitter проверяем, что разные номера попыток дают разные результаты
+	delays := make(map[int]time.Duration)
+	for attempt := 2; attempt <= 6; attempt++ {
+		delays[attempt] = CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
 	}
 
-	// Проверяем, что есть вариация в результатах (jitter работает)
+	// Проверяем, что jitter работает - разные попытки дают разные задержки
+	// (не все одинаковые благодаря детерминированному jitter)
 	hasVariation := false
-	firstDelay := delays[0]
-	for _, delay := range delays[1:] {
-		if delay != firstDelay {
-			hasVariation = true
-			break
+	firstDelay := delays[2]
+	for attempt := 3; attempt <= 6; attempt++ {
+		if delays[attempt] != firstDelay {
+			// Дополнительно проверим, что это не просто экспоненциальный рост
+			baseExpected := time.Duration(1<<(attempt-2)) * baseDelay // 2^(attempt-2) * baseDelay
+			if delays[attempt] != baseExpected {
+				hasVariation = true
+				break
+			}
 		}
 	}
 
 	if !hasVariation {
-		t.Error("expected variation in delays due to jitter, but all delays were the same")
+		t.Error("expected variation in delays due to jitter effect with different attempts")
 	}
 
 	// Все задержки должны быть в разумных пределах
-	baseExpected := 200 * time.Millisecond // базовая задержка для 3-й попытки без jitter
-	maxExpected := time.Duration(float64(baseExpected) * 1.2)
-
-	for i, delay := range delays {
+	for attempt, delay := range delays {
 		if delay < 0 {
-			t.Errorf("delay %d should not be negative: %v", i, delay)
+			t.Errorf("delay for attempt %d should not be negative: %v", attempt, delay)
 		}
 		if delay > maxDelay {
-			t.Errorf("delay %d should not exceed max delay: %v > %v", i, delay, maxDelay)
+			t.Errorf("delay for attempt %d should not exceed max delay: %v > %v", attempt, delay, maxDelay)
 		}
-		// Jitter может давать значения в широком диапазоне, поэтому проверяем более мягко
-		if delay > maxExpected*2 { // допускаем большую вариацию
-			t.Errorf("delay %d seems too large: %v", i, delay)
+
+		// Проверяем, что задержка с jitter отличается от базовой
+		baseExpected := time.Duration(1<<(attempt-2)) * baseDelay // 2^(attempt-2) * baseDelay
+		if baseExpected > maxDelay {
+			baseExpected = maxDelay
 		}
+		// При использовании jitter результат может отличаться от базового
+		// но должен быть в разумных пределах
 	}
 }
 

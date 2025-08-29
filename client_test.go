@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -171,6 +172,16 @@ func TestClient_ContextCancellation(t *testing.T) {
 		t.Fatal("expected context deadline exceeded error")
 	}
 
+	// Проверяем, что это TimeoutError с типом "context"
+	var timeoutErr *TimeoutError
+	if errors.As(err, &timeoutErr) {
+		if timeoutErr.TimeoutType != "context" {
+			t.Errorf("expected TimeoutType 'context', got: %s", timeoutErr.TimeoutType)
+		}
+		return
+	}
+
+	// Fallback: проверяем базовые ошибки контекста (для совместимости)
 	if !strings.Contains(err.Error(), "deadline exceeded") && !strings.Contains(err.Error(), "context canceled") {
 		t.Errorf("expected context error, got: %v", err)
 	}
