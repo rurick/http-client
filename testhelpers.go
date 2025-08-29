@@ -1,8 +1,10 @@
 package httpclient
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -11,7 +13,13 @@ import (
 	"time"
 )
 
-// TestServer предоставляет моковый HTTP сервер для тестирования
+// Константы для тестов.
+const (
+	// Интервал поллинга для WaitForCondition.
+	pollIntervalMs = 10
+)
+
+// TestServer предоставляет моковый HTTP сервер для тестирования.
 type TestServer struct {
 	*httptest.Server
 	mu              sync.RWMutex
@@ -20,7 +28,7 @@ type TestServer struct {
 	RequestLog      []TestRequest
 }
 
-// TestResponse описывает ответ тестового сервера
+// TestResponse описывает ответ тестового сервера.
 type TestResponse struct {
 	StatusCode int
 	Headers    map[string]string
@@ -28,7 +36,7 @@ type TestResponse struct {
 	Delay      time.Duration
 }
 
-// TestRequest логирует информацию о запросе
+// TestRequest логирует информацию о запросе.
 type TestRequest struct {
 	Method     string
 	URL        string
@@ -38,7 +46,7 @@ type TestRequest struct {
 	RemoteAddr string
 }
 
-// NewTestServer создаёт новый тестовый сервер
+// NewTestServer создаёт новый тестовый сервер.
 func NewTestServer(responses ...TestResponse) *TestServer {
 	ts := &TestServer{
 		responses:  responses,
@@ -49,7 +57,7 @@ func NewTestServer(responses ...TestResponse) *TestServer {
 	return ts
 }
 
-// NewTestServerTLS создаёт новый тестовый HTTPS сервер
+// NewTestServerTLS создаёт новый тестовый HTTPS сервер.
 func NewTestServerTLS(responses ...TestResponse) *TestServer {
 	ts := &TestServer{
 		responses:  responses,
@@ -60,7 +68,7 @@ func NewTestServerTLS(responses ...TestResponse) *TestServer {
 	return ts
 }
 
-// handler обрабатывает HTTP запросы
+// handler обрабатывает HTTP запросы.
 func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
@@ -69,7 +77,7 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	bodyBytes := make([]byte, 0)
 	if r.Body != nil {
 		bodyBytes, _ = io.ReadAll(r.Body)
-		r.Body.Close()
+		defer r.Body.Close() // Используем defer для надёжного закрытия
 	}
 
 	headers := make(map[string]string)
@@ -131,7 +139,7 @@ func (ts *TestServer) handler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-// Reset сбрасывает состояние сервера
+// Reset сбрасывает состояние сервера.
 func (ts *TestServer) Reset() {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
@@ -140,14 +148,14 @@ func (ts *TestServer) Reset() {
 	ts.RequestLog = ts.RequestLog[:0]
 }
 
-// GetRequestCount возвращает количество полученных запросов
+// GetRequestCount возвращает количество полученных запросов.
 func (ts *TestServer) GetRequestCount() int {
 	ts.mu.RLock()
 	defer ts.mu.RUnlock()
 	return len(ts.RequestLog)
 }
 
-// GetLastRequest возвращает последний полученный запрос
+// GetLastRequest возвращает последний полученный запрос.
 func (ts *TestServer) GetLastRequest() *TestRequest {
 	ts.mu.RLock()
 	defer ts.mu.RUnlock()
@@ -157,14 +165,14 @@ func (ts *TestServer) GetLastRequest() *TestRequest {
 	return &ts.RequestLog[len(ts.RequestLog)-1]
 }
 
-// AddResponse добавляет новый ответ в очередь
+// AddResponse добавляет новый ответ в очередь.
 func (ts *TestServer) AddResponse(response TestResponse) {
 	ts.mu.Lock()
 	defer ts.mu.Unlock()
 	ts.responses = append(ts.responses, response)
 }
 
-// MockRoundTripper предоставляет моковый RoundTripper для unit тестов
+// MockRoundTripper предоставляет моковый RoundTripper для unit тестов.
 type MockRoundTripper struct {
 	mu        sync.RWMutex
 	responses []*http.Response
@@ -173,7 +181,7 @@ type MockRoundTripper struct {
 	requests  []*http.Request
 }
 
-// NewMockRoundTripper создаёт новый моковый RoundTripper
+// NewMockRoundTripper создаёт новый моковый RoundTripper.
 func NewMockRoundTripper() *MockRoundTripper {
 	return &MockRoundTripper{
 		responses: make([]*http.Response, 0),
@@ -182,7 +190,7 @@ func NewMockRoundTripper() *MockRoundTripper {
 	}
 }
 
-// RoundTrip реализует http.RoundTripper интерфейс
+// RoundTrip реализует http.RoundTripper интерфейс.
 func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -203,43 +211,74 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 	}
 
 	// Дефолтный ответ
+	const defaultOKStatus = 200
 	return &http.Response{
-		StatusCode: 200,
+		StatusCode: defaultOKStatus,
 		Header:     make(http.Header),
 		Body:       io.NopCloser(strings.NewReader(`{"status": "ok"}`)),
 		Request:    req,
 	}, nil
 }
 
-// AddResponse добавляет моковый ответ
+// AddResponse добавляет моковый ответ.
 func (m *MockRoundTripper) AddResponse(resp *http.Response) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	m.responses = append(m.responses, resp)
+
+	// Для тестовых ответов с body убеждаемся что они будут правильно обработаны.
+	// В тестах body должен быть управляем пользователем, поэтому не закрываем автоматически.
+	// Но добавляем проверку валидности response.
+	if resp == nil {
+		return
+	}
+
+	// В тестовой среде добавляем response как есть.
+	// Примечание: если response.Body не nil, то предполагается, что это NopCloser
+	// или другой ReadCloser, который безопасно использовать в тестах многократно.
+	// Для предотвращения предупреждений линтера о незакрытом body,
+	// мы клонируем body если это необходимо.
+	if resp.Body != nil {
+		// Читаем body для безопасного клонирования
+		bodyBytes, err := io.ReadAll(resp.Body)
+		if closeErr := resp.Body.Close(); closeErr != nil {
+			// В тестовой среде логируем предупреждение, но не прерываем выполнение
+			log.Printf("Warning: failed to close test response body: %v", closeErr)
+		}
+
+		// Восстанавливаем body для использования в моке
+		if err == nil {
+			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		} else {
+			// Если не удалось прочитать, создаем пустое body
+			resp.Body = io.NopCloser(strings.NewReader(""))
+		}
+	}
+
+	m.responses = append(m.responses, resp) //nolint:bodyclose // body is safely handled in mock context
 }
 
-// AddError добавляет ошибку для следующего вызова
+// AddError добавляет ошибку для следующего вызова.
 func (m *MockRoundTripper) AddError(err error) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.errors = append(m.errors, err)
 }
 
-// GetCallCount возвращает количество вызовов RoundTrip
+// GetCallCount возвращает количество вызовов RoundTrip.
 func (m *MockRoundTripper) GetCallCount() int {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return m.callCount
 }
 
-// GetRequests возвращает все полученные запросы
+// GetRequests возвращает все полученные запросы.
 func (m *MockRoundTripper) GetRequests() []*http.Request {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return append([]*http.Request(nil), m.requests...)
 }
 
-// Reset сбрасывает состояние мока
+// Reset сбрасывает состояние мока.
 func (m *MockRoundTripper) Reset() {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -249,34 +288,34 @@ func (m *MockRoundTripper) Reset() {
 	m.callCount = 0
 }
 
-// MetricsCollector для тестирования метрик
+// MetricsCollector для тестирования метрик.
 type MetricsCollector struct {
 	mu      sync.RWMutex
 	metrics map[string]interface{}
 }
 
-// NewMetricsCollector создаёт новый коллектор метрик
+// NewMetricsCollector создаёт новый коллектор метрик.
 func NewMetricsCollector() *MetricsCollector {
 	return &MetricsCollector{
 		metrics: make(map[string]interface{}),
 	}
 }
 
-// Record записывает метрику
+// Record записывает метрику.
 func (mc *MetricsCollector) Record(name string, value interface{}) {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 	mc.metrics[name] = value
 }
 
-// Get возвращает значение метрики
+// Get возвращает значение метрики.
 func (mc *MetricsCollector) Get(name string) interface{} {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
 	return mc.metrics[name]
 }
 
-// GetAll возвращает все метрики
+// GetAll возвращает все метрики.
 func (mc *MetricsCollector) GetAll() map[string]interface{} {
 	mc.mu.RLock()
 	defer mc.mu.RUnlock()
@@ -287,14 +326,14 @@ func (mc *MetricsCollector) GetAll() map[string]interface{} {
 	return result
 }
 
-// Reset сбрасывает все метрики
+// Reset сбрасывает все метрики.
 func (mc *MetricsCollector) Reset() {
 	mc.mu.Lock()
 	defer mc.mu.Unlock()
 	mc.metrics = make(map[string]interface{})
 }
 
-// CreateTestHTTPResponse создаёт HTTP ответ для тестов
+// CreateTestHTTPResponse создаёт HTTP ответ для тестов.
 func CreateTestHTTPResponse(statusCode int, body string, headers map[string]string) *http.Response {
 	resp := &http.Response{
 		StatusCode: statusCode,
@@ -310,19 +349,19 @@ func CreateTestHTTPResponse(statusCode int, body string, headers map[string]stri
 	return resp
 }
 
-// WaitForCondition ожидает выполнения условия с таймаутом
+// WaitForCondition ожидает выполнения условия с таймаутом.
 func WaitForCondition(timeout time.Duration, condition func() bool) bool {
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
 		if condition() {
 			return true
 		}
-		time.Sleep(10 * time.Millisecond)
+		time.Sleep(pollIntervalMs * time.Millisecond)
 	}
 	return false
 }
 
-// AssertEventuallyTrue проверяет что условие станет истинным в течение таймаута
+// AssertEventuallyTrue проверяет что условие станет истинным в течение таймаута.
 func AssertEventuallyTrue(t testing.TB, timeout time.Duration, condition func() bool, message string) {
 	t.Helper()
 	if !WaitForCondition(timeout, condition) {
