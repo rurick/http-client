@@ -7,3 +7,10 @@
 /.warprc
 /WARP.md
 /coverage_main.out
+
+# Dual repository setup files
+/go.mod.gitlab
+/go.mod.github
+/sync-repos.sh
+/README.github.md
+/docs/dual-repository-setup.md
