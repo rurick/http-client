@@ -6,7 +6,25 @@ import (
 	"time"
 )
 
-// Config содержит конфигурацию HTTP клиента
+// Константы по умолчанию для конфигурации.
+const (
+	// Таймауты по умолчанию.
+	defaultTimeout       = 5 * time.Second
+	defaultPerTryTimeout = 2 * time.Second
+
+	// Retry настройки по умолчанию.
+	defaultMaxAttempts = 3
+	defaultBaseDelay   = 100 * time.Millisecond
+	defaultMaxDelay    = 2 * time.Second
+	defaultJitter      = 0.2
+
+	// CircuitBreaker настройки по умолчанию.
+	defaultFailureThreshold = 5
+	defaultSuccessThreshold = 3
+	defaultCircuitTimeout   = 60 * time.Second
+)
+
+// Config содержит конфигурацию HTTP клиента.
 type Config struct {
 	// Timeout общий таймаут для всей операции (включая ретраи)
 	Timeout time.Duration
@@ -36,7 +54,7 @@ type Config struct {
 	CircuitBreaker CircuitBreaker
 }
 
-// RetryConfig содержит настройки retry механизма
+// RetryConfig содержит настройки retry механизма.
 type RetryConfig struct {
 	// MaxAttempts максимальное количество попыток (включая первоначальную)
 	MaxAttempts int
@@ -60,14 +78,14 @@ type RetryConfig struct {
 	RespectRetryAfter bool
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации
+// withDefaults применяет значения по умолчанию к конфигурации.
 func (c Config) withDefaults() Config {
 	if c.Timeout == 0 {
-		c.Timeout = 5 * time.Second
+		c.Timeout = defaultTimeout
 	}
 
 	if c.PerTryTimeout == 0 {
-		c.PerTryTimeout = 2 * time.Second
+		c.PerTryTimeout = defaultPerTryTimeout
 	}
 
 	if c.Transport == nil {
@@ -86,22 +104,22 @@ func (c Config) withDefaults() Config {
 	return c
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации retry
+// withDefaults применяет значения по умолчанию к конфигурации retry.
 func (rc RetryConfig) withDefaults() RetryConfig {
 	if rc.MaxAttempts == 0 {
-		rc.MaxAttempts = 3
+		rc.MaxAttempts = defaultMaxAttempts
 	}
 
 	if rc.BaseDelay == 0 {
-		rc.BaseDelay = 100 * time.Millisecond
+		rc.BaseDelay = defaultBaseDelay
 	}
 
 	if rc.MaxDelay == 0 {
-		rc.MaxDelay = 2 * time.Second
+		rc.MaxDelay = defaultMaxDelay
 	}
 
 	if rc.Jitter == 0 {
-		rc.Jitter = 0.2
+		rc.Jitter = defaultJitter
 	}
 
 	if len(rc.RetryMethods) == 0 {
@@ -126,7 +144,7 @@ func (rc RetryConfig) withDefaults() RetryConfig {
 	return rc
 }
 
-// isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности
+// isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности.
 func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	method := req.Method
 
@@ -143,7 +161,7 @@ func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	return false
 }
 
-// isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса
+// isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса.
 func (rc RetryConfig) isStatusRetryable(status int) bool {
 	return slices.Contains(rc.RetryStatusCodes, status)
 }

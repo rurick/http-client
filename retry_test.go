@@ -39,8 +39,8 @@ func TestIsRetryableError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "temporary network error",
-			err:      &mockTemporaryError{msg: "temporary error", temporary: true},
+			name:     "timeout network error (modern approach)",
+			err:      &mockTemporaryError{msg: "timeout error", timeout: true},
 			expected: true,
 		},
 		{
@@ -106,13 +106,13 @@ func TestIsNetworkRetryableError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "temporary network error",
-			err:      &mockTemporaryError{msg: "network error", temporary: true},
+			name:     "timeout network error",
+			err:      &mockTemporaryError{msg: "timeout error", timeout: true},
 			expected: true,
 		},
 		{
-			name:     "non-temporary network error",
-			err:      &mockTemporaryError{msg: "network error", temporary: false},
+			name:     "non-timeout network error",
+			err:      &mockTemporaryError{msg: "network error", timeout: false},
 			expected: false,
 		},
 		{
@@ -236,9 +236,9 @@ func TestClassifyError(t *testing.T) {
 			expected: "timeout",
 		},
 		{
-			name:     "network error",
-			err:      &mockTemporaryError{msg: "connection error", temporary: true},
-			expected: "net",
+			name:     "timeout error (classified as timeout, not network)",
+			err:      &mockTemporaryError{msg: "connection timeout", timeout: true},
+			expected: "timeout",
 		},
 		{
 			name:     "connection reset error",
