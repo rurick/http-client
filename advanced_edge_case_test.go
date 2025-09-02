@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -601,4 +602,143 @@ func TestNilBodyCloning(t *testing.T) {
 	clonedBody, err := cloneRequestBody(req)
 	require.NoError(t, err)
 	assert.Nil(t, clonedBody)
+}
+
+// TestContentLengthPreservationOnRetryAttempts тестирует сохранение ContentLength
+// при повторных попытках для различных сценариев
+func TestContentLengthPreservationOnRetryAttempts(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name           string
+		body           []byte
+		expectedLength int64
+		description    string
+	}{
+		{
+			name:           "empty_body",
+			body:           nil,
+			expectedLength: 0,
+			description:    "пустое тело",
+		},
+		{
+			name:           "small_body",
+			body:           []byte("small test data"),
+			expectedLength: 15,
+			description:    "небольшое тело",
+		},
+		{
+			name:           "medium_body",
+			body:           bytes.Repeat([]byte("x"), 1000),
+			expectedLength: 1000,
+			description:    "среднее тело",
+		},
+		{
+			name:           "problematic_size_body", // размер из оригинальной проблемы
+			body:           bytes.Repeat([]byte("A"), 79449),
+			expectedLength: 79449,
+			description:    "тело размером из оригинальной ошибки",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			// Мок сервер для проверки ContentLength в каждой попытке
+			var receivedLengths []int64
+			var mu sync.Mutex
+			attemptCount := 0
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				mu.Lock()
+				attemptCount++
+				currentAttempt := attemptCount
+				received := r.ContentLength
+				receivedLengths = append(receivedLengths, received)
+				mu.Unlock()
+
+				t.Logf("Попытка %d (%s): ContentLength=%d", currentAttempt, tc.description, received)
+
+				// Проверяем, что ContentLength соответствует ожиданиям
+				if received != tc.expectedLength {
+					t.Errorf("Попытка %d: ContentLength=%d, ожидали %d",
+						currentAttempt, received, tc.expectedLength)
+				}
+
+				// Проверяем, что тело действительно соответствует ContentLength
+				if tc.body != nil {
+					actualBody, err := io.ReadAll(r.Body)
+					if err != nil {
+						t.Errorf("Попытка %d: ошибка чтения body: %v", currentAttempt, err)
+						w.WriteHeader(http.StatusInternalServerError)
+						return
+					}
+					if int64(len(actualBody)) != tc.expectedLength {
+						t.Errorf("Попытка %d: размер body=%d, ContentLength=%d",
+							currentAttempt, len(actualBody), received)
+					}
+				}
+
+				// Первые 2 попытки - ошибка для активации retry
+				if currentAttempt < 3 {
+					w.WriteHeader(http.StatusInternalServerError)
+					return
+				}
+				w.WriteHeader(http.StatusOK)
+			}))
+			defer server.Close()
+
+			// Конфигурация клиента с retry
+			config := Config{
+				RetryEnabled: true,
+				RetryConfig: RetryConfig{
+					MaxAttempts:      3,
+					BaseDelay:        10 * time.Millisecond,
+					RetryStatusCodes: []int{http.StatusInternalServerError},
+					RetryMethods:     []string{http.MethodPost},
+				},
+			}
+
+			client := New(config, "contentlength-preservation-test")
+			defer client.Close()
+
+			// Создаем запрос с телом (или без него)
+			var reqBody io.Reader
+			if tc.body != nil {
+				reqBody = bytes.NewReader(tc.body)
+			}
+
+			req, err := http.NewRequest("POST", server.URL, reqBody)
+			require.NoError(t, err)
+			req.Header.Set("Idempotency-Key", "test-"+tc.name)
+
+			// Выполняем запрос
+			resp, err := client.Do(req)
+			require.NoError(t, err, "Запрос должен выполниться успешно после retry")
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			resp.Body.Close()
+
+			// Проверяем, что было 3 попытки
+			mu.Lock()
+			finalAttemptCount := attemptCount
+			finalReceivedLengths := make([]int64, len(receivedLengths))
+			copy(finalReceivedLengths, receivedLengths)
+			mu.Unlock()
+
+			assert.Equal(t, 3, finalAttemptCount, "Должно быть выполнено 3 попытки")
+
+			// КЛЮЧЕВАЯ ПРОВЕРКА: ContentLength должен быть одинаковым во всех попытках
+			require.Len(t, finalReceivedLengths, 3, "Должно быть 3 записанных значения ContentLength")
+
+			for i, length := range finalReceivedLengths {
+				assert.Equal(t, tc.expectedLength, length,
+					"Попытка %d (%s): ContentLength должен быть %d, получен %d",
+					i+1, tc.description, tc.expectedLength, length)
+			}
+
+			t.Logf("✅ Успешно: %s - ContentLength сохранен во всех попытках: %v",
+				tc.description, finalReceivedLengths)
+		})
+	}
 }
