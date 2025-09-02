@@ -38,13 +38,14 @@ func (c *contextAwareBody) Close() error {
 
 // retryContext содержит контекст для выполнения retry.
 type retryContext struct {
-	ctx          context.Context
-	originalReq  *http.Request
-	originalBody []byte
-	host         string
-	span         trace.Span
-	startTime    time.Time
-	maxAttempts  int
+	ctx            context.Context
+	originalReq    *http.Request
+	originalBody   []byte
+	originalLength int64 // Сохраняем оригинальный ContentLength
+	host           string
+	span           trace.Span
+	startTime      time.Time
+	maxAttempts    int
 }
 
 // RoundTripper реализует http.RoundTripper с автоматическими метриками и retry.
@@ -80,13 +81,14 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 
 	// Выполняем цикл попыток
 	retryCtx := &retryContext{
-		ctx:          ctx,
-		originalReq:  req,
-		originalBody: originalBody,
-		host:         host,
-		span:         span,
-		startTime:    time.Now(),
-		maxAttempts:  rt.getMaxAttempts(),
+		ctx:            ctx,
+		originalReq:    req,
+		originalBody:   originalBody,
+		originalLength: req.ContentLength, // Сохраняем оригинальный ContentLength
+		host:           host,
+		span:           span,
+		startTime:      time.Now(),
+		maxAttempts:    rt.getMaxAttempts(),
 	}
 
 	return rt.executeWithRetry(retryCtx)
@@ -379,6 +381,10 @@ func (rt *RoundTripper) executeSingleAttempt(retryCtx *retryContext, attempt int
 	// Восстанавливаем тело запроса для повторных попыток
 	if attempt > 1 && retryCtx.originalBody != nil {
 		attemptReq.Body = io.NopCloser(bytes.NewReader(retryCtx.originalBody))
+		// ВОССТАНОВЛЕНИЕ ContentLength: Критично важно!
+		// При retry нужно восстанавливать оригинальный ContentLength,
+		// иначе может возникнуть ошибка "ContentLength=X with Body length 0"
+		attemptReq.ContentLength = retryCtx.originalLength
 	}
 
 	// Запоминаем время начала попытки для точного измерения

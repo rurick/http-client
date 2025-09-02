@@ -8,6 +8,10 @@
 /WARP.md
 /coverage_main.out
 
+# Examples build artifacts
+examples/*/test_build
+examples/*/*.sum
+
 # Dual repository setup files
 /go.mod.gitlab
 /go.mod.github
