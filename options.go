@@ -72,14 +72,25 @@ func applyOptions(req *http.Request, opts []RequestOption) {
 // WithJSONBody устанавливает тело запроса как JSON кодировку v и устанавливает Content-Type в application/json.
 func WithJSONBody(v interface{}) RequestOption {
 	return func(req *http.Request) {
-		data, err := json.Marshal(v)
-		if err != nil {
-			// В реальном приложении лучше возвращать ошибку, но для совместимости с текущим API
-			// установим пустое тело и добавим заголовок с ошибкой для отладки
-			req.Body = io.NopCloser(strings.NewReader(""))
-			req.Header.Set("X-JSON-Marshal-Error", err.Error())
-			return
+		var data []byte
+		switch val := v.(type) {
+		case string:
+			data = []byte(val)
+		case []byte:
+			data = val
+		default:
+			dataBytes, err := json.Marshal(v)
+			if err != nil {
+				// В реальном приложении лучше возвращать ошибку, но для совместимости с текущим API
+				// установим пустое тело и добавим заголовок с ошибкой для отладки
+				req.Body = io.NopCloser(strings.NewReader(""))
+				req.Header.Set("X-JSON-Marshal-Error", err.Error())
+				return
+			}
+
+			data = dataBytes
 		}
+
 		req.Body = io.NopCloser(bytes.NewReader(data))
 		req.ContentLength = int64(len(data))
 		req.Header.Set("Content-Type", "application/json")
