@@ -47,6 +47,12 @@ func main() {
     resp, err = client.Post(context.Background(), "https://api.example.com/users", nil,
         httpclient.WithJSONBody(user),
         httpclient.WithBearerToken("your-token"))
+
+	// POST с JSON телом как строка
+	userString := `{"name": "John Doe","email": "john@example.com"}`
+	resp, err = client.Post(context.Background(), "https://api.example.com/users", nil,
+		httpclient.WithJSONBody(userString),
+		httpclient.WithBearerToken("your-token"))
 }
 ```
 

@@ -39,6 +39,16 @@ func TestWithJSONBody(t *testing.T) {
 			expected: `{"key":"value"}`,
 		},
 		{
+			name:     "valid bytes",
+			input:    []byte(`{"key":"value"}`),
+			expected: `{"key":"value"}`,
+		},
+		{
+			name:     "valid string",
+			input:    `{"key":"value"}`,
+			expected: `{"key":"value"}`,
+		},
+		{
 			name:     "invalid input",
 			input:    make(chan int), // channels cannot be marshaled
 			expected: "",
