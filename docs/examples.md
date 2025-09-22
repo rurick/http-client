@@ -784,7 +784,7 @@ func main() {
             fmt.Printf("%d) err: %v\n", i+1, err)
         } else {
             fmt.Printf("%d) status: %d\n", i+1, resp.StatusCode)
-            resp.Body.Close()
+            _ = resp.Body.Close()
         }
         time.Sleep(200 * time.Millisecond)
     }
@@ -822,7 +822,7 @@ func main() {
             fmt.Printf("%d) err: %v\n", i+1, err)
         } else {
             fmt.Printf("%d) status: %d\n", i+1, resp.StatusCode)
-            resp.Body.Close()
+            _ = resp.Body.Close()
         }
         time.Sleep(300 * time.Millisecond)
     }

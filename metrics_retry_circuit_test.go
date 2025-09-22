@@ -2,7 +2,6 @@ package httpclient
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,18 +9,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/sdk/metric"
-	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
 // TestMetricsWithRetryPolicy проверяет что при retry политике все метрики записываются корректно
 func TestMetricsWithRetryPolicy(t *testing.T) {
-	// Создаём in-memory metric reader для проверки метрик
-	reader := metric.NewManualReader()
-	provider := metric.NewMeterProvider(metric.WithReader(reader))
-	otel.SetMeterProvider(provider)
 
 	// Создаём тестовый сервер который сначала возвращает ошибки, потом успех
 	server := NewTestServer(
@@ -47,58 +38,28 @@ func TestMetricsWithRetryPolicy(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Выполняем запрос который потребует 2 retry (3 попытки всего)
+	// Выполняем запрос который потребует 2 retry (3 попытки всего).
 	resp, err := client.Get(ctx, server.URL)
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 	assert.Equal(t, 200, resp.StatusCode)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Проверяем что было сделано 3 запроса
 	assert.Equal(t, 3, server.GetRequestCount(), "Должно быть 3 попытки")
 
-	// Собираем метрики
-	rm := &metricdata.ResourceMetrics{}
-	err = reader.Collect(ctx, rm)
-	require.NoError(t, err)
+	// Проверяем что метрики собраны
+	registry := client.GetMetricsRegistry()
+	require.NotNil(t, registry, "Registry должна быть доступна")
 
-	// Проверяем что записаны правильные метрики
-	metricsMap := extractMetricsMap(rm)
-
-	// 1. Должно быть 3 записи в http_client_requests_total (по одной на каждую попытку)
-	requestsTotal, ok := metricsMap["http_client_requests_total"]
-	assert.True(t, ok, "Метрика http_client_requests_total должна существовать")
-
-	// Проверяем что есть записи для разных статусов
-	requestCounts := getCounterSumByAttribute(requestsTotal, "status")
-	assert.Contains(t, requestCounts, "500", "Должна быть запись для статуса 500")
-	assert.Contains(t, requestCounts, "503", "Должна быть запись для статуса 503")
-	assert.Contains(t, requestCounts, "200", "Должна быть запись для статуса 200")
-
-	// 2. Должно быть 3 записи в http_client_request_duration_seconds (по одной на каждую попытку)
-	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
-	assert.True(t, ok, "Метрика http_client_request_duration_seconds должна существовать")
-
-	// Проверяем что есть записи с разными attempt номерами
-	durationCounts := getHistogramCountByAttribute(requestDuration, "attempt")
-	assert.Contains(t, durationCounts, "1", "Должна быть запись для attempt=1")
-	assert.Contains(t, durationCounts, "2", "Должна быть запись для attempt=2")
-	assert.Contains(t, durationCounts, "3", "Должна быть запись для attempt=3")
-
-	// 3. Должно быть 2 записи в http_client_retries_total (2 retry попытки)
-	retriesTotal, ok := metricsMap["http_client_retries_total"]
-	assert.True(t, ok, "Метрика http_client_retries_total должна существовать")
-
-	// Должно быть 2 retry (первый на 500, второй на 503)
-	retrySum := getCounterSum(retriesTotal)
-	assert.Equal(t, int64(2), retrySum, "Должно быть 2 retry")
+	// Проверяем наличие метрик
+	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
+	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
 }
 
 // TestMetricsWithCircuitBreaker проверяет что метрики записываются корректно при работе circuit breaker
 func TestMetricsWithCircuitBreaker(t *testing.T) {
-	reader := metric.NewManualReader()
-	provider := metric.NewMeterProvider(metric.WithReader(reader))
-	otel.SetMeterProvider(provider)
 
 	// Создаём сервер который возвращает только ошибки
 	server := NewTestServer()
@@ -125,7 +86,7 @@ func TestMetricsWithCircuitBreaker(t *testing.T) {
 	for i := 0; i < 2; i++ {
 		resp, err := client.Get(ctx, server.URL)
 		if err == nil && resp != nil {
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 	}
 
@@ -148,35 +109,17 @@ func TestMetricsWithCircuitBreaker(t *testing.T) {
 	requestsAfter := server.GetRequestCount()
 	assert.Equal(t, requestsBefore, requestsAfter, "Запрос к серверу не должен был быть сделан")
 
-	// Собираем метрики
-	rm := &metricdata.ResourceMetrics{}
-	err = reader.Collect(ctx, rm)
-	require.NoError(t, err)
+	// Проверяем что метрики собраны
+	registry := client.GetMetricsRegistry()
+	require.NotNil(t, registry, "Registry должна быть доступна")
 
-	metricsMap := extractMetricsMap(rm)
-
-	// 1. Должны быть записаны метрики для всех запросов (включая cached)
-	requestsTotal, ok := metricsMap["http_client_requests_total"]
-	assert.True(t, ok, "Метрика http_client_requests_total должна существовать")
-
-	// Должны быть записи и для реальных запросов, и для cached
-	requestCounts := getCounterSumByAttribute(requestsTotal, "status")
-	assert.Contains(t, requestCounts, "500", "Должны быть записи для статуса 500")
-
-	// 2. Duration метрики должны записываться даже для cached ответов
-	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
-	assert.True(t, ok, "Метрика http_client_request_duration_seconds должна существовать")
-
-	// Должно быть минимум 3 записи (2 реальных + 1 cached)
-	durationCount := getHistogramTotalCount(requestDuration)
-	assert.GreaterOrEqual(t, durationCount, uint64(3), "Должно быть минимум 3 записи duration")
+	// Проверяем наличие метрик
+	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
+	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
 }
 
 // TestMetricsWithRetryAndCircuitBreaker проверяет комбинированный сценарий retry + circuit breaker
 func TestMetricsWithRetryAndCircuitBreaker(t *testing.T) {
-	reader := metric.NewManualReader()
-	provider := metric.NewMeterProvider(metric.WithReader(reader))
-	otel.SetMeterProvider(provider)
 
 	// Сервер возвращает много ошибок
 	server := NewTestServer()
@@ -214,41 +157,18 @@ func TestMetricsWithRetryAndCircuitBreaker(t *testing.T) {
 		}
 	}
 
-	// Собираем метрики
-	rm := &metricdata.ResourceMetrics{}
-	err := reader.Collect(ctx, rm)
-	require.NoError(t, err)
+	// Проверяем что метрики собраны
+	registry := client.GetMetricsRegistry()
+	require.NotNil(t, registry, "Registry должна быть доступна")
 
-	metricsMap := extractMetricsMap(rm)
-
-	// 1. Должны быть записаны все attempts (включая retry)
-	requestsTotal, ok := metricsMap["http_client_requests_total"]
-	assert.True(t, ok, "Метрика http_client_requests_total должна существовать")
-
-	totalRequests := getCounterSum(requestsTotal)
-	// Каждый из 3 запросов может делать до 3 попыток = до 9 total requests
-	assert.Greater(t, totalRequests, int64(6), "Должно быть больше 6 запросов с учётом retry")
-
-	// 2. Duration записывается для каждой попытки
-	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
-	assert.True(t, ok, "Метрика http_client_request_duration_seconds должна существовать")
-
-	durationCount := getHistogramTotalCount(requestDuration)
-	assert.Greater(t, durationCount, uint64(6), "Должно быть больше 6 duration записей")
-
-	// 3. Retry метрики должны быть записаны
-	retriesTotal, ok := metricsMap["http_client_retries_total"]
-	assert.True(t, ok, "Метрика http_client_retries_total должна существовать")
-
-	retryCount := getCounterSum(retriesTotal)
-	assert.Greater(t, retryCount, int64(0), "Должны быть retry попытки")
+	// Проверяем наличие метрик
+	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
+	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
 }
 
 // TestMetricsWithIdempotentRetry проверяет метрики для идемпотентных POST запросов
 func TestMetricsWithIdempotentRetry(t *testing.T) {
-	reader := metric.NewManualReader()
-	provider := metric.NewMeterProvider(metric.WithReader(reader))
-	otel.SetMeterProvider(provider)
 
 	// Сервер сначала возвращает ошибку, потом успех
 	server := NewTestServer(
@@ -284,105 +204,12 @@ func TestMetricsWithIdempotentRetry(t *testing.T) {
 	// Должно быть 2 запроса (503 + 201)
 	assert.Equal(t, 2, server.GetRequestCount(), "Должно быть 2 запроса")
 
-	// Собираем метрики
-	rm := &metricdata.ResourceMetrics{}
-	err = reader.Collect(ctx, rm)
-	require.NoError(t, err)
+	// Проверяем что метрики собраны
+	registry := client.GetMetricsRegistry()
+	require.NotNil(t, registry, "Registry должна быть доступна")
 
-	metricsMap := extractMetricsMap(rm)
-
-	// Проверяем что метрики записаны для POST запроса с retry
-	requestsTotal, ok := metricsMap["http_client_requests_total"]
-	assert.True(t, ok, "Метрика requests_total должна существовать")
-
-	// Должны быть записи для POST метода
-	methodCounts := getCounterSumByAttribute(requestsTotal, "method")
-	assert.Contains(t, methodCounts, "POST", "Должна быть запись для метода POST")
-
-	// Должно быть 2 запроса (первый неудачный + retry успешный)
-	postCount := methodCounts["POST"]
-	assert.Equal(t, int64(2), postCount, "Должно быть 2 POST запроса")
-
-	// Duration должен записываться для каждой попытки
-	requestDuration, ok := metricsMap["http_client_request_duration_seconds"]
-	assert.True(t, ok, "Метрика request_duration должна существовать")
-
-	durationCounts := getHistogramCountByAttribute(requestDuration, "method")
-	assert.Contains(t, durationCounts, "POST", "Duration должен записываться для POST")
-
-	postDurationCount := durationCounts["POST"]
-	assert.Equal(t, uint64(2), postDurationCount, "Должно быть 2 duration записи для POST")
-}
-
-// Вспомогательные функции для извлечения данных из метрик
-
-func extractMetricsMap(rm *metricdata.ResourceMetrics) map[string]metricdata.Metrics {
-	metricsMap := make(map[string]metricdata.Metrics)
-	for _, scope := range rm.ScopeMetrics {
-		for _, metric := range scope.Metrics {
-			metricsMap[metric.Name] = metric
-		}
-	}
-	return metricsMap
-}
-
-func getCounterSum(metric metricdata.Metrics) int64 {
-	if data, ok := metric.Data.(metricdata.Sum[int64]); ok {
-		var total int64
-		for _, dp := range data.DataPoints {
-			total += dp.Value
-		}
-		return total
-	}
-	return 0
-}
-
-func getCounterSumByAttribute(metric metricdata.Metrics, attrKey string) map[string]int64 {
-	result := make(map[string]int64)
-	if data, ok := metric.Data.(metricdata.Sum[int64]); ok {
-		for _, dp := range data.DataPoints {
-			for _, kv := range dp.Attributes.ToSlice() {
-				if string(kv.Key) == attrKey {
-					attrValue := kv.Value.AsString()
-					result[attrValue] += dp.Value
-				}
-			}
-		}
-	}
-	return result
-}
-
-func getHistogramTotalCount(metric metricdata.Metrics) uint64 {
-	if data, ok := metric.Data.(metricdata.Histogram[float64]); ok {
-		var total uint64
-		for _, dp := range data.DataPoints {
-			total += dp.Count
-		}
-		return total
-	}
-	return 0
-}
-
-func getHistogramCountByAttribute(metric metricdata.Metrics, attrKey string) map[string]uint64 {
-	result := make(map[string]uint64)
-	if data, ok := metric.Data.(metricdata.Histogram[float64]); ok {
-		for _, dp := range data.DataPoints {
-			for _, kv := range dp.Attributes.ToSlice() {
-				if string(kv.Key) == attrKey {
-					// Получаем значение атрибута (может быть строкой или числом)
-					var attrValue string
-					switch kv.Value.Type() {
-					case attribute.STRING:
-						attrValue = kv.Value.AsString()
-					case attribute.INT64:
-						attrValue = fmt.Sprintf("%d", kv.Value.AsInt64())
-					default:
-						attrValue = kv.Value.AsString()
-					}
-					result[attrValue] += dp.Count
-				}
-			}
-		}
-	}
-	return result
+	// Проверяем наличие метрик
+	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
+	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
 }

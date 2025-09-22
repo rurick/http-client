@@ -5,24 +5,14 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"net/http"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func main() {
-	// Настройка Prometheus экспорта метрик
-	exporter, err := prometheus.New()
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	provider := metric.NewMeterProvider(metric.WithReader(exporter))
-	otel.SetMeterProvider(provider)
-
 	// Создаём клиент с стандартной конфигурацией
 	client := httpclient.New(httpclient.Config{
 		RetryEnabled: true,
@@ -46,7 +36,7 @@ func main() {
 			continue
 		}
 		fmt.Printf("Запрос %d: %s\n", i+1, resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -59,7 +49,7 @@ func main() {
 			log.Printf("Ошибка (ожидается): %v", err)
 		} else {
 			fmt.Printf("Неожиданный успех: %s\n", resp.Status)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 
 		time.Sleep(200 * time.Millisecond)
@@ -68,7 +58,10 @@ func main() {
 	fmt.Println("Метрики собраны. Проверьте /metrics эндпоинт для просмотра.")
 	fmt.Println("В production среде метрики будут доступны через Prometheus scraper.")
 
-	// В реальном приложении здесь был бы HTTP сервер с /metrics endpoint
-	// http.Handle("/metrics", promhttp.Handler())
+	// Пример создания HTTP сервера с /metrics endpoint
+	registry := client.GetMetricsRegistry()
+	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	fmt.Println("Метрики доступны на http://localhost:8080/metrics")
+	// Накомментируйте для запуска:
 	// log.Fatal(http.ListenAndServe(":8080", nil))
 }

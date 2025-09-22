@@ -185,7 +185,7 @@ func TestClientWithAllMethodsAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Test POST with body and headers
 	req, _ = http.NewRequestWithContext(
@@ -201,7 +201,7 @@ func TestClientWithAllMethodsAndHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func TestMockRoundTripperEdgeCases(t *testing.T) {
@@ -269,14 +269,14 @@ func TestTestServerEdgeCases(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Second request
 	resp, err = client.Get(context.Background(), server.URL)
 	if err != nil {
 		t.Fatal(err)
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Check request count
 	if server.GetRequestCount() != 2 {

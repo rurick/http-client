@@ -30,7 +30,7 @@ func main() {
     if err != nil {
         // обработка ошибки
     }
-    defer resp.Body.Close()
+    defer _ = resp.Body.Close()
     
     // GET с заголовками через новые опции
     resp, err = client.Get(context.Background(), "https://api.example.com/users",

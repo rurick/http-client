@@ -34,7 +34,7 @@ func main() {
 		log.Printf("GET ошибка: %v", err)
 	} else {
 		fmt.Printf("GET успех: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	time.Sleep(500 * time.Millisecond)
@@ -50,7 +50,7 @@ func main() {
 		log.Printf("PUT ошибка: %v", err)
 	} else {
 		fmt.Printf("PUT успех: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	time.Sleep(500 * time.Millisecond)
@@ -68,7 +68,7 @@ func main() {
 		log.Printf("POST без idempotency ошибка (ожидается): %v", err)
 	} else {
 		fmt.Printf("POST без idempotency успех: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	time.Sleep(500 * time.Millisecond)
@@ -85,7 +85,7 @@ func main() {
 		log.Printf("POST с idempotency ошибка: %v", err)
 	} else {
 		fmt.Printf("POST с idempotency успех: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	fmt.Println("\n=== Резюме ===")

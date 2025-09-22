@@ -36,7 +36,7 @@ func main() {
 		log.Printf("Ошибка GET запроса: %v", err)
 	} else {
 		fmt.Printf("GET ответ: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// Пример POST запроса с повтором в случае ошибки
@@ -49,7 +49,7 @@ func main() {
 		log.Printf("Ошибка POST запроса (ожидается из-за 503): %v", err)
 	} else {
 		fmt.Printf("POST ответ: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	fmt.Println("Пример завершён!")

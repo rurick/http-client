@@ -360,7 +360,7 @@ func TestOverallTimeoutDuringRetry(t *testing.T) {
 	} else if resp != nil {
 		// Got last response from failed attempts
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// Should respect overall timeout (allow some margin for processing)
@@ -455,7 +455,7 @@ func TestConcurrentClientUsageWithSharedConfig(t *testing.T) {
 				errors <- fmt.Errorf("goroutine %d: unexpected status %d", id, resp.StatusCode)
 				return
 			}
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}(i)
 	}
 
@@ -666,7 +666,7 @@ func TestClientHandlesResponseBodyReadError(t *testing.T) {
 
 	// But reading the body should fail due to connection being closed
 	_, readErr := io.ReadAll(resp.Body)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Should get a network error when trying to read the body
 	assert.Error(t, readErr, "Expected error when reading broken response body")

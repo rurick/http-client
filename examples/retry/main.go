@@ -45,7 +45,7 @@ func main() {
 	}
 
 	fmt.Printf("Успешный ответ: %s\n", resp.Status)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 
 	// Пример POST запроса с идемпотентностью
 	fmt.Println("Тестируем POST с Idempotency-Key...")
@@ -61,5 +61,5 @@ func main() {
 	}
 
 	fmt.Printf("POST ответ: %s\n", resp.Status)
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }

@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Client представляет HTTP клиент с автоматическими метриками и retry механизмом.
@@ -150,6 +152,14 @@ func (c *Client) GetConfig() Config {
 func (c *Client) Close() error {
 	if c.metrics != nil {
 		return c.metrics.Close()
+	}
+	return nil
+}
+
+// GetMetricsRegistry возвращает Prometheus registry для создания HTTP handler.
+func (c *Client) GetMetricsRegistry() *prometheus.Registry {
+	if c.metrics != nil {
+		return c.metrics.Registry()
 	}
 	return nil
 }
