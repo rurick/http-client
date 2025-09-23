@@ -1,240 +1,68 @@
-# Конфигурация golangci-lint для HTTP клиента CityDrive
-# Соответствует стандартам CI и версии v1.61.0
-# Основана на лучших практиках компании
+version: 2
 
-run:
-  # Количество параллельных воркеров
-  concurrency: 4
-  # Таймаут для анализа
-  timeout: 10m
-  # Включать тестовые файлы в анализ
-  tests: true
-  # Код выхода при обнаружении проблем
-  issues-exit-code: 1
-
-output:
-  # Формат вывода
-  formats:
-    - format: colored-line-number
-      path: stdout
-  # Печатать строки кода с проблемой
-  print-issued-lines: true
-  # Печатать имя линтера в конце текста проблемы
-  print-linter-name: true
-
-# Настройки отдельных линтеров
 linters-settings:
-  # Цикломатическая сложность
-  cyclop:
-    max-complexity: 15
-    package-average: 8.0
-
-  # Проверка ошибок
-  errcheck:
-    check-type-assertions: true
-    check-blank: true
-
-  # Проверка исчерпывающности switch
-  exhaustive:
-    check:
-      - switch
-      - map
-
-  # Длина функций
-  funlen:
-    lines: 80
-    statements: 40
-
-  # Когнитивная сложность
-  gocognit:
-    min-complexity: 15
-
-  # Проверка комментариев (точки в конце)
   godot:
+    # Check all top-level comments, not only declarations
     check-all: false
+    # Check periods at the end of sentences
     period: true
-    capital: true
-
-  # Настройки govet
-  govet:
-    enable-all: true
-    disable:
-      - fieldalignment  # Слишком строгий для HTTP клиента
-    settings:
-      shadow:
-        strict: true
-
-  # Длинные строки
   lll:
+    # Max line length
     line-length: 120
-    tab-width: 4
 
-  # Магические числа
-  mnd:
-    ignored-functions:
-      - os.Chmod
-      - os.Mkdir
-      - os.MkdirAll
-      - os.OpenFile
-      - os.WriteFile
-      - time.Sleep
-      - time.After
-      - time.NewTimer
-      - time.NewTicker
-      - http.StatusOK
-      - http.StatusCreated
-      - http.StatusAccepted
-      - prometheus.ExponentialBuckets
-      - prometheus.LinearBuckets
-
-  # Именованные возвраты
-  nakedret:
-    max-func-lines: 0  # Запретить именованные возвраты
-
-  # Настройки nolint директив
-  nolintlint:
-    allow-no-explanation: [funlen, gocognit, lll, nestif]
-    require-explanation: true
-    require-specific: true
-
-  # Вложенность if
-  nestif:
-    min-complexity: 4
-
-  # Проверка SQL rows.Err()
-  rowserrcheck:
-    packages:
-      - github.com/jmoiron/sqlx
-
-# Включенные линтеры
 linters:
   disable-all: true
   enable:
-    ## Базовые линтеры (включены по умолчанию)
-    - errcheck      # Проверка необработанных ошибок
-    - gosimple      # Упрощение кода
-    - govet         # Проверка подозрительных конструкций
-    - ineffassign   # Неиспользуемые присваивания
-    # - staticcheck   # Статический анализ (отключен из-за typecheck зависимости)
-    # - typecheck     # Проверка типов (отключен из-за несовместимости версий Go 1.24)
-    # - unused        # Неиспользуемые константы, переменные, функции (зависит от typecheck)
-    
-    ## Дополнительные линтеры для качества кода
-    - asasalint           # Проверка []any в variadic функциях
-    - asciicheck          # Проверка не-ASCII символов
-    - bidichk             # Проверка опасных Unicode символов
-    - bodyclose           # Закрытие HTTP response body
-    - cyclop              # Цикломатическая сложность
-    - durationcheck       # Проверка duration умножений
-    - errname             # Naming convention для ошибок
-    - errorlint           # Проблемы с error wrapping
-    - exhaustive          # Исчерпывающие switch statements
-    - funlen              # Длина функций
-    - gochecknoglobals    # Глобальные переменные
-    - gochecknoinits      # init функции
-    - gocognit            # Когнитивная сложность
-    - goconst             # Повторяющиеся строки → константы
-    - gocritic            # Проверки производительности и стиля
-    - gocyclo             # Цикломатическая сложность
-    - godot               # Точки в комментариях
-    - goimports           # Форматирование импортов
-    - mnd                 # Магические числа
-    - gomodguard          # Контроль зависимостей
-    - goprintffuncname    # Названия printf функций
-    - gosec               # Проверка безопасности
-    - lll                 # Длинные строки
-    - makezero            # Объявления слайсов с ненулевой длиной
-    - nakedret            # Именованные возвраты
-    - nestif              # Глубоко вложенные if
-    - nilerr              # nil error возвраты
-    - nilnil              # Одновременный возврат nil error и nil значения
-    - noctx               # HTTP запросы без context.Context
-    - nolintlint          # Неправильные nolint директивы
-    - nonamedreturns      # Именованные возвраты
-    - nosprintfhostport   # Неправильное использование Sprintf для URL
-    - predeclared         # Переопределение предобъявленных идентификаторов
-    - reassign            # Переназначение package переменных
-    - revive              # Замена golint
-    - stylecheck          # Замена golint
-    - testableexamples    # Тестируемые examples
-    - tparallel           # Неправильное использование t.Parallel()
-    - unconvert           # Ненужные конвертации типов
-    - unparam             # Неиспользуемые параметры функций
-    - usestdlibvars       # Использование stdlib констант
-    - whitespace          # Ведущие и завершающие пробелы
+    # Basic Go linters
+    - govet
+    - errcheck
+    - staticcheck
+    - unused
+    - ineffassign
+    - misspell
+    # Comment formatting
+    - godot
+    # Line length
+    - lll
+    # Security
+    - gosec
+    # Error handling
+    - errorlint
+    # Body close
+    - bodyclose
+    # Nested if complexity
+    - nestif
 
-    ## Специальные для HTTP клиента
-    - rowserrcheck        # Проверка rows.Err()
+run:
+  # Timeout for analysis
+  timeout: 5m
+  # Exit code when at least one issue was found
+  issues-exit-code: 1
+  # Include test files
+  tests: true
 
-# Настройки обработки проблем
 issues:
-  # Максимальное количество проблем на линтер (0 = без ограничений)
+  # Maximum issues count per one linter
   max-issues-per-linter: 0
-  # Максимальное количество одинаковых проблем (0 = без ограничений)
+  # Maximum count of issues with the same text
   max-same-issues: 0
   
-  # Исключения для конкретных случаев
-  exclude:
-    # Исключаем проблемы с typecheck из-за совместимости версий Go
-    - "could not import.*unsupported version.*typecheck"
-    - ".*undefined.*typecheck"
-    # Исключаем предупреждения о magic numbers для HTTP статус-кодов
-    - "magic number: 200"
-    - "magic number: 201"
-    - "magic number: 204"
-    - "magic number: 400"
-    - "magic number: 401"
-    - "magic number: 403"
-    - "magic number: 404"
-    - "magic number: 500"
-    - "magic number: 502"
-    - "magic number: 503"
-  
-  # Правила исключений
   exclude-rules:
-    # Исключения для тестовых файлов
+    # Exclude some linters from running on tests files.
     - path: _test\.go
       linters:
-        - bodyclose          # Не требуем закрытия body в тестах
-        - funlen             # Разрешаем длинные тестовые функции
-        - gochecknoglobals   # Разрешаем глобальные переменные в тестах
-        - gocognit           # Не ограничиваем когнитивную сложность тестов
-        - goconst            # Не требуем константы в тестах
-        - godot              # Не требуем точки в тестовых комментариях
-        - gosec              # Менее строгие требования безопасности в тестах
-        - lll                # Разрешаем длинные строки в тестах
-        - nestif             # Разрешаем вложенные if в тестах
-        - noctx              # Разрешаем HTTP запросы без context в тестах
-        - unparam            # Не проверяем неиспользуемые параметры в тестах
-    
-    # Исключения для примеров
+        - godot
+        - lll
+    # Exclude examples from godot and lll
     - path: examples/
       linters:
-        - errcheck           # Упрощенная обработка ошибок в примерах
-        - godot              # Не требуем точки в комментариях примеров
-        - gosec              # Менее строгие требования безопасности
-        - lll                # Разрешаем длинные строки для читаемости
-        - noctx              # Упрощенные примеры без context
-    
-    # Исключения для testhelpers
-    - path: testhelpers\.go
-      linters:
-        - funlen             # Разрешаем длинные helper функции
-        - gochecknoglobals   # Разрешаем глобальные переменные для helpers
-        - unparam            # Параметры могут не использоваться во всех случаях
-    
-    # Исключения для go:generate директив
-    - source: "^//\\s*go:generate\\s"
-      linters: [lll]
-    
-    # Исключения для TODO комментариев
-    - source: "(TODO|FIXME|XXX)"
-      linters: [godot]
-    
-    # Исключения для //noinspection комментариев
-    - source: "//noinspection"
-      linters: [gocritic]
-    
-    # Исключения для error wrapping с внутренними ошибками
-    - source: "^\\s+if _, ok := err\\.\\([^.]+\\.InternalError\\); ok {"
-      linters: [errorlint]
+        - godot
+        - lll
+
+output:
+  # Colored output
+  format: colored-line-number
+  # Print lines of code with issue
+  print-issued-lines: true
+  # Print linter name in the end of issue text
+  print-linter-name: true

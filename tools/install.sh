@@ -19,7 +19,7 @@ readonly TOOLS_DIR="${SCRIPT_DIR}/bin"
 readonly GO_BIN="${GOPATH:-$HOME/go}/bin"
 
 # Версии инструментов (соответствуют Makefile)
-readonly GOLANGCI_LINT_VERSION="v1.61.0"
+readonly GOLANGCI_LINT_VERSION="v1.55.2"
 readonly GOSEC_VERSION="v2.18.2"
 readonly GOVULNCHECK_VERSION="latest"
 readonly STATICCHECK_VERSION="latest"
@@ -223,8 +223,7 @@ main() {
     
     # Устанавливаем остальные инструменты через go install
     install_go_tool "staticcheck" "honnef.co/go/tools/cmd/staticcheck" "$STATICCHECK_VERSION"
-    # ПРИМЕЧАНИЕ: gosec недоступен по указанному репозиторию, пропускаем
-    # install_go_tool "gosec" "github.com/securecodewarrior/gosec/v2/cmd/gosec" "$GOSEC_VERSION"
+    install_go_tool "gosec" "github.com/securecodewarrior/gosec/v2/cmd/gosec" "$GOSEC_VERSION"
     install_go_tool "govulncheck" "golang.org/x/vuln/cmd/govulncheck" "$GOVULNCHECK_VERSION"
     install_go_tool "gofumpt" "mvdan.cc/gofumpt" "latest"
     install_go_tool "goimports" "golang.org/x/tools/cmd/goimports" "latest"
