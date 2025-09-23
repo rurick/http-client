@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 	openapi "gitlab.citydrive.tech/youdrive/go/pkg/open-api-transport"
 )
 
@@ -46,15 +47,15 @@ func TestHTTPClientMetricsWithOpenAPITransport(t *testing.T) {
 
 	// Структура для зависимостей сервиса
 	type ServiceDeps struct {
-		HTTPClient *Client
+		HTTPClient *httpclient.Client
 		CallCount  *atomic.Int64
 	}
 
 	// Создаём HTTP-клиент с включёнными метриками (теперь после очистки registry)
-	httpClient := New(Config{
+	httpClient := httpclient.New(httpclient.Config{
 		Timeout:      5 * time.Second,
 		RetryEnabled: true,
-		RetryConfig: RetryConfig{
+		RetryConfig: httpclient.RetryConfig{
 			MaxAttempts: 3,
 			BaseDelay:   100 * time.Millisecond,
 		},
