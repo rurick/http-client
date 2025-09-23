@@ -2,42 +2,56 @@ package httpclient
 
 import (
 	"context"
+	"sync"
 	"testing"
 )
 
 func TestNewMetrics(t *testing.T) {
+	// Сбрасываем глобальные метрики для чистого теста
+	oldMetrics := globalMetrics
+	oldOnce := globalMetricsOnce
+	defer func() {
+		globalMetrics = oldMetrics
+		globalMetricsOnce = oldOnce
+	}()
+	
+	// Сбрасываем sync.Once
+	globalMetrics = nil
+	globalMetricsOnce = sync.Once{}
+	
 	metrics := NewMetrics("testhttpclient")
 
 	if metrics == nil {
 		t.Fatal("expected metrics to be created")
 	}
-
-	if metrics.RequestsTotal == nil {
-		t.Error("expected RequestsTotal to be initialized")
+	
+	if !metrics.enabled {
+		t.Error("expected metrics to be enabled by default")
 	}
-
-	if metrics.RequestDuration == nil {
-		t.Error("expected RequestDuration to be initialized")
+	
+	if metrics.clientName != "testhttpclient" {
+		t.Errorf("expected clientName to be 'testhttpclient', got %s", metrics.clientName)
 	}
-
-	if metrics.RetriesTotal == nil {
-		t.Error("expected RetriesTotal to be initialized")
+	
+	// Проверяем что глобальные метрики инициализированы
+	if globalMetrics == nil {
+		t.Error("expected global metrics to be initialized")
 	}
+}
 
-	if metrics.InflightRequests == nil {
-		t.Error("expected InflightRequests to be initialized")
+func TestNewDisabledMetrics(t *testing.T) {
+	metrics := NewDisabledMetrics("disabled-client")
+	
+	if metrics == nil {
+		t.Fatal("expected metrics to be created")
 	}
-
-	if metrics.RequestSize == nil {
-		t.Error("expected RequestSize to be initialized")
+	
+	if metrics.enabled {
+		t.Error("expected metrics to be disabled")
 	}
-
-	if metrics.ResponseSize == nil {
-		t.Error("expected ResponseSize to be initialized")
-	}
-
-	if metrics.registry == nil {
-		t.Error("expected registry to be initialized")
+	
+	if metrics.clientName != "disabled-client" {
+		t.Errorf("expected clientName to be 'disabled-client', got %s", metrics.clientName)
 	}
 }
 
@@ -48,6 +62,25 @@ func TestMetrics_RecordRequest(t *testing.T) {
 	// Тест записи метрики запроса - не должно паниковать
 	metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	metrics.RecordRequest(ctx, "POST", "api.example.com", "500", true, true)
+}
+
+func TestMetricsDisabled_NoOp(t *testing.T) {
+	metrics := NewDisabledMetrics("disabled")
+	ctx := context.Background()
+
+	// Все операции должны быть no-op и не паниковать
+	metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
+	metrics.RecordDuration(ctx, 0.5, "GET", "example.com", "200", 1)
+	metrics.RecordRetry(ctx, "status", "GET", "example.com")
+	metrics.IncrementInflight(ctx, "GET", "example.com")
+	metrics.DecrementInflight(ctx, "GET", "example.com")
+	metrics.RecordRequestSize(ctx, 1024, "POST", "example.com")
+	metrics.RecordResponseSize(ctx, 2048, "GET", "example.com", "200")
+	
+	err := metrics.Close()
+	if err != nil {
+		t.Errorf("unexpected error during close: %v", err)
+	}
 }
 
 func TestMetrics_RecordDuration(t *testing.T) {
@@ -151,16 +184,36 @@ func TestMetrics_EdgeCases(t *testing.T) {
 	metrics.DecrementInflight(ctx, "GET", "example.com")
 }
 
-func TestMetrics_Registry(t *testing.T) {
-	metrics := NewMetrics("testhttpclient")
-
-	registry := metrics.Registry()
-	if registry == nil {
-		t.Error("expected registry to be returned")
+// TestGlobalMetricsInitialization проверяет что глобальные метрики инициализируются только один раз
+func TestGlobalMetricsInitialization(t *testing.T) {
+	// Сбрасываем глобальные метрики
+	oldMetrics := globalMetrics
+	oldOnce := globalMetricsOnce
+	defer func() {
+		globalMetrics = oldMetrics
+		globalMetricsOnce = oldOnce
+	}()
+	
+	globalMetrics = nil
+	globalMetricsOnce = sync.Once{}
+	
+	// Первый клиент должен инициализировать метрики
+	metrics1 := NewMetrics("client-1")
+	if globalMetrics == nil {
+		t.Error("expected global metrics to be initialized by first client")
 	}
-
-	// Проверяем, что регистри не nil
-	if registry == nil {
-		t.Error("expected registry to not be nil")
+	
+	// Сохраняем ссылку на метрики
+	firstMetrics := globalMetrics
+	
+	// Второй клиент не должен пересоздавать метрики
+	metrics2 := NewMetrics("client-2")
+	if globalMetrics != firstMetrics {
+		t.Error("global metrics should not be recreated by second client")
+	}
+	
+	// Оба клиента используют одни и те же глобальные метрики
+	if !metrics1.enabled || !metrics2.enabled {
+		t.Error("both clients should have metrics enabled")
 	}
 }

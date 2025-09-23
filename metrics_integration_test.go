@@ -49,17 +49,14 @@ func TestMetricsIntegration(t *testing.T) {
 		}
 		_ = resp.Body.Close()
 
-		// Проверяем метрики через registry
-		registry := client.GetMetricsRegistry()
-		if registry == nil {
-			t.Fatal("expected registry to be available")
-		}
+		// Проверяем метрики через глобальный registry
+		gatherer := prometheus.DefaultGatherer
 
 		// Проверяем что request counter увеличился
-		assertPrometheusMetricExists(t, registry, "http_client_requests_total")
+		assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
 
 		// Проверяем что duration записан
-		assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
+		assertPrometheusMetricExists(t, gatherer, "http_client_request_duration_seconds")
 	})
 
 	t.Run("retry_metrics", func(t *testing.T) {
@@ -84,8 +81,8 @@ func TestMetricsIntegration(t *testing.T) {
 		}
 
 		// Проверяем метрики retry
-		registry := client.GetMetricsRegistry()
-		assertPrometheusMetricExists(t, registry, "http_client_retries_total")
+		gatherer := prometheus.DefaultGatherer
+		assertPrometheusMetricExists(t, gatherer, "http_client_retries_total")
 	})
 
 	t.Run("error_metrics", func(t *testing.T) {
@@ -103,11 +100,11 @@ func TestMetricsIntegration(t *testing.T) {
 		}
 
 		// Проверяем что метрики error записаны правильно
-		registry := client.GetMetricsRegistry()
+		gatherer := prometheus.DefaultGatherer
 
 		// Должны быть метрики requests с error=true
-		assertPrometheusMetricExists(t, registry, "http_client_requests_total")
-		assertPrometheusMetricExists(t, registry, "http_client_retries_total")
+		assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
+		assertPrometheusMetricExists(t, gatherer, "http_client_retries_total")
 	})
 }
 
@@ -150,11 +147,10 @@ func TestMetricsWithIdempotency(t *testing.T) {
 	assert.Equal(t, 2, requestCount, "Expected 2 requests, got %d", requestCount)
 
 	// Проверяем метрики
-	registry := client.GetMetricsRegistry()
-	assert.NotNil(t, registry, "expected registry to be available")
+	gatherer := prometheus.DefaultGatherer
 
-	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
-	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_retries_total")
 }
 
 // TestInflightMetrics проверяет метрики активных запросов
@@ -191,8 +187,8 @@ func TestInflightMetrics(t *testing.T) {
 	time.Sleep(10 * time.Millisecond)
 
 	// Проверяем inflight метрики
-	registry := client.GetMetricsRegistry()
-	assertPrometheusMetricExists(t, registry, "http_client_inflight_requests")
+	gatherer := prometheus.DefaultGatherer
+	assertPrometheusMetricExists(t, gatherer, "http_client_inflight_requests")
 
 	// Ждём завершения запроса
 	<-done
@@ -223,16 +219,16 @@ func TestRequestSizeMetrics(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// Проверяем метрики размера
-	registry := client.GetMetricsRegistry()
-	assertPrometheusMetricExists(t, registry, "http_client_request_size_bytes")
-	assertPrometheusMetricExists(t, registry, "http_client_response_size_bytes")
+	gatherer := prometheus.DefaultGatherer
+	assertPrometheusMetricExists(t, gatherer, "http_client_request_size_bytes")
+	assertPrometheusMetricExists(t, gatherer, "http_client_response_size_bytes")
 }
 
-// assertPrometheusMetricExists проверяет что метрика существует в Prometheus registry
-func assertPrometheusMetricExists(t *testing.T, registry *prometheus.Registry, metricName string) {
+// assertPrometheusMetricExists проверяет что метрика существует в Prometheus gatherer
+func assertPrometheusMetricExists(t *testing.T, gatherer prometheus.Gatherer, metricName string) {
 	t.Helper()
 
-	metricFamilies, err := registry.Gather()
+	metricFamilies, err := gatherer.Gather()
 	if err != nil {
 		t.Fatalf("failed to gather metrics: %v", err)
 	}
@@ -243,7 +239,7 @@ func assertPrometheusMetricExists(t *testing.T, registry *prometheus.Registry, m
 		}
 	}
 
-	assert.Fail(t, "metric not found in registry", metricName)
+	assert.Fail(t, "metric not found in gatherer", metricName)
 }
 
 // TestMetricsLabels проверяет что метрики содержат правильные лейблы
@@ -267,8 +263,8 @@ func TestMetricsLabels(t *testing.T) {
 	_ = resp.Body.Close()
 
 	// Собираем метрики и проверяем их существование
-	registry := client.GetMetricsRegistry()
-	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
+	gatherer := prometheus.DefaultGatherer
+	assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
 
 	// Для более детальной проверки лейблов можно использовать testutil.ToFloat64
 	// но в данном случае достаточно проверить что метрика существует

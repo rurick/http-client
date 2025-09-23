@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,14 +49,13 @@ func TestMetricsWithRetryPolicy(t *testing.T) {
 	// Проверяем что было сделано 3 запроса
 	assert.Equal(t, 3, server.GetRequestCount(), "Должно быть 3 попытки")
 
-	// Проверяем что метрики собраны
-	registry := client.GetMetricsRegistry()
-	require.NotNil(t, registry, "Registry должна быть доступна")
+	// Проверяем что метрики собраны в глобальном registry
+	gatherer := prometheus.DefaultGatherer
 
 	// Проверяем наличие метрик
-	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
-	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
-	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, gatherer, "http_client_retries_total")
 }
 
 // TestMetricsWithCircuitBreaker проверяет что метрики записываются корректно при работе circuit breaker
@@ -109,13 +109,12 @@ func TestMetricsWithCircuitBreaker(t *testing.T) {
 	requestsAfter := server.GetRequestCount()
 	assert.Equal(t, requestsBefore, requestsAfter, "Запрос к серверу не должен был быть сделан")
 
-	// Проверяем что метрики собраны
-	registry := client.GetMetricsRegistry()
-	require.NotNil(t, registry, "Registry должна быть доступна")
+	// Проверяем что метрики собраны в глобальном registry
+	gatherer := prometheus.DefaultGatherer
 
 	// Проверяем наличие метрик
-	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
-	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_request_duration_seconds")
 }
 
 // TestMetricsWithRetryAndCircuitBreaker проверяет комбинированный сценарий retry + circuit breaker
@@ -157,14 +156,13 @@ func TestMetricsWithRetryAndCircuitBreaker(t *testing.T) {
 		}
 	}
 
-	// Проверяем что метрики собраны
-	registry := client.GetMetricsRegistry()
-	require.NotNil(t, registry, "Registry должна быть доступна")
+	// Проверяем что метрики собраны в глобальном registry
+	gatherer := prometheus.DefaultGatherer
 
 	// Проверяем наличие метрик
-	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
-	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
-	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, gatherer, "http_client_retries_total")
 }
 
 // TestMetricsWithIdempotentRetry проверяет метрики для идемпотентных POST запросов
@@ -204,12 +202,11 @@ func TestMetricsWithIdempotentRetry(t *testing.T) {
 	// Должно быть 2 запроса (503 + 201)
 	assert.Equal(t, 2, server.GetRequestCount(), "Должно быть 2 запроса")
 
-	// Проверяем что метрики собраны
-	registry := client.GetMetricsRegistry()
-	require.NotNil(t, registry, "Registry должна быть доступна")
+	// Проверяем что метрики собраны в глобальном registry
+	gatherer := prometheus.DefaultGatherer
 
 	// Проверяем наличие метрик
-	assertPrometheusMetricExists(t, registry, "http_client_requests_total")
-	assertPrometheusMetricExists(t, registry, "http_client_request_duration_seconds")
-	assertPrometheusMetricExists(t, registry, "http_client_retries_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_requests_total")
+	assertPrometheusMetricExists(t, gatherer, "http_client_request_duration_seconds")
+	assertPrometheusMetricExists(t, gatherer, "http_client_retries_total")
 }
