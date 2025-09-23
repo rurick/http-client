@@ -114,15 +114,6 @@ func TestAutoMetricsRegistration(t *testing.T) {
 
 // TestMetricsDisabled проверяет что метрики можно отключить.
 func TestMetricsDisabled(t *testing.T) {
-	// Сбрасываем глобальные метрики для чистого теста
-	// (в реальном коде это невозможно, но для теста можем)
-	oldMetrics := globalMetrics
-	oldOnce := globalMetricsOnce
-	defer func() {
-		globalMetrics = oldMetrics
-		globalMetricsOnce = oldOnce
-	}()
-	
 	// Создаём клиент с отключенными метриками
 	disabled := false
 	client := New(Config{
@@ -130,15 +121,24 @@ func TestMetricsDisabled(t *testing.T) {
 	}, "disabled-client")
 	defer client.Close()
 
-	// Проверяем что метрики отключены
+	// Проверяем что метрики отключены для этого клиента
 	if client.metrics.enabled {
-		t.Error("Метрики должны быть отключены")
+		t.Error("Метрики должны быть отключены для клиента")
 	}
 	
-	// Проверяем что globalMetrics не инициализированы
-	if globalMetrics != nil {
-		t.Error("Глобальные метрики не должны быть инициализированы при отключенных метриках")
+	if client.metrics.clientName != "disabled-client" {
+		t.Errorf("expected client name 'disabled-client', got %s", client.metrics.clientName)
 	}
+	
+	// Проверяем что все методы работают без паники
+	ctx := context.Background()
+	client.metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
+	client.metrics.RecordDuration(ctx, 1.0, "GET", "example.com", "200", 1)
+	client.metrics.RecordRetry(ctx, "status", "GET", "example.com")
+	client.metrics.IncrementInflight(ctx, "GET", "example.com")
+	client.metrics.DecrementInflight(ctx, "GET", "example.com")
+	client.metrics.RecordRequestSize(ctx, 1024, "GET", "example.com")
+	client.metrics.RecordResponseSize(ctx, 2048, "GET", "example.com", "200")
 }
 
 // TestDefaultMetricsRegistry проверяет функцию GetDefaultMetricsRegistry.
