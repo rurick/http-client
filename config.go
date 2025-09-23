@@ -58,6 +58,10 @@ type Config struct {
 
 	// RateLimiterConfig конфигурация rate limiter
 	RateLimiterConfig RateLimiterConfig
+
+	// MetricsEnabled включает/выключает сбор Prometheus метрик
+	// По умолчанию true - метрики включены
+	MetricsEnabled *bool
 }
 
 // RetryConfig содержит настройки retry механизма.
