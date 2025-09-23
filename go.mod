@@ -1,6 +1,6 @@
 module gitlab.citydrive.tech/back-end/go/pkg/http-client
 
-go 1.24.0
+go 1.24.2
 
 require (
 	github.com/labstack/echo/v4 v4.13.4
