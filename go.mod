@@ -2,8 +2,6 @@ module gitlab.citydrive.tech/back-end/go/pkg/http-client
 
 go 1.24.2
 
-toolchain go1.24.3
-
 require (
 	github.com/labstack/echo/v4 v4.13.4
 	github.com/prometheus/client_golang v1.22.0
