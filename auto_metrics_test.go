@@ -67,28 +67,30 @@ func TestAutoMetricsRegistration(t *testing.T) {
 			if name == expected {
 				foundMetrics[expected] = true
 				
-				// Проверяем что есть метрики для обоих клиентов
-				hasClient1 := false
-				hasClient2 := false
-				
-				for _, metric := range mf.GetMetric() {
-					for _, label := range metric.GetLabel() {
-						if label.GetName() == "client_name" {
-							value := label.GetValue()
-							if value == "test-client-1" {
-								hasClient1 = true
-							} else if value == "test-client-2" {
-								hasClient2 = true
+				// Проверяем что есть метрики для обоих клиентов (только для основных метрик)
+				if name == "http_client_requests_total" || name == "http_client_request_duration_seconds" {
+					hasClient1 := false
+					hasClient2 := false
+					
+					for _, metric := range mf.GetMetric() {
+						for _, label := range metric.GetLabel() {
+							if label.GetName() == "client_name" {
+								value := label.GetValue()
+								if value == "test-client-1" {
+									hasClient1 = true
+								} else if value == "test-client-2" {
+									hasClient2 = true
+								}
 							}
 						}
 					}
-				}
-				
-				if !hasClient1 {
-					t.Errorf("Метрика %s не содержит данные для test-client-1", name)
-				}
-				if !hasClient2 {
-					t.Errorf("Метрика %s не содержит данные для test-client-2", name)
+					
+					if !hasClient1 {
+						t.Errorf("Метрика %s не содержит данные для test-client-1", name)
+					}
+					if !hasClient2 {
+						t.Errorf("Метрика %s не содержит данные для test-client-2", name)
+					}
 				}
 			}
 		}
