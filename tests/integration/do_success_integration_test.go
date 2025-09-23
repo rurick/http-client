@@ -51,4 +51,3 @@ func TestClientDo_SuccessNoRetry(t *testing.T) {
 	// Должен быть ровно один вызов сервера
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }
-

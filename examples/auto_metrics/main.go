@@ -21,7 +21,7 @@ func main() {
 		},
 		// MetricsEnabled: По умолчанию true, можно не указывать
 	}, "example-service")
-	
+
 	defer client.Close()
 
 	// Запускаем HTTP сервер для метрик в отдельной горутине
@@ -44,9 +44,9 @@ func main() {
 
 	// Делаем несколько запросов для генерации метрик
 	ctx := context.Background()
-	
+
 	fmt.Println("Выполняем тестовые запросы...")
-	
+
 	// Успешный запрос
 	resp, err := client.Get(ctx, "https://httpbin.org/get")
 	if err != nil {
@@ -86,6 +86,6 @@ func main() {
 	// Ждём чтобы дать время просмотреть метрики
 	fmt.Println("⏳ Сервер метрик будет работать 30 секунд...")
 	time.Sleep(30 * time.Second)
-	
+
 	fmt.Println("✨ Пример завершён!")
 }

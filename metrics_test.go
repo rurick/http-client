@@ -8,21 +8,21 @@ import (
 func TestNewMetrics(t *testing.T) {
 	// Тест работает с уже зарегистрированными метриками
 	// (они могли быть созданы в предыдущих тестах)
-	
+
 	metrics := NewMetrics("testhttpclient")
 
 	if metrics == nil {
 		t.Fatal("expected metrics to be created")
 	}
-	
+
 	if !metrics.enabled {
 		t.Error("expected metrics to be enabled by default")
 	}
-	
+
 	if metrics.clientName != "testhttpclient" {
 		t.Errorf("expected clientName to be 'testhttpclient', got %s", metrics.clientName)
 	}
-	
+
 	// Проверяем что глобальные метрики инициализированы
 	if globalMetrics == nil {
 		t.Error("expected global metrics to be initialized")
@@ -31,15 +31,15 @@ func TestNewMetrics(t *testing.T) {
 
 func TestNewDisabledMetrics(t *testing.T) {
 	metrics := NewDisabledMetrics("disabled-client")
-	
+
 	if metrics == nil {
 		t.Fatal("expected metrics to be created")
 	}
-	
+
 	if metrics.enabled {
 		t.Error("expected metrics to be disabled")
 	}
-	
+
 	if metrics.clientName != "disabled-client" {
 		t.Errorf("expected clientName to be 'disabled-client', got %s", metrics.clientName)
 	}
@@ -66,7 +66,7 @@ func TestMetricsDisabled_NoOp(t *testing.T) {
 	metrics.DecrementInflight(ctx, "GET", "example.com")
 	metrics.RecordRequestSize(ctx, 1024, "POST", "example.com")
 	metrics.RecordResponseSize(ctx, 2048, "GET", "example.com", "200")
-	
+
 	err := metrics.Close()
 	if err != nil {
 		t.Errorf("unexpected error during close: %v", err)
@@ -177,31 +177,31 @@ func TestMetrics_EdgeCases(t *testing.T) {
 // TestGlobalMetricsInitialization проверяет что множественные клиенты работают с одними метриками
 func TestGlobalMetricsInitialization(t *testing.T) {
 	// Метрики уже могут быть инициализированы предыдущими тестами
-	
+
 	// Сохраняем ссылку на текущие метрики
 	currentMetrics := globalMetrics
-	
+
 	// Клиент 1
 	metrics1 := NewMetrics("client-1")
 	if globalMetrics == nil {
 		t.Error("expected global metrics to be available")
 	}
-	
+
 	// Клиент 2 должен использовать те же метрики
 	metrics2 := NewMetrics("client-2")
 	if globalMetrics != currentMetrics && currentMetrics != nil {
 		t.Error("global metrics should remain the same between clients")
 	}
-	
+
 	// Оба клиента используют одни и те же глобальные метрики
 	if !metrics1.enabled || !metrics2.enabled {
 		t.Error("both clients should have metrics enabled")
 	}
-	
+
 	if metrics1.clientName != "client-1" {
 		t.Errorf("expected client-1 name, got %s", metrics1.clientName)
 	}
-	
+
 	if metrics2.clientName != "client-2" {
 		t.Errorf("expected client-2 name, got %s", metrics2.clientName)
 	}

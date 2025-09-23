@@ -134,6 +134,7 @@ func initGlobalMetrics() {
 		}
 	})
 }
+
 // Metrics содержит конфигурацию метрик для конкретного HTTP клиента.
 // Теперь использует глобальные метрики с client_name лейблом.
 type Metrics struct {
@@ -146,7 +147,7 @@ type Metrics struct {
 func NewMetrics(meterName string) *Metrics {
 	// Инициализируем глобальные метрики если они ещё не инициализированы
 	initGlobalMetrics()
-	
+
 	return &Metrics{
 		clientName: meterName,
 		enabled:    true,
@@ -166,7 +167,7 @@ func (m *Metrics) RecordRequest(_ context.Context, method, host, status string, 
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	retryStr := "false"
 	if retry {
 		retryStr = "true"
@@ -183,7 +184,7 @@ func (m *Metrics) RecordDuration(_ context.Context, duration float64, method, ho
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	attemptStr := strconv.Itoa(attempt)
 	globalMetrics.RequestDuration.WithLabelValues(m.clientName, method, host, status, attemptStr).Observe(duration)
 }
@@ -193,7 +194,7 @@ func (m *Metrics) RecordRetry(_ context.Context, reason, method, host string) {
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	globalMetrics.RetriesTotal.WithLabelValues(m.clientName, reason, method, host).Inc()
 }
 
@@ -202,7 +203,7 @@ func (m *Metrics) RecordRequestSize(_ context.Context, size int64, method, host 
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	globalMetrics.RequestSize.WithLabelValues(m.clientName, method, host).Observe(float64(size))
 }
 
@@ -211,7 +212,7 @@ func (m *Metrics) RecordResponseSize(_ context.Context, size int64, method, host
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	globalMetrics.ResponseSize.WithLabelValues(m.clientName, method, host, status).Observe(float64(size))
 }
 
@@ -220,7 +221,7 @@ func (m *Metrics) IncrementInflight(_ context.Context, method, host string) {
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	globalMetrics.InflightRequests.WithLabelValues(m.clientName, method, host).Inc()
 }
 
@@ -229,7 +230,7 @@ func (m *Metrics) DecrementInflight(_ context.Context, method, host string) {
 	if !m.enabled || globalMetrics == nil {
 		return
 	}
-	
+
 	globalMetrics.InflightRequests.WithLabelValues(m.clientName, method, host).Dec()
 }
 

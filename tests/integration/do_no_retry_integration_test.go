@@ -63,4 +63,3 @@ func TestClientDo_NoRetryOn5xx(t *testing.T) {
 	// Проверяем, что сервер был вызван ровно один раз (никаких повторных попыток)
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "запрос должен быть выполнен ровно один раз")
 }
-

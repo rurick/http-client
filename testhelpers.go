@@ -287,55 +287,6 @@ func (m *MockRoundTripper) Reset() {
 	m.callCount = 0
 }
 
-// cloneResponse создаёт копию HTTP ответа без разделения body.
-func (m *MockRoundTripper) cloneResponse(resp *http.Response) *http.Response {
-	if resp == nil {
-		return nil
-	}
-
-	clone := &http.Response{
-		StatusCode:       resp.StatusCode,
-		Status:           resp.Status,
-		Proto:            resp.Proto,
-		ProtoMajor:       resp.ProtoMajor,
-		ProtoMinor:       resp.ProtoMinor,
-		Header:           make(http.Header, len(resp.Header)),
-		ContentLength:    resp.ContentLength,
-		TransferEncoding: append([]string(nil), resp.TransferEncoding...),
-		Close:            resp.Close,
-		Uncompressed:     resp.Uncompressed,
-		Trailer:          make(http.Header, len(resp.Trailer)),
-		Request:          resp.Request,
-		TLS:              resp.TLS,
-	}
-
-	// Copy headers
-	for k, v := range resp.Header {
-		clone.Header[k] = append([]string(nil), v...)
-	}
-	for k, v := range resp.Trailer {
-		clone.Trailer[k] = append([]string(nil), v...)
-	}
-
-	// Handle body cloning safely
-	if resp.Body != nil {
-		bodyBytes, err := io.ReadAll(resp.Body)
-		_ = resp.Body.Close() // Close the original body
-		if err == nil {
-			// Restore original body
-			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			// Clone gets its own copy
-			clone.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-			clone.ContentLength = int64(len(bodyBytes))
-		} else {
-			// Error reading body, create empty body
-			clone.Body = io.NopCloser(strings.NewReader(""))
-			clone.ContentLength = 0
-		}
-	}
-
-	return clone
-}
 // MetricsCollector для тестирования метрик.
 type MetricsCollector struct {
 	mu      sync.RWMutex
