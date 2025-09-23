@@ -13,7 +13,7 @@ func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitte
 
 	// Exponential backoff: baseDelay * 2^(attempt-2)
 	const exponentialBase = 2.0
-	backoffMultiplier := math.Pow(exponentialBase, float64(attempt-2))
+	backoffMultiplier := math.Pow(exponentialBase, float64(attempt-2)) //nolint:mnd // exponential backoff formula
 	delay := time.Duration(float64(baseDelay) * backoffMultiplier)
 
 	// Ограничиваем максимальной задержкой
@@ -84,7 +84,7 @@ func calculateSafeJitterOffset(finalHash, jitterRangeUint uint64) time.Duration 
 	}
 
 	// Если результат слишком большой, попробуем поделить на два
-	halfResult := modResult / 2
+	halfResult := modResult / 2 //nolint:mnd // safe overflow handling
 	if halfResult <= maxSafeInt64 {
 		return time.Duration(halfResult)
 	}

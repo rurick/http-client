@@ -350,9 +350,12 @@ func TestOverallTimeoutDuringRetry(t *testing.T) {
 
 	// Either should get an error from timeout OR get the last failed response
 	if err != nil {
-		// Timeout occurred
-		assert.True(t, strings.Contains(err.Error(), "deadline exceeded") ||
-			strings.Contains(err.Error(), "context deadline exceeded"),
+		// Timeout occurred - check for various timeout error messages
+		errorMsg := err.Error()
+		assert.True(t, strings.Contains(errorMsg, "deadline exceeded") ||
+			strings.Contains(errorMsg, "context deadline exceeded") ||
+			strings.Contains(errorMsg, "Client.Timeout exceeded") ||
+			strings.Contains(errorMsg, "timeout exceeded"),
 			"Expected timeout error, got: %v", err)
 	} else if resp != nil {
 		// Got last response from failed attempts

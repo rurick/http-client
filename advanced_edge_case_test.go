@@ -746,7 +746,7 @@ func TestContentLengthPreservationOnRetryAttempts(t *testing.T) {
 					i+1, tc.description, tc.expectedLength, length)
 			}
 
-			t.Logf("✅ Успешно: %s - ContentLength сохранен во всех попытках: %v",
+			t.Logf("Успешно: %s - ContentLength сохранен во всех попытках: %v",
 				tc.description, finalReceivedLengths)
 		})
 	}

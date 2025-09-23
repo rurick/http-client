@@ -74,7 +74,7 @@ func isNetworkRetryableError(err error) bool {
 		return false
 	}
 
-	// Проверяем net.Error
+	// Проверяем net.Error (таймауты можно повторять)
 	var netErr net.Error
 	if errors.As(err, &netErr) {
 		// Проверяем таймауты как повторяемые ошибки
@@ -89,9 +89,8 @@ func isNetworkRetryableError(err error) bool {
 		return isNetworkRetryableError(urlErr.Err)
 	}
 
+	// Проверяем специфические сетевые ошибки (заменя deprecated Temporary())
 	errStr := err.Error()
-
-	// Проверяем специфические сетевые ошибки
 	retryableErrors := []string{
 		"connection reset",
 		"broken pipe",

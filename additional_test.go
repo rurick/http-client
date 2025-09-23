@@ -22,7 +22,13 @@ func newTestClient(t *testing.T, config Config, name string) *Client {
 }
 
 // Хелпер для выполнения HTTP-запроса и проверки базовых условий
-func executeRequestAndCheckStatus(t *testing.T, client *Client, method, url string, headers map[string]string, body io.Reader) *http.Response {
+func executeRequestAndCheckStatus(
+	t *testing.T,
+	client *Client,
+	method,
+	url string,
+	headers map[string]string,
+	body io.Reader) *http.Response {
 	resp, err := callHTTPMethod(client, method, url, headers, body)
 	if err != nil {
 		t.Fatal(err)

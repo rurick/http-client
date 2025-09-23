@@ -8,15 +8,6 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// Константы для метрик.
-const (
-	// Минимальное значение в бакетах длительности.
-	minDurationBucketSeconds = 0.001
-
-	// Минимальное значение в бакетах размера (в байтах).
-	minSizeBucketBytes = 256
-)
-
 // Metrics содержит все метрики HTTP клиента.
 type Metrics struct {
 	// RequestsTotal счётчик общего количества запросов
@@ -54,9 +45,9 @@ func NewMetrics(meterName string) *Metrics {
 		"http_client_request_duration_seconds",
 		metric.WithDescription("HTTP client request duration in seconds"),
 		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries(
-			minDurationBucketSeconds, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
-			1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
+		metric.WithExplicitBucketBoundaries( //nolint:mnd // OpenTelemetry histogram buckets for latency
+			0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, //nolint:mnd // standard latency buckets
+			1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60, //nolint:mnd // standard latency buckets
 		),
 	)
 
@@ -76,8 +67,8 @@ func NewMetrics(meterName string) *Metrics {
 		"http_client_request_size_bytes",
 		metric.WithDescription("HTTP client request size in bytes"),
 		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries(
-			minSizeBucketBytes, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+		metric.WithExplicitBucketBoundaries( //nolint:mnd // OpenTelemetry histogram buckets for byte sizes
+			256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, //nolint:mnd // standard byte size buckets
 		),
 	)
 
@@ -85,8 +76,8 @@ func NewMetrics(meterName string) *Metrics {
 		"http_client_response_size_bytes",
 		metric.WithDescription("HTTP client response size in bytes"),
 		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries(
-			minSizeBucketBytes, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+		metric.WithExplicitBucketBoundaries( //nolint:mnd // OpenTelemetry histogram buckets for byte sizes
+			256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, //nolint:mnd // standard byte size buckets
 		),
 	)
 

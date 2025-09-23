@@ -224,7 +224,6 @@ func (m *MockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) 
 func (m *MockRoundTripper) AddResponse(resp *http.Response) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-
 	// Для тестовых ответов с body убеждаемся что они будут правильно обработаны.
 	// В тестах body должен быть управляем пользователем, поэтому не закрываем автоматически.
 	// Но добавляем проверку валидности response.
