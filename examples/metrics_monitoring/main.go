@@ -87,9 +87,8 @@ func main() {
 func startMetricsServer(client *httpclient.Client) *http.Server {
 	mux := http.NewServeMux()
 
-	// Prometheus metrics endpoint
-	registry := client.GetMetricsRegistry()
-	mux.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	// Prometheus metrics endpoint - метрики автоматически регистрируются
+	mux.Handle("/metrics", promhttp.Handler())
 
 	// Человеко-читаемая информация о метриках
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {

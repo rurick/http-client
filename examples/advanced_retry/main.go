@@ -171,8 +171,8 @@ func startMetricsServer(client *httpclient.Client) {
 	fmt.Println("\n=== Metrics Server ===")
 	fmt.Println("Starting metrics server on :2112/metrics")
 
-	registry := client.GetMetricsRegistry()
-	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	// Метрики автоматически доступны через стандартный handler
+	http.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{
 		Addr:    ":2112",

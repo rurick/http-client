@@ -398,9 +398,8 @@ import (
 client := httpclient.New(httpclient.Config{}, "my-service")
 defer client.Close()
 
-// Создаём HTTP endpoint для метрик
-registry := client.GetMetricsRegistry()
-http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+// Создаём HTTP endpoint для метрик - метрики автоматически регистрируются
+http.Handle("/metrics", promhttp.Handler())
 
 // Метрики собираются автоматически при выполнении запросов
 resp, err := client.Get(ctx, "https://api.example.com/data")

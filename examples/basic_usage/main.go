@@ -90,9 +90,8 @@ func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 func startMetricsServerBasic(client *httpclient.Client) {
 	fmt.Println("Starting metrics server on :2112/metrics")
 
-	// Используем registry от клиента
-	registry := client.GetMetricsRegistry()
-	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	// Метрики автоматически регистрируются в default registry
+	http.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{
 		Addr:    ":2112",

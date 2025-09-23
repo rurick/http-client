@@ -59,9 +59,10 @@ func main() {
 	fmt.Println("В production среде метрики будут доступны через Prometheus scraper.")
 
 	// Пример создания HTTP сервера с /metrics endpoint
-	registry := client.GetMetricsRegistry()
-	http.Handle("/metrics", promhttp.HandlerFor(registry, promhttp.HandlerOpts{}))
+	// Метрики автоматически доступны через стандартный Prometheus handler
+	http.Handle("/metrics", promhttp.Handler())
 	fmt.Println("Метрики доступны на http://localhost:8080/metrics")
-	// Накомментируйте для запуска:
+	fmt.Println("Все метрики HTTP клиента автоматически регистрируются в DefaultRegistry")
+	// Откомментируйте для запуска:
 	// log.Fatal(http.ListenAndServe(":8080", nil))
 }

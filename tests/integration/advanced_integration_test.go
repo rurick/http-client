@@ -1,7 +1,7 @@
 //go:build integration
 
-// Package integration contains advanced integration tests for the HTTP client library.
-// These tests cover complex interaction scenarios, edge cases, and concurrency issues.
+// Package integration содержит продвинутые интеграционные тесты для HTTP клиент библиотеки.
+// Эти тесты покрывают сложные сценарии взаимодействия, граничные случаи и проблемы конкурентности.
 package integration
 
 import (
@@ -25,7 +25,7 @@ import (
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
-// errorReader simulates an io.Reader that fails after first read
+// errorReader симулирует io.Reader, который падает после первого чтения.
 type errorReader struct {
 	data      []byte
 	readCount int32
@@ -44,7 +44,7 @@ func (er *errorReader) Close() error {
 	return nil
 }
 
-// brokenPipe simulates a connection that breaks during response reading
+// brokenPipe симулирует соединение, которое обрывается во время чтения ответа.
 type brokenPipe struct {
 	content []byte
 	broken  bool
@@ -78,19 +78,19 @@ func (bp *brokenPipe) Close() error {
 	return nil
 }
 
-// TestRetryWithOpenCircuitBreaker tests the interaction between retry logic and circuit breaker.
-// When the circuit breaker opens mid-retry, subsequent retries should be short-circuited.
+// TestRetryWithOpenCircuitBreaker тестирует взаимодействие между логикой retry и circuit breaker.
+// Когда circuit breaker открывается посреди retry, последующие попытки должны быть остановлены.
 func TestRetryWithOpenCircuitBreaker(t *testing.T) {
 	t.Parallel()
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&serverCallCount, 1)
-		w.WriteHeader(http.StatusInternalServerError) // Always fail
+		w.WriteHeader(http.StatusInternalServerError) // Всегда ошибка
 	}))
 	defer server.Close()
 
-	// Configure circuit breaker to open after 2 failures
+	// Настраиваем circuit breaker на открытие после 2 ошибок
 	cbConfig := httpclient.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		SuccessThreshold: 1,
@@ -100,7 +100,7 @@ func TestRetryWithOpenCircuitBreaker(t *testing.T) {
 	config := httpclient.Config{
 		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts:      5, // More attempts than CB threshold
+			MaxAttempts:      5, // Попыток больше, чем порог CB
 			BaseDelay:        10 * time.Millisecond,
 			RetryStatusCodes: []int{http.StatusInternalServerError},
 		},
@@ -114,19 +114,19 @@ func TestRetryWithOpenCircuitBreaker(t *testing.T) {
 	ctx := context.Background()
 	_, err := client.Get(ctx, server.URL)
 
-	// Should get circuit breaker error eventually
+	// Должны получить ошибку circuit breaker
 	assert.Error(t, err)
 
-	// Server should not be called 5 times due to circuit breaker opening
+	// Сервер не должен быть вызван 5 раз из-за открытия circuit breaker
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Less(t, int(callCount), 5, "Circuit breaker should limit calls")
-	assert.GreaterOrEqual(t, int(callCount), 2, "Should attempt at least threshold calls")
+	assert.Less(t, int(callCount), 5, "Circuit breaker должен ограничивать вызовы")
+	assert.GreaterOrEqual(t, int(callCount), 2, "Должно попытаться минимум threshold раз")
 }
 
-// TestCircuitBreakerResetsAfterSuccessfulRetry tests that circuit breaker transitions properly
-// when a service recovers during retry attempts.
+// TestCircuitBreakerResetsAfterSuccessfulRetry проверяет, что circuit breaker переключается корректно,
+// когда сервис восстанавливается во время попыток retry.
 func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
-	// Not parallel due to time-sensitive operations
+	// Не параллельно из-за чувствительности ко времени
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +135,7 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK) // Service recovers
+		w.WriteHeader(http.StatusOK) // Сервис восстанавливается
 	}))
 	defer server.Close()
 
@@ -149,7 +149,7 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 	config := httpclient.Config{
 		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts:      1, // No retries to test CB alone
+			MaxAttempts:      1, // Никаких retry, тестим только CB
 			RetryStatusCodes: []int{http.StatusInternalServerError},
 		},
 		CircuitBreakerEnable: true,
@@ -161,24 +161,24 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 
 	ctx := context.Background()
 
-	// First two calls should open the circuit breaker
+	// Первые два вызова должны открыть circuit breaker
 	client.Get(ctx, server.URL)
 	client.Get(ctx, server.URL)
 
 	assert.Equal(t, httpclient.CircuitBreakerOpen, cb.State())
 
-	// Wait for circuit breaker timeout
+	// Ждем таймаут circuit breaker
 	time.Sleep(150 * time.Millisecond)
 
-	// Next call should succeed and close the circuit
+	// Следующий вызов должен успех и закрыть цепь
 	resp, err := client.Get(ctx, server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, httpclient.CircuitBreakerClosed, cb.State())
 }
 
-// TestBackoffWithJitter verifies that retry delays include deterministic jitter
-// and vary for different attempts within the expected range.
+// TestBackoffWithJitter проверяет, что задержки retry включают детерминированный jitter
+// и отличаются для разных попыток в ожидаемом диапазоне.
 func TestBackoffWithJitter(t *testing.T) {
 	t.Parallel()
 
