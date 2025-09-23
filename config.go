@@ -52,6 +52,12 @@ type Config struct {
 
 	// CircuitBreaker настраиваемый автоматический выключатель
 	CircuitBreaker CircuitBreaker
+
+	// RateLimiterEnabled включает/выключает rate limiting
+	RateLimiterEnabled bool
+
+	// RateLimiterConfig конфигурация rate limiter
+	RateLimiterConfig RateLimiterConfig
 }
 
 // RetryConfig содержит настройки retry механизма.
@@ -78,6 +84,16 @@ type RetryConfig struct {
 	RespectRetryAfter bool
 }
 
+// RateLimiterConfig содержит настройки rate limiter.
+// Rate limiter работает глобально для всех запросов клиента.
+type RateLimiterConfig struct {
+	// RequestsPerSecond максимальное количество запросов в секунду.
+	RequestsPerSecond float64
+
+	// BurstCapacity размер корзины для пиковых запросов.
+	BurstCapacity int
+}
+
 // withDefaults применяет значения по умолчанию к конфигурации.
 func (c Config) withDefaults() Config {
 	if c.Timeout == 0 {
@@ -99,6 +115,11 @@ func (c Config) withDefaults() Config {
 	// Circuit breaker по умолчанию выключен. Если включён и не задан — используем простой.
 	if c.CircuitBreakerEnable && c.CircuitBreaker == nil {
 		c.CircuitBreaker = NewSimpleCircuitBreaker()
+	}
+
+	// Rate limiter по умолчанию выключен
+	if c.RateLimiterEnabled {
+		c.RateLimiterConfig = c.RateLimiterConfig.withDefaults()
 	}
 
 	return c
@@ -164,4 +185,17 @@ func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 // isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса.
 func (rc RetryConfig) isStatusRetryable(status int) bool {
 	return slices.Contains(rc.RetryStatusCodes, status)
+}
+
+// withDefaults применяет значения по умолчанию к конфигурации rate limiter.
+func (rl RateLimiterConfig) withDefaults() RateLimiterConfig {
+	if rl.RequestsPerSecond == 0 {
+		rl.RequestsPerSecond = 10.0 // 10 запросов в секунду
+	}
+
+	if rl.BurstCapacity == 0 {
+		rl.BurstCapacity = int(rl.RequestsPerSecond) // размер корзины равен rate
+	}
+
+	return rl
 }

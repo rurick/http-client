@@ -228,7 +228,6 @@ func isNetworkError(err error) bool {
 		if netErr.Timeout() {
 			return true
 		}
-		return strings.Contains(err.Error(), "connection reset")
 	}
 
 	// Проверяем URL ошибки
@@ -326,6 +325,7 @@ func (rt *RoundTripper) setupTracing(req *http.Request) (context.Context, trace.
 // prepareRequestBody подготавливает тело запроса для retry.
 func (rt *RoundTripper) prepareRequestBody(req *http.Request) ([]byte, error) {
 	if req.Body == nil || !rt.config.RetryEnabled {
+		// Нет body для подготовки или retry отключен
 		return nil, nil
 	}
 
@@ -379,12 +379,18 @@ func (rt *RoundTripper) executeSingleAttempt(retryCtx *retryContext, attempt int
 	attemptReq := retryCtx.originalReq.WithContext(attemptCtx)
 
 	// Восстанавливаем тело запроса для повторных попыток
-	if attempt > 1 && retryCtx.originalBody != nil {
-		attemptReq.Body = io.NopCloser(bytes.NewReader(retryCtx.originalBody))
+	if attempt > 1 {
 		// ВОССТАНОВЛЕНИЕ ContentLength: Критично важно!
-		// При retry нужно восстанавливать оригинальный ContentLength,
-		// иначе может возникнуть ошибка "ContentLength=X with Body length 0"
+		// При retry всегда нужно восстанавливать оригинальный ContentLength,
+		// даже для пустых тел (где originalBody может быть []byte{})
 		attemptReq.ContentLength = retryCtx.originalLength
+
+		if len(retryCtx.originalBody) > 0 {
+			attemptReq.Body = io.NopCloser(bytes.NewReader(retryCtx.originalBody))
+		} else if retryCtx.originalLength == 0 {
+			// Для пустых тел устанавливаем nil body
+			attemptReq.Body = nil
+		}
 	}
 
 	// Запоминаем время начала попытки для точного измерения

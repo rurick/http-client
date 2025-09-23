@@ -38,9 +38,19 @@ func New(config Config, meterName string) *Client {
 		tracer = NewTracer()
 	}
 
-	// Создаём кастомный RoundTripper
+	// Строим цепочку RoundTripper снизу вверх
+	transport := config.Transport
+
+	// Добавляем Rate Limiter если включен
+	if config.RateLimiterEnabled {
+		transport = NewRateLimiterRoundTripper(transport, config.RateLimiterConfig)
+	}
+
+	// Circuit Breaker интегрируется в RoundTripper.doTransport(), не нужно модифицировать transport
+
+	// Создаём кастомный RoundTripper (retry + metrics + tracing)
 	rt := &RoundTripper{
-		base:    config.Transport,
+		base:    transport,
 		config:  config,
 		metrics: metrics,
 		tracer:  tracer,

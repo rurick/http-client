@@ -261,8 +261,8 @@ func TestRoundTripper_ContextCancellation(t *testing.T) {
 }
 
 func TestRoundTripper_NetworkError(t *testing.T) {
-	// Use a timeout error instead of temporary error since we removed Temporary() support
-	networkErr := &mockNetworkError{timeout: true}
+	// Создаём ошибку, которая будет считаться network retryable
+	networkErr := errors.New("connection reset by peer")
 
 	mock := &mockRoundTripper{
 		errors: []error{networkErr, nil},
@@ -441,8 +441,7 @@ func TestRoundTripper_PreservesOriginalStatusCode(t *testing.T) {
 // Вспомогательные типы для тестирования
 
 type mockNetworkError struct {
-	temporary bool
-	timeout   bool
+	timeout bool
 }
 
 func (e *mockNetworkError) Error() string {
@@ -450,7 +449,8 @@ func (e *mockNetworkError) Error() string {
 }
 
 func (e *mockNetworkError) Temporary() bool {
-	return e.temporary
+	// Deprecated: не используется в новой логике retry
+	return false
 }
 
 func (e *mockNetworkError) Timeout() bool {

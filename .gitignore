@@ -7,3 +7,10 @@
 /.warprc
 /WARP.md
 /coverage_main.out
+/go.mod.github
+/go.mod.gitlab
+/examples/basic_usage/go.sum
+/README.github.md
+/sync-repos.sh
+/examples/basic_usage/test_build
+/docs/dual-repository-setup.md

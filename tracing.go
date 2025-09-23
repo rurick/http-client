@@ -23,7 +23,9 @@ func NewTracer() *Tracer {
 
 // StartSpan начинает новый span.
 func (t *Tracer) StartSpan(
-	ctx context.Context, name string, opts ...trace.SpanStartOption,
+	ctx context.Context,
+	name string,
+	opts ...trace.SpanStartOption,
 ) (context.Context, trace.Span) {
 	return t.tracer.Start(ctx, name, opts...)
 }

@@ -2,29 +2,34 @@ package httpclient
 
 import (
 	"errors"
+	"net"
 	"net/url"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
 
-type mockTemporaryError struct {
-	msg       string
-	temporary bool
-	timeout   bool
+// mockNetError implements net.Error interface
+type mockNetError struct {
+	msg     string
+	timeout bool
 }
 
-func (e *mockTemporaryError) Error() string {
+func (e *mockNetError) Error() string {
 	return e.msg
 }
 
-func (e *mockTemporaryError) Temporary() bool {
-	return e.temporary
+func (e *mockNetError) Temporary() bool {
+	// Deprecated: не используется в новой логике retry
+	return false
 }
 
-func (e *mockTemporaryError) Timeout() bool {
+func (e *mockNetError) Timeout() bool {
 	return e.timeout
 }
+
+// Убеждаемся, что mockNetError реализует net.Error
+var _ net.Error = (*mockNetError)(nil)
 
 func TestIsRetryableError(t *testing.T) {
 	t.Parallel()
@@ -39,13 +44,13 @@ func TestIsRetryableError(t *testing.T) {
 			expected: false,
 		},
 		{
-			name:     "timeout network error (modern approach)",
-			err:      &mockTemporaryError{msg: "timeout error", timeout: true},
+			name:     "connection reset network error",
+			err:      &mockNetError{msg: "connection reset by peer"},
 			expected: true,
 		},
 		{
 			name:     "timeout error",
-			err:      &mockTemporaryError{msg: "timeout error", timeout: true},
+			err:      &mockNetError{msg: "timeout error", timeout: true},
 			expected: true,
 		},
 		{
@@ -107,12 +112,12 @@ func TestIsNetworkRetryableError(t *testing.T) {
 		},
 		{
 			name:     "timeout network error",
-			err:      &mockTemporaryError{msg: "timeout error", timeout: true},
+			err:      &mockNetError{msg: "timeout error", timeout: true},
 			expected: true,
 		},
 		{
-			name:     "non-timeout network error",
-			err:      &mockTemporaryError{msg: "network error", timeout: false},
+			name:     "generic network error (not retryable)",
+			err:      &mockNetError{msg: "generic network error"},
 			expected: false,
 		},
 		{
@@ -175,12 +180,12 @@ func TestIsTimeoutRetryableError(t *testing.T) {
 		},
 		{
 			name:     "timeout network error",
-			err:      &mockTemporaryError{msg: "timeout", timeout: true},
+			err:      &mockNetError{msg: "timeout", timeout: true},
 			expected: true,
 		},
 		{
 			name:     "non-timeout network error",
-			err:      &mockTemporaryError{msg: "other error", timeout: false},
+			err:      &mockNetError{msg: "other error", timeout: false},
 			expected: false,
 		},
 		{
@@ -232,13 +237,13 @@ func TestClassifyError(t *testing.T) {
 		},
 		{
 			name:     "timeout error",
-			err:      &mockTemporaryError{msg: "timeout", timeout: true},
+			err:      &mockNetError{msg: "timeout", timeout: true},
 			expected: "timeout",
 		},
 		{
-			name:     "timeout error (classified as timeout, not network)",
-			err:      &mockTemporaryError{msg: "connection timeout", timeout: true},
-			expected: "timeout",
+			name:     "network error",
+			err:      &mockNetError{msg: "connection reset by peer"},
+			expected: "net",
 		},
 		{
 			name:     "connection reset error",

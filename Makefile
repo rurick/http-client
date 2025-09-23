@@ -48,6 +48,7 @@ build: ## Собрать проект
 	$(GO) build ./...
 
 test: ## Запустить тесты
+	go clean -testcache
 	@echo "Запуск тестов..."
 	$(GO) test -v -race ./...
 	$(GO) test -v -race -tags=integration ./... -timeout 120s
@@ -215,7 +216,7 @@ sast-full: ## Полный SAST анализ со всеми инструмен�
 	@$(MAKE) --no-print-directory staticcheck
 	@$(MAKE) --no-print-directory security
 	@$(MAKE) --no-print-directory nancy-audit
-	@echo "✅ Полный SAST анализ завершён"
+	@echo "Полный SAST анализ завершён"
 
 sast-report: ## Создать подробный отчёт SAST в JSON формате
 	@echo "📊 Создание отчёта SAST..."
@@ -232,7 +233,7 @@ sast-report: ## Создать подробный отчёт SAST в JSON фор
 	else \
 		echo "⚠️  StaticCheck не найден"; \
 	fi
-	@echo "✅ SAST отчёт сохранён: $(SAST_REPORT)"
+	@echo "SAST отчёт сохранён: $(SAST_REPORT)"
 
 # =============================================================================
 # УЛУЧШЕННЫЕ КОМАНДЫ БЕЗОПАСНОСТИ
@@ -249,7 +250,7 @@ security-full: ## Полная проверка безопасности
 	@$(MAKE) --no-print-directory security
 	@$(MAKE) --no-print-directory deps-audit
 	@$(MAKE) --no-print-directory deps-license
-	@echo "✅ Полная проверка безопасности завершена"
+	@echo "Полная проверка безопасности завершена"
 
 security-report: ## Создать отчёт по безопасности в JSON
 	@echo "📊 Создание отчёта по безопасности..."
@@ -275,7 +276,7 @@ deps-check: ## Проверить состояние зависимостей
 		git diff go.mod go.sum; \
 		exit 1; \
 	else \
-		echo "✅ Зависимости в порядке"; \
+		echo "Зависимости в порядке"; \
 	fi
 	@echo "📋 go mod verify..."
 	@$(GO) mod verify
@@ -334,14 +335,14 @@ ci-full: ## Полная CI проверка (lint, SAST, тесты, сборк
 	@$(MAKE) --no-print-directory sast-full
 	@$(MAKE) --no-print-directory coverage
 	@$(MAKE) --no-print-directory build
-	@echo "✅ Полная CI проверка завершена успешно!"
+	@echo "Полная CI проверка завершена успешно!"
 
 ci-reports: ## Создать все отчёты для CI/CD
 	@echo "📊 Создание отчётов для CI/CD..."
 	@$(MAKE) --no-print-directory lint-report
 	@$(MAKE) --no-print-directory sast-report
 	@$(MAKE) --no-print-directory security-report
-	@echo "✅ Все отчёты созданы:"
+	@echo "Все отчёты созданы:"
 	@echo "  - Линтеры: $(LINT_REPORT)"
 	@echo "  - SAST: $(SAST_REPORT)"
 	@echo "  - Безопасность: $(SECURITY_REPORT)"
@@ -349,13 +350,13 @@ ci-reports: ## Создать все отчёты для CI/CD
 verify-tools: ## Проверить наличие всех инструментов
 	@echo "🔧 Проверка инструментов..."
 	@echo "📋 Статус инструментов:"
-	@printf "  golangci-lint: "; if [ -f $(GOLANGCI_LINT) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
-	@printf "  staticcheck: "; if [ -f $(STATICCHECK) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
-	@printf "  gosec: "; if [ -f $(GOSEC) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
-	@printf "  govulncheck: "; if [ -f $(GOVULNCHECK) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
-	@printf "  nancy: "; if [ -f $(NANCY) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
-	@printf "  gofumpt: "; if [ -f $(GOFMT) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
-	@printf "  goimports: "; if [ -f $(GOIMPORTS) ]; then echo "✅ установлен"; else echo "❌ не найден"; fi
+	@printf "  golangci-lint: "; if [ -f $(GOLANGCI_LINT) ]; then echo "установлен"; else echo "❌ не найден"; fi
+	@printf "  staticcheck: "; if [ -f $(STATICCHECK) ]; then echo "установлен"; else echo "❌ не найден"; fi
+	@printf "  gosec: "; if [ -f $(GOSEC) ]; then echo "установлен"; else echo "❌ не найден"; fi
+	@printf "  govulncheck: "; if [ -f $(GOVULNCHECK) ]; then echo "установлен"; else echo "❌ не найден"; fi
+	@printf "  nancy: "; if [ -f $(NANCY) ]; then echo "установлен"; else echo "❌ не найден"; fi
+	@printf "  gofumpt: "; if [ -f $(GOFMT) ]; then echo "установлен"; else echo "❌ не найден"; fi
+	@printf "  goimports: "; if [ -f $(GOIMPORTS) ]; then echo "установлен"; else echo "❌ не найден"; fi
 	@echo ""
 	@echo "💡 Для установки недостающих инструментов запустите: 'make install-tools'"
 
@@ -383,7 +384,7 @@ precommit: ## Pre-commit хук (форматирование + быстрые �
 	@$(MAKE) --no-print-directory lint-godot
 	@$(MAKE) --no-print-directory lint-lll
 	@$(MAKE) --no-print-directory test-short
-	@echo "✅ Pre-commit проверки завершены"
+	@echo "Pre-commit проверки завершены"
 
 # =============================================================================
 # КОМАНДЫ ОЧИСТКИ
@@ -397,12 +398,12 @@ clean: ## Очистить временные файлы
 	rm -f gosec-temp.json staticcheck-temp.json
 	rm -f *.prof
 	rm -f *.test
-	@echo "✅ Временные файлы очищены"
+	@echo "Временные файлы очищены"
 
 clean-tools: ## Удалить установленные инструменты
 	@echo "🧹 Удаление инструментов..."
 	rm -rf $(TOOLS_BIN)
-	@echo "✅ Инструменты удалены"
+	@echo "Инструменты удалены"
 
 clean-all: clean clean-tools ## Полная очистка (временные файлы + инструменты)
 	@echo "🧹 Полная очистка завершена"

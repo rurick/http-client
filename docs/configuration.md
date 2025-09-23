@@ -14,6 +14,8 @@ type Config struct {
     Transport       http.RoundTripper // Пользовательский транспорт
     CircuitBreakerEnable bool        // Включить Circuit Breaker
     CircuitBreaker       httpclient.CircuitBreaker // Экземпляр Circuit Breaker
+	RateLimiterEnabled bool         // RateLimiterEnabled включает/выключает rate limiting
+	RateLimiterConfig RateLimiterConfig // RateLimiterConfig конфигурация rate limiter
 }
 ```
 
@@ -77,6 +79,108 @@ config := httpclient.Config{
         IdleConnTimeout:    90 * time.Second,
         DisableCompression: false,
     },
+}
+    RateLimiterEnabled bool                // Включить Rate Limiter
+    RateLimiterConfig  RateLimiterConfig   // Конфигурация Rate Limiter
+```
+
+## Конфигурация Rate Limiter
+
+Rate Limiter реализует алгоритм Token Bucket для ограничения частоты исходящих запросов. Это помогает соблюдать ограничения API внешних сервисов и защищать от перегрузки.
+
+### Архитектура Rate Limiter
+
+Rate Limiter реализован как middleware в цепочке RoundTripper'ов. Он выполняется перед основным механизмом retry и метрик, но после Circuit Breaker.
+
+```
+HTTP Request
+    ↓
+Circuit Breaker (опционально)
+    ↓
+Rate Limiter (опционально) ← НОВЫЙ КОМПОНЕНТ
+    ↓
+RoundTripper (retry + metrics + tracing)
+    ↓
+Base HTTP Transport
+    ↓
+Сеть / Внешний сервис
+```
+
+#### Особенности архитектуры:
+
+1. **Middleware pattern**: Rate Limiter не изменяет существующую логику, а добавляет новый слой
+2. **Опциональность**: Полностью опциональный компонент, включается только при RateLimiterEnabled: true
+3. **Позиционирование**: Правильно расположен в цепочке - лимитирует до retry, но после circuit breaker
+4. **Независимость**: Не влияет на метрики, tracing или retry логику
+
+### Алгоритм Token Bucket
+
+Rate Limiter использует алгоритм Token Bucket ("Корзина токенов"):
+
+#### Принцип работы:
+1. Корзина имеет определенную емкость (BurstCapacity)
+2. Токены добавляются с постоянной скоростью (RequestsPerSecond)
+3. Каждый запрос потребляет 1 токен
+4. Если токенов нет - запрос ожидает их появления
+
+#### Преимущества:
+- **Burst traffic**: Позволяет короткие всплески запросов
+- **Smooth limiting**: Плавное ограничение без резких отказов
+- **Predictable**: Предсказуемое поведение и латентность
+- **Wait strategy**: Автоматическое ожидание вместо отклонения
+
+### Структура RateLimiterConfig
+
+```go
+type RateLimiterConfig struct {
+    RequestsPerSecond float64 // Максимальное количество запросов в секунду
+    BurstCapacity     int     // Размер корзины для пиковых запросов
+    PerHost           bool    // Отдельные лимиты для каждого хоста
+}
+```
+
+### RateLimiterEnabled (Включение Rate Limiter)
+- **Тип:** `bool`
+- **По умолчанию:** `false`
+- **Описание:** Включает/выключает rate limiting для всех запросов
+
+```go
+config := httpclient.Config{
+    RateLimiterEnabled: true, // Включить rate limiting
+}
+```
+
+### RequestsPerSecond (Запросов в секунду)
+- **Тип:** `float64`
+- **По умолчанию:** `10.0`
+- **Описание:** Максимальная устойчивая скорость запросов. Токены добавляются в корзину с этой скоростью
+
+```go
+RateLimiterConfig{
+    RequestsPerSecond: 5.0, // 5 запросов в секунду
+}
+```
+
+### BurstCapacity (Размер корзины)
+- **Тип:** `int`
+- **По умолчанию:** равен `RequestsPerSecond`
+- **Описание:** Максимальное количество токенов в корзине. Позволяет делать пиковые запросы сверх устойчивой скорости
+
+```go
+RateLimiterConfig{
+    RequestsPerSecond: 10.0,
+    BurstCapacity:     20, // Можно сразу сделать до 20 запросов
+}
+```
+
+### PerHost (Лимиты по хостам)
+- **Тип:** `bool`
+- **По умолчанию:** `false`
+- **Описание:** При `true` создает отдельные лимитеры для каждого хоста. При `false` использует глобальный лимитер для всех запросов
+
+```go
+RateLimiterConfig{
+    PerHost: true, // Отдельные лимиты для api.service1.com и api.service2.com
 }
 ```
 
@@ -174,6 +278,57 @@ RetryConfig{
 }
 ```
 
+## Примеры использования Rate Limiter
+
+### Ограничение для внешних API
+
+```go
+config := httpclient.Config{
+    RateLimiterEnabled: true,
+    RateLimiterConfig: httpclient.RateLimiterConfig{
+        RequestsPerSecond: 5.0,  // API позволяет 5 RPS
+        BurstCapacity:     10,   // Можно сделать пакет до 10 запросов
+    },
+}
+
+client := httpclient.New(config, "external-api-client")
+```
+
+### Высокочастотные запросы с burst поддержкой
+
+```go
+config := httpclient.Config{
+    RateLimiterEnabled: true,
+    RateLimiterConfig: httpclient.RateLimiterConfig{
+        RequestsPerSecond: 100.0, // 100 RPS глобально
+        BurstCapacity:     50,    // Консервативный burst
+    },
+    RetryEnabled: true,
+    RetryConfig: httpclient.RetryConfig{
+        MaxAttempts: 3,
+    },
+}
+
+client := httpclient.New(config, "high-throughput-client")
+// Глобальный лимитер для всех запросов клиента
+```
+
+### Консервативная конфигурация для надежности
+
+```go
+config := httpclient.Config{
+    RateLimiterEnabled: true,
+    RateLimiterConfig: httpclient.RateLimiterConfig{
+        RequestsPerSecond: 1.0,  // Очень консервативно
+        BurstCapacity:     1,    // Никаких пиков
+    },
+    Timeout:       30 * time.Second,
+    PerTryTimeout: 10 * time.Second,
+}
+
+client := httpclient.New(config, "conservative-client")
+```
+
 ## Значения по умолчанию
 
 ```go
@@ -187,8 +342,9 @@ defaultConfig := Config{
         MaxDelay:    5 * time.Second,
         Jitter:      0.2,
     },
-    TracingEnabled: false,
-    Transport:      http.DefaultTransport,
+    TracingEnabled:     false,
+    RateLimiterEnabled: false, // Rate limiter выключен по умолчанию
+    Transport:          http.DefaultTransport,
 }
 ```
 
@@ -224,6 +380,11 @@ config := httpclient.Config{
         Jitter:      0.3,
     },
     TracingEnabled: true,
+    RateLimiterEnabled: true,
+    RateLimiterConfig: httpclient.RateLimiterConfig{
+        RequestsPerSecond: 10.0, // Соблюдаем лимиты API
+        BurstCapacity:     15,   // Небольшой burst
+    },
 }
 
 client := httpclient.New(config, "external-api")
