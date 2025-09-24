@@ -21,7 +21,7 @@ func main() {
 			fmt.Printf("default %d) err: %v\n", i+1, err)
 		} else {
 			fmt.Printf("default %d) status: %d\n", i+1, resp.StatusCode)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
@@ -48,7 +48,7 @@ func main() {
 			fmt.Printf("custom %d) err: %v\n", i+1, err)
 		} else {
 			fmt.Printf("custom %d) status: %d\n", i+1, resp.StatusCode)
-			resp.Body.Close()
+			_ = resp.Body.Close()
 		}
 		time.Sleep(300 * time.Millisecond)
 	}

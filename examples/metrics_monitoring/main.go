@@ -14,17 +14,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func main() {
-	// Инициализация полного набора метрик
-	if err := initializeMetrics(); err != nil {
-		log.Fatalf("Failed to initialize metrics: %v", err)
-	}
-
 	// Создаём клиент с полной конфигурацией
 	config := httpclient.Config{
 		Timeout:       15 * time.Second,
@@ -46,7 +38,7 @@ func main() {
 	defer client.Close()
 
 	// Запускаем метрики сервер
-	metricsServer := startMetricsServer()
+	metricsServer := startMetricsServer(client)
 	defer metricsServer.Close()
 
 	fmt.Println("=== Metrics Monitoring Demo ===")
@@ -88,67 +80,14 @@ func main() {
 	}
 }
 
-func initializeMetrics() error {
-	exporter, err := prometheus.New()
-	if err != nil {
-		return fmt.Errorf("failed to create prometheus exporter: %w", err)
-	}
+// Метрики создаются автоматически с стандартными buckets
 
-	// Создаём MeterProvider с кастомными views
-	provider := metric.NewMeterProvider(
-		metric.WithReader(exporter),
-		metric.WithView(createCustomViews()...),
-	)
+// Prometheus/client_golang создаёт метрики со стандартными buckets
 
-	otel.SetMeterProvider(provider)
-	return nil
-}
-
-// createCustomViews создаёт кастомные views для метрик
-func createCustomViews() []metric.View {
-	// Кастомные buckets для длительности (более детализированные)
-	durationView := metric.NewView(
-		metric.Instrument{Name: "http_client_request_duration_seconds"},
-		metric.Stream{
-			Aggregation: metric.AggregationExplicitBucketHistogram{
-				Boundaries: []float64{
-					0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
-					1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
-				},
-			},
-		},
-	)
-
-	// Кастомные buckets для размеров
-	sizeView := metric.NewView(
-		metric.Instrument{Name: "http_client_request_size_bytes"},
-		metric.Stream{
-			Aggregation: metric.AggregationExplicitBucketHistogram{
-				Boundaries: []float64{
-					256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
-				},
-			},
-		},
-	)
-
-	responseSizeView := metric.NewView(
-		metric.Instrument{Name: "http_client_response_size_bytes"},
-		metric.Stream{
-			Aggregation: metric.AggregationExplicitBucketHistogram{
-				Boundaries: []float64{
-					256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
-				},
-			},
-		},
-	)
-
-	return []metric.View{durationView, sizeView, responseSizeView}
-}
-
-func startMetricsServer() *http.Server {
+func startMetricsServer(client *httpclient.Client) *http.Server {
 	mux := http.NewServeMux()
 
-	// Prometheus metrics endpoint
+	// Prometheus metrics endpoint - метрики автоматически регистрируются
 	mux.Handle("/metrics", promhttp.Handler())
 
 	// Человеко-читаемая информация о метриках

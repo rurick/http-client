@@ -10,17 +10,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func main() {
-	// Инициализация метрик
-	if err := initializeMetrics(); err != nil {
-		log.Fatalf("Failed to initialize metrics: %v", err)
-	}
-
 	// Конфигурация с включёнными retry
 	config := httpclient.Config{
 		Timeout:       10 * time.Second,
@@ -71,22 +63,10 @@ func main() {
 	}
 
 	// Запуск метрик сервера
-	startMetricsServer()
+	startMetricsServer(client)
 }
 
-func initializeMetrics() error {
-	exporter, err := prometheus.New()
-	if err != nil {
-		return err
-	}
-
-	provider := metric.NewMeterProvider(
-		metric.WithReader(exporter),
-	)
-
-	otel.SetMeterProvider(provider)
-	return nil
-}
+// Метрики теперь создаются автоматически в клиенте
 
 // testRetryOn5xx тестирует retry на 5xx ошибки
 func testRetryOn5xx(ctx context.Context, client *httpclient.Client) error {
@@ -184,41 +164,14 @@ func testNonRetryableMethod(ctx context.Context, client *httpclient.Client) erro
 	return nil
 }
 
-// Демонстрация кастомных views для метрик
-func setupCustomMetricViews() error {
-	// Кастомные buckets для длительности
-	durationView := metric.NewView(
-		metric.Instrument{Name: "http_client_request_duration_seconds"},
-		metric.Stream{
-			Aggregation: metric.AggregationExplicitBucketHistogram{
-				Boundaries: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10},
-			},
-		},
-	)
+// Prometheus/client_golang использует свои стандартные buckets,
+// конфигурируемые при создании метрик
 
-	// Кастомные buckets для размеров
-	sizeView := metric.NewView(
-		metric.Instrument{Name: "http_client_request_size_bytes"},
-		metric.Stream{
-			Aggregation: metric.AggregationExplicitBucketHistogram{
-				Boundaries: []float64{256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304},
-			},
-		},
-	)
-
-	// Применяем views к provider
-	provider := metric.NewMeterProvider(
-		metric.WithView(durationView, sizeView),
-	)
-
-	otel.SetMeterProvider(provider)
-	return nil
-}
-
-func startMetricsServer() {
+func startMetricsServer(client *httpclient.Client) {
 	fmt.Println("\n=== Metrics Server ===")
 	fmt.Println("Starting metrics server on :2112/metrics")
 
+	// Метрики автоматически доступны через стандартный handler
 	http.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{

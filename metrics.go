@@ -2,184 +2,234 @@ package httpclient
 
 import (
 	"context"
+	"strconv"
+	"sync"
 
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
+	"github.com/prometheus/client_golang/prometheus"
 )
 
-// Metrics содержит все метрики HTTP клиента.
-type Metrics struct {
+// Константы для метрик.
+const (
+	// Имена метрик.
+	metricsRequestsTotal     = "http_client_requests_total"
+	metricsRequestDuration   = "http_client_request_duration_seconds"
+	metricsRetriesTotal      = "http_client_retries_total"
+	metricsInflightRequests  = "http_client_inflight_requests"
+	metricsRequestSizeBytes  = "http_client_request_size_bytes"
+	metricsResponseSizeBytes = "http_client_response_size_bytes"
+)
+
+// Глобальные метрики - регистрируются один раз в default registry.
+var (
+	globalMetrics     *globalMetricsSet
+	globalMetricsOnce sync.Once
+)
+
+// globalMetricsSet содержит глобальные метрики HTTP клиента.
+type globalMetricsSet struct {
 	// RequestsTotal счётчик общего количества запросов
-	RequestsTotal metric.Int64Counter
+	RequestsTotal *prometheus.CounterVec
 
 	// RequestDuration гистограмма длительности запросов
-	RequestDuration metric.Float64Histogram
+	RequestDuration *prometheus.HistogramVec
 
 	// RetriesTotal счётчик ретраев
-	RetriesTotal metric.Int64Counter
+	RetriesTotal *prometheus.CounterVec
 
-	// InflightRequests updowncounter активных запросов
-	InflightRequests metric.Int64UpDownCounter
+	// InflightRequests gauge активных запросов
+	InflightRequests *prometheus.GaugeVec
 
 	// RequestSize гистограмма размера запросов
-	RequestSize metric.Int64Histogram
+	RequestSize *prometheus.HistogramVec
 
 	// ResponseSize гистограмма размера ответов
-	ResponseSize metric.Int64Histogram
+	ResponseSize *prometheus.HistogramVec
+}
 
-	meter metric.Meter
+// initGlobalMetrics инициализирует глобальные метрики один раз.
+// Используется sync.Once для предотвращения повторной регистрации.
+func initGlobalMetrics() {
+	globalMetricsOnce.Do(func() {
+		requestsTotal := prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: metricsRequestsTotal,
+				Help: "Total number of HTTP client requests",
+			},
+			[]string{"client_name", "method", "host", "status", "retry", "error"},
+		)
+
+		requestDuration := prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: metricsRequestDuration,
+				Help: "HTTP client request duration in seconds",
+				Buckets: []float64{
+					0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+					1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
+				},
+			},
+			[]string{"client_name", "method", "host", "status", "attempt"},
+		)
+
+		retriesTotal := prometheus.NewCounterVec(
+			prometheus.CounterOpts{
+				Name: metricsRetriesTotal,
+				Help: "Total number of HTTP client retries",
+			},
+			[]string{"client_name", "reason", "method", "host"},
+		)
+
+		inflightRequests := prometheus.NewGaugeVec(
+			prometheus.GaugeOpts{
+				Name: metricsInflightRequests,
+				Help: "Number of HTTP client requests currently in-flight",
+			},
+			[]string{"client_name", "method", "host"},
+		)
+
+		requestSize := prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: metricsRequestSizeBytes,
+				Help: "HTTP client request size in bytes",
+				Buckets: []float64{
+					256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+				},
+			},
+			[]string{"client_name", "method", "host"},
+		)
+
+		responseSize := prometheus.NewHistogramVec(
+			prometheus.HistogramOpts{
+				Name: metricsResponseSizeBytes,
+				Help: "HTTP client response size in bytes",
+				Buckets: []float64{
+					256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+				},
+			},
+			[]string{"client_name", "method", "host", "status"},
+		)
+
+		// Регистрируем все метрики в default registry
+		prometheus.MustRegister(
+			requestsTotal,
+			requestDuration,
+			retriesTotal,
+			inflightRequests,
+			requestSize,
+			responseSize,
+		)
+
+		globalMetrics = &globalMetricsSet{
+			RequestsTotal:    requestsTotal,
+			RequestDuration:  requestDuration,
+			RetriesTotal:     retriesTotal,
+			InflightRequests: inflightRequests,
+			RequestSize:      requestSize,
+			ResponseSize:     responseSize,
+		}
+	})
+}
+
+// Metrics содержит конфигурацию метрик для конкретного HTTP клиента.
+// Теперь использует глобальные метрики с client_name лейблом.
+type Metrics struct {
+	clientName string
+	enabled    bool
 }
 
 // NewMetrics создаёт новый экземпляр метрик.
+// Автоматически инициализирует глобальные метрики при первом вызове.
 func NewMetrics(meterName string) *Metrics {
-	meter := otel.Meter(meterName)
-
-	requestsTotal, _ := meter.Int64Counter(
-		"http_client_requests_total",
-		metric.WithDescription("Total number of HTTP client requests"),
-		metric.WithUnit("1"),
-	)
-
-	requestDuration, _ := meter.Float64Histogram(
-		"http_client_request_duration_seconds",
-		metric.WithDescription("HTTP client request duration in seconds"),
-		metric.WithUnit("s"),
-		metric.WithExplicitBucketBoundaries( //nolint:mnd // OpenTelemetry histogram buckets for latency
-			0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, //nolint:mnd // standard latency buckets
-			1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60, //nolint:mnd // standard latency buckets
-		),
-	)
-
-	retriesTotal, _ := meter.Int64Counter(
-		"http_client_retries_total",
-		metric.WithDescription("Total number of HTTP client retries"),
-		metric.WithUnit("1"),
-	)
-
-	inflightRequests, _ := meter.Int64UpDownCounter(
-		"http_client_inflight_requests",
-		metric.WithDescription("Number of HTTP client requests currently in-flight"),
-		metric.WithUnit("1"),
-	)
-
-	requestSize, _ := meter.Int64Histogram(
-		"http_client_request_size_bytes",
-		metric.WithDescription("HTTP client request size in bytes"),
-		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries( //nolint:mnd // OpenTelemetry histogram buckets for byte sizes
-			256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, //nolint:mnd // standard byte size buckets
-		),
-	)
-
-	responseSize, _ := meter.Int64Histogram(
-		"http_client_response_size_bytes",
-		metric.WithDescription("HTTP client response size in bytes"),
-		metric.WithUnit("By"),
-		metric.WithExplicitBucketBoundaries( //nolint:mnd // OpenTelemetry histogram buckets for byte sizes
-			256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216, //nolint:mnd // standard byte size buckets
-		),
-	)
+	// Инициализируем глобальные метрики если они ещё не инициализированы
+	initGlobalMetrics()
 
 	return &Metrics{
-		RequestsTotal:    requestsTotal,
-		RequestDuration:  requestDuration,
-		RetriesTotal:     retriesTotal,
-		InflightRequests: inflightRequests,
-		RequestSize:      requestSize,
-		ResponseSize:     responseSize,
-		meter:            meter,
+		clientName: meterName,
+		enabled:    true,
+	}
+}
+
+// NewDisabledMetrics создаёт экземпляр метрик с выключенным сбором.
+func NewDisabledMetrics(meterName string) *Metrics {
+	return &Metrics{
+		clientName: meterName,
+		enabled:    false,
 	}
 }
 
 // RecordRequest записывает метрики для запроса.
-func (m *Metrics) RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool) {
-	m.RequestsTotal.Add(ctx, 1,
-		metric.WithAttributes(
-			attribute.String("method", method),
-			attribute.String("host", host),
-			attribute.String("status", status),
-			attribute.Bool("retry", retry),
-			attribute.Bool("error", hasError),
-		),
-	)
+func (m *Metrics) RecordRequest(_ context.Context, method, host, status string, retry, hasError bool) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
+
+	retryStr := "false"
+	if retry {
+		retryStr = "true"
+	}
+	errorStr := "false"
+	if hasError {
+		errorStr = "true"
+	}
+	globalMetrics.RequestsTotal.WithLabelValues(m.clientName, method, host, status, retryStr, errorStr).Inc()
 }
 
 // RecordDuration записывает длительность запроса.
-func (m *Metrics) RecordDuration(ctx context.Context, duration float64, method, host, status string, attempt int) {
-	m.RequestDuration.Record(ctx, duration,
-		metric.WithAttributes(
-			attribute.String("method", method),
-			attribute.String("host", host),
-			attribute.String("status", status),
-			attribute.Int("attempt", attempt),
-		),
-	)
+func (m *Metrics) RecordDuration(_ context.Context, duration float64, method, host, status string, attempt int) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
+
+	attemptStr := strconv.Itoa(attempt)
+	globalMetrics.RequestDuration.WithLabelValues(m.clientName, method, host, status, attemptStr).Observe(duration)
 }
 
 // RecordRetry записывает метрику retry.
-func (m *Metrics) RecordRetry(ctx context.Context, reason, method, host string) {
-	m.RetriesTotal.Add(ctx, 1,
-		metric.WithAttributes(
-			attribute.String("reason", reason),
-			attribute.String("method", method),
-			attribute.String("host", host),
-		),
-	)
-}
+func (m *Metrics) RecordRetry(_ context.Context, reason, method, host string) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
 
-// RecordInflight записывает количество активных запросов.
-func (m *Metrics) RecordInflight(ctx context.Context, delta int64, host string) {
-	m.InflightRequests.Add(ctx, delta,
-		metric.WithAttributes(
-			attribute.String("host", host),
-		),
-	)
+	globalMetrics.RetriesTotal.WithLabelValues(m.clientName, reason, method, host).Inc()
 }
 
 // RecordRequestSize записывает размер запроса.
-func (m *Metrics) RecordRequestSize(ctx context.Context, size int64, method, host string) {
-	m.RequestSize.Record(ctx, size,
-		metric.WithAttributes(
-			attribute.String("method", method),
-			attribute.String("host", host),
-		),
-	)
+func (m *Metrics) RecordRequestSize(_ context.Context, size int64, method, host string) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
+
+	globalMetrics.RequestSize.WithLabelValues(m.clientName, method, host).Observe(float64(size))
 }
 
 // RecordResponseSize записывает размер ответа.
-func (m *Metrics) RecordResponseSize(ctx context.Context, size int64, method, host, status string) {
-	m.ResponseSize.Record(ctx, size,
-		metric.WithAttributes(
-			attribute.String("method", method),
-			attribute.String("host", host),
-			attribute.String("status", status),
-		),
-	)
+func (m *Metrics) RecordResponseSize(_ context.Context, size int64, method, host, status string) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
+
+	globalMetrics.ResponseSize.WithLabelValues(m.clientName, method, host, status).Observe(float64(size))
 }
 
 // IncrementInflight увеличивает счётчик активных запросов.
-func (m *Metrics) IncrementInflight(ctx context.Context, method, host string) {
-	m.InflightRequests.Add(ctx, 1,
-		metric.WithAttributes(
-			attribute.String("method", method),
-			attribute.String("host", host),
-		),
-	)
+func (m *Metrics) IncrementInflight(_ context.Context, method, host string) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
+
+	globalMetrics.InflightRequests.WithLabelValues(m.clientName, method, host).Inc()
 }
 
 // DecrementInflight уменьшает счётчик активных запросов.
-func (m *Metrics) DecrementInflight(ctx context.Context, method, host string) {
-	m.InflightRequests.Add(ctx, -1,
-		metric.WithAttributes(
-			attribute.String("method", method),
-			attribute.String("host", host),
-		),
-	)
+func (m *Metrics) DecrementInflight(_ context.Context, method, host string) {
+	if !m.enabled || globalMetrics == nil {
+		return
+	}
+
+	globalMetrics.InflightRequests.WithLabelValues(m.clientName, method, host).Dec()
 }
 
 // Close освобождает ресурсы метрик.
 func (m *Metrics) Close() error {
-	// В текущей реализации нет ресурсов для освобождения
+	// Глобальные метрики не освобождаются при закрытии отдельного клиента
 	return nil
 }

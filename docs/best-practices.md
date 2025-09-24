@@ -540,7 +540,7 @@ func TestServiceIntegration(t *testing.T) {
     resp, err := client.Get(context.Background(), "https://httpbin.org/status/200")
     require.NoError(t, err)
     assert.Equal(t, 200, resp.StatusCode)
-    resp.Body.Close()
+    _ = resp.Body.Close()
 }
 ```
 

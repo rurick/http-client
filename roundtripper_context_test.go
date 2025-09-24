@@ -47,7 +47,7 @@ func TestContextNotCanceledDuringBodyRead(t *testing.T) {
 	assert.Equal(t, "response body content", string(body))
 
 	// Закрываем тело ответа - только сейчас контекст должен быть отменён
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 // TestContextCanceledOnBodyClose проверяет, что контекст отменяется при закрытии тела ответа
@@ -105,7 +105,7 @@ func TestContextCanceledOnError(t *testing.T) {
 	assert.Error(t, err)
 	// Ответ может быть nil или не nil в зависимости от типа ошибки
 	if resp != nil {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// Главное - что мы не зависаем и ошибка обрабатывается корректно

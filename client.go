@@ -8,6 +8,8 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/prometheus/client_golang/prometheus"
 )
 
 // Client представляет HTTP клиент с автоматическими метриками и retry механизмом.
@@ -29,8 +31,13 @@ func New(config Config, meterName string) *Client {
 		meterName = "http-client"
 	}
 
-	// Инициализируем метрики
-	metrics := NewMetrics(meterName)
+	// Инициализируем метрики (по умолчанию включены)
+	var metrics *Metrics
+	if config.MetricsEnabled == nil || *config.MetricsEnabled {
+		metrics = NewMetrics(meterName)
+	} else {
+		metrics = NewDisabledMetrics(meterName)
+	}
 
 	// Инициализируем трассировку (опционально)
 	var tracer *Tracer
@@ -152,6 +159,12 @@ func (c *Client) Close() error {
 		return c.metrics.Close()
 	}
 	return nil
+}
+
+// GetDefaultMetricsRegistry возвращает глобальный Prometheus DefaultRegisterer.
+// Используется для создания HTTP обработчика метрик через promhttp.HandlerFor().
+func GetDefaultMetricsRegistry() prometheus.Gatherer {
+	return prometheus.DefaultGatherer
 }
 
 // GetWithHeaders выполняет GET запрос с заголовками.
