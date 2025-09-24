@@ -63,4 +63,3 @@ func TestClientDo_NoRetryOnIdempotentPOST(t *testing.T) {
 
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "должна быть ровно одна попытка запроса")
 }
-

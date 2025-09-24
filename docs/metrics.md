@@ -1,6 +1,6 @@
 # Метрики и мониторинг
 
-HTTP клиент автоматически собирает комплексные Prometheus метрики через OpenTelemetry для полной observability ваших HTTP запросов.
+HTTP клиент автоматически собирает комплексные Prometheus метрики через prometheus/client_golang v1.22.0 для полной observability ваших HTTP запросов.
 
 ## Доступные метрики
 
@@ -385,27 +385,24 @@ defer client.Close()
 resp, err := client.Get(ctx, "https://api.example.com/data")
 ```
 
-## Интеграция с OpenTelemetry
+## Использование метрик в коде
 
 ```go
 import (
-    "go.opentelemetry.io/otel"
-    "go.opentelemetry.io/otel/exporters/prometheus"
-    "go.opentelemetry.io/otel/sdk/metric"
+    "net/http"
+    "github.com/prometheus/client_golang/prometheus/promhttp"
+    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
 )
 
-// Настройка экспорта метрик в Prometheus
-func setupMetrics() {
-    exporter, err := prometheus.New()
-    if err != nil {
-        log.Fatal(err)
-    }
-    
-    provider := metric.NewMeterProvider(metric.WithReader(exporter))
-    otel.SetMeterProvider(provider)
-    
-    // HTTP клиент автоматически будет использовать этот provider
-}
+// Метрики создаются автоматически при создании клиента
+client := httpclient.New(httpclient.Config{}, "my-service")
+defer client.Close()
+
+// Создаём HTTP endpoint для метрик - метрики автоматически регистрируются
+http.Handle("/metrics", promhttp.Handler())
+
+// Метрики собираются автоматически при выполнении запросов
+resp, err := client.Get(ctx, "https://api.example.com/data")
 ```
 
 ## Troubleshooting метрик

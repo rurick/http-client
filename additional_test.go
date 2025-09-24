@@ -34,7 +34,7 @@ func executeRequestAndCheckStatus(
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	})
 	assert.NotNil(t, resp, "Response should not be nil")
 	return resp

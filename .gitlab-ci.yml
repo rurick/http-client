@@ -1,12 +1,22 @@
-  stages:
-    - quality
-  include:
-    - project: youdrive/go/ci-templates
-      file: templates/gitlab-ci.quality-template.yml
-      ref: v0.0.34
-  Tests:
-    stage: quality
-    extends: .test
-  Lint (Code Climate):
-    stage: quality
-    extends: .lint
+stages:
+  - quality
+  - tag
+
+include:
+  - project: youdrive/go/ci-templates
+    file: templates/gitlab-ci.quality-template.yml
+    ref: v0.0.39
+  - project: youdrive/go/ci-templates
+    file: templates/gitlab-ci.tags.yml
+    ref: v0.0.39
+Tests:
+  stage: quality
+  extends: .test
+
+Lint (Code Climate):
+  stage: quality
+  extends: .lint
+
+tag:
+  stage: tag
+  extends: .tag

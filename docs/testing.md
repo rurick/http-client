@@ -23,7 +23,7 @@ func TestBasicHTTPRequests(t *testing.T) {
     resp, err := client.Get(context.Background(), server.URL)
     assert.NoError(t, err)
     assert.Equal(t, 200, resp.StatusCode)
-    resp.Body.Close()
+    _ = resp.Body.Close()
     
     // Проверка количества запросов
     assert.Equal(t, 1, server.GetRequestCount())
@@ -49,7 +49,7 @@ func TestClientWithMockTransport(t *testing.T) {
     resp, err := client.Get(context.Background(), "https://example.com/api")
     assert.NoError(t, err)
     assert.Equal(t, 200, resp.StatusCode)
-    resp.Body.Close()
+    _ = resp.Body.Close()
     
     // Проверка что запрос был сделан
     assert.Equal(t, 1, mock.GetCallCount())
@@ -93,7 +93,7 @@ func TestRetrySuccess(t *testing.T) {
     
     assert.NoError(t, err)
     assert.Equal(t, 200, resp.StatusCode)
-    resp.Body.Close()
+    _ = resp.Body.Close()
     
     // Проверяем что было 3 попытки
     assert.Equal(t, 3, server.GetRequestCount())
@@ -175,7 +175,7 @@ func TestIdempotentRetry(t *testing.T) {
     resp, err := client.Do(req)
     assert.NoError(t, err)
     assert.Equal(t, 201, resp.StatusCode)
-    resp.Body.Close()
+    _ = resp.Body.Close()
     
     // Проверяем что было 2 попытки
     assert.Equal(t, 2, mock.GetCallCount())
@@ -209,7 +209,7 @@ func TestMetricsCollection(t *testing.T) {
     for i := 0; i < 5; i++ {
         resp, err := client.Get(context.Background(), server.URL)
         assert.NoError(t, err)
-        resp.Body.Close()
+        _ = resp.Body.Close()
     }
     
     // Проверка что метрики собраны
@@ -382,7 +382,7 @@ func BenchmarkHTTPClient(b *testing.B) {
             if err != nil {
                 b.Fatal(err)
             }
-            resp.Body.Close()
+            _ = resp.Body.Close()
         }
     })
 }
@@ -409,7 +409,7 @@ func BenchmarkHTTPClientWithRetry(b *testing.B) {
         if err != nil {
             b.Fatal(err)
         }
-        resp.Body.Close()
+        _ = resp.Body.Close()
     }
 }
 ```
@@ -442,7 +442,7 @@ func TestWaitForCondition(t *testing.T) {
     go func() {
         resp, _ := client.Get(context.Background(), server.URL)
         if resp != nil {
-            resp.Body.Close()
+            _ = resp.Body.Close()
         }
     }()
     
@@ -527,7 +527,7 @@ func TestUserServiceIntegration(t *testing.T) {
     
     assert.NoError(t, err)
     assert.Equal(t, 201, resp.StatusCode)
-    resp.Body.Close()
+    _ = resp.Body.Close()
     
     // Тест получения пользователя
     resp, err = client.Get(context.Background(), server.URL+"/users/123")
@@ -539,7 +539,7 @@ func TestUserServiceIntegration(t *testing.T) {
     assert.NoError(t, err)
     assert.Equal(t, float64(123), user["id"])
     assert.Equal(t, "Test User", user["name"])
-    resp.Body.Close()
+    _ = resp.Body.Close()
     
     // Проверка количества запросов
     assert.Equal(t, 2, server.GetRequestCount())

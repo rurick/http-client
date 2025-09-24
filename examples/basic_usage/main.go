@@ -11,17 +11,9 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/exporters/prometheus"
-	"go.opentelemetry.io/otel/sdk/metric"
 )
 
 func main() {
-	// Инициализация OpenTelemetry с Prometheus exporter
-	if err := initializeMetr(); err != nil {
-		log.Fatalf("Failed to initialize metrics: %v", err)
-	}
-
 	// Создание HTTP клиента с базовой конфигурацией (retry отключён)
 	config := httpclient.Config{
 		Timeout:       5 * time.Second,
@@ -44,27 +36,10 @@ func main() {
 	}
 
 	// Запуск HTTP сервера для /metrics endpoint
-	startMetricsServerBasic()
+	startMetricsServerBasic(client)
 }
 
-// initializeMetrics инициализирует OpenTelemetry MeterProvider с Prometheus exporter
-func initializeMetr() error {
-	// Создаём Prometheus exporter
-	exporter, err := prometheus.New()
-	if err != nil {
-		return fmt.Errorf("failed to create prometheus exporter: %w", err)
-	}
-
-	// Создаём MeterProvider
-	provider := metric.NewMeterProvider(
-		metric.WithReader(exporter),
-	)
-
-	// Устанавливаем глобальный MeterProvider
-	otel.SetMeterProvider(provider)
-
-	return nil
-}
+// Метрики теперь создаются автоматически в клиенте через prometheus/client_golang
 
 // performGetRequest выполняет простой GET запрос
 func performGetRequest(ctx context.Context, client *httpclient.Client) error {
@@ -112,9 +87,10 @@ func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 }
 
 // startMetricsServerBasic запускает HTTP сервер для метрик на порту 2112
-func startMetricsServerBasic() {
+func startMetricsServerBasic(client *httpclient.Client) {
 	fmt.Println("Starting metrics server on :2112/metrics")
 
+	// Метрики автоматически регистрируются в default registry
 	http.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{

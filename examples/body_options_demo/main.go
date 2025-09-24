@@ -47,7 +47,7 @@ func main() {
 		log.Printf("Ошибка JSON POST: %v", err)
 	} else {
 		fmt.Printf("JSON POST успешно: %s\n", resp.Status)
-		resp.Body.Close()
+		_ = resp.Body.Close()
 	}
 
 	// 2. Form body
