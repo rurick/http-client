@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "github.com/rurick/http-client"
 )
 
 // errorReader симулирует io.Reader, который падает после первого чтения.

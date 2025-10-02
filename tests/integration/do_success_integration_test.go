@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "github.com/rurick/http-client"
 )
 
 func TestClientDo_SuccessNoRetry(t *testing.T) {

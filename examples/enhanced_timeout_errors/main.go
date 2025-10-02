@@ -12,7 +12,7 @@ import (
 	"strings"
 	"time"
 
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "github.com/rurick/http-client"
 )
 
 // NalogRuAuthRequest структура для запроса авторизации в API ФНС

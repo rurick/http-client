@@ -9,7 +9,7 @@ import (
 	"log"
 	"net/url"
 
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "github.com/rurick/http-client"
 )
 
 // User структура для JSON/XML примеров

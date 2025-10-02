@@ -125,7 +125,7 @@ import (
     "fmt"
     "io"
     "log"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func main() {
@@ -155,7 +155,7 @@ import (
     "context"
     "fmt"
     "log"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 type Post struct {
@@ -201,7 +201,7 @@ import (
     "context"
     "log"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func main() {
@@ -249,7 +249,7 @@ import (
     "fmt"
     "net/http"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func generateIdempotencyKey(operation, userID string) string {
@@ -308,7 +308,7 @@ import (
     "fmt"
     "strings"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 type User struct {
@@ -444,7 +444,7 @@ import (
     "fmt"
     "net/url"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 type WeatherData struct {
@@ -554,7 +554,7 @@ import (
     "net/http"
     "os"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func uploadFile(client *httpclient.Client, filename string) error {
@@ -634,7 +634,7 @@ import (
     "io"
     "os"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func downloadFile(client *httpclient.Client, url, filename string) error {
@@ -689,7 +689,7 @@ import (
     "fmt"
     "sync"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 type Result struct {
@@ -768,7 +768,7 @@ import (
     "context"
     "fmt"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func main() {
@@ -799,7 +799,7 @@ import (
     "context"
     "fmt"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func main() {
@@ -846,7 +846,7 @@ import (
     "net/http"
     "strings"
     "time"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 type WebhookEvent struct {

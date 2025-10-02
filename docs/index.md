@@ -53,7 +53,7 @@ package main
 import (
     "context"
     "log"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func main() {

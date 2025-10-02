@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "github.com/rurick/http-client"
 )
 
 func main() {

@@ -14,7 +14,7 @@ type Tracer struct {
 
 // NewTracer создаёт новый экземпляр трассировщика.
 func NewTracer() *Tracer {
-	tracer := otel.Tracer("gitlab.citydrive.tech/back-end/go/pkg/http-client")
+	tracer := otel.Tracer("github.com/rurick/http-client")
 
 	return &Tracer{
 		tracer: tracer,

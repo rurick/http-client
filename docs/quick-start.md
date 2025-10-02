@@ -7,7 +7,7 @@
 Пакет является частью внутренней экосистемы CityDrive и доступен через внутренний GitLab:
 
 ```bash
-go get gitlab.citydrive.tech/back-end/go/pkg/http-client
+go get github.com/rurick/http-client
 ```
 
 ## Базовое использование
@@ -20,7 +20,7 @@ package main
 import (
     "context"
     "log"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 func main() {

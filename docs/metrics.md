@@ -391,7 +391,7 @@ resp, err := client.Get(ctx, "https://api.example.com/data")
 import (
     "net/http"
     "github.com/prometheus/client_golang/prometheus/promhttp"
-    httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+    httpclient "github.com/rurick/http-client"
 )
 
 // Метрики создаются автоматически при создании клиента

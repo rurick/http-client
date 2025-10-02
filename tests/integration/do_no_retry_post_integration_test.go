@@ -17,7 +17,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	httpclient "gitlab.citydrive.tech/back-end/go/pkg/http-client"
+	httpclient "github.com/rurick/http-client"
 )
 
 // TestClientDo_NoRetryOnIdempotentPOST проверяет отсутствие ретраев на POST c Idempotency-Key,
