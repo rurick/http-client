@@ -11,11 +11,6 @@ metadata:
     - http
     - http-client
 
-  links:
-    - url: https://gitlab.citydrive.tech/back-end/go/pkg/http-client/-/blob/master/
-      title: GitLab source
-      icon: gitlab
-
 spec:
   type: library
   system: Dev-tools
