@@ -4,6 +4,9 @@ import (
 	"net/http"
 	"slices"
 	"time"
+
+	"github.com/prometheus/client_golang/prometheus"
+	"go.opentelemetry.io/otel/metric"
 )
 
 // Константы по умолчанию для конфигурации.
@@ -59,9 +62,21 @@ type Config struct {
 	// RateLimiterConfig конфигурация rate limiter
 	RateLimiterConfig RateLimiterConfig
 
-	// MetricsEnabled включает/выключает сбор Prometheus метрик
+	// MetricsEnabled включает/выключает сбор метрик
 	// По умолчанию true - метрики включены
 	MetricsEnabled *bool
+
+	// MetricsBackend выбор бэкенда для метрик
+	// По умолчанию "prometheus"
+	MetricsBackend MetricsBackend
+
+	// PrometheusRegisterer опциональный регистратор Prometheus
+	// Если nil, используется prometheus.DefaultRegisterer
+	PrometheusRegisterer prometheus.Registerer
+
+	// OTelMeterProvider опциональный провайдер метрик OpenTelemetry
+	// Если nil, используется otel.GetMeterProvider()
+	OTelMeterProvider metric.MeterProvider
 }
 
 // RetryConfig содержит настройки retry механизма.
@@ -124,6 +139,15 @@ func (c Config) withDefaults() Config {
 	// Rate limiter по умолчанию выключен
 	if c.RateLimiterEnabled {
 		c.RateLimiterConfig = c.RateLimiterConfig.withDefaults()
+	}
+
+	// Метрики по умолчанию включены с Prometheus бэкендом
+	if c.MetricsEnabled == nil {
+		enabled := true
+		c.MetricsEnabled = &enabled
+	}
+	if c.MetricsBackend == "" {
+		c.MetricsBackend = MetricsBackendPrometheus
 	}
 
 	return c

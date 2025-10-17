@@ -23,9 +23,9 @@ func TestNewMetrics(t *testing.T) {
 		t.Errorf("expected clientName to be 'testhttpclient', got %s", metrics.clientName)
 	}
 
-	// Проверяем что глобальные метрики инициализированы
-	if globalMetrics == nil {
-		t.Error("expected global metrics to be initialized")
+	// Метрики теперь инкапсулированы в провайдере
+	if metrics.provider == nil {
+		t.Error("expected metrics provider to be initialized")
 	}
 }
 
@@ -174,26 +174,21 @@ func TestMetrics_EdgeCases(t *testing.T) {
 	metrics.DecrementInflight(ctx, "GET", "example.com")
 }
 
-// TestGlobalMetricsInitialization проверяет что множественные клиенты работают с одними метриками
-func TestGlobalMetricsInitialization(t *testing.T) {
-	// Метрики уже могут быть инициализированы предыдущими тестами
-
-	// Сохраняем ссылку на текущие метрики
-	currentMetrics := globalMetrics
-
+// TestPrometheusMetricsMultipleClients проверяет что множественные клиенты с Prometheus работают корректно
+func TestPrometheusMetricsMultipleClients(t *testing.T) {
 	// Клиент 1
 	metrics1 := NewMetrics("client-1")
-	if globalMetrics == nil {
-		t.Error("expected global metrics to be available")
+	if metrics1.provider == nil {
+		t.Error("expected metrics provider to be available")
 	}
 
-	// Клиент 2 должен использовать те же метрики
+	// Клиент 2
 	metrics2 := NewMetrics("client-2")
-	if globalMetrics != currentMetrics && currentMetrics != nil {
-		t.Error("global metrics should remain the same between clients")
+	if metrics2.provider == nil {
+		t.Error("expected metrics provider to be available")
 	}
 
-	// Оба клиента используют одни и те же глобальные метрики
+	// Оба клиента должны быть включены
 	if !metrics1.enabled || !metrics2.enabled {
 		t.Error("both clients should have metrics enabled")
 	}

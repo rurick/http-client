@@ -8,6 +8,7 @@
 - [Конфигурация](configuration.md) - Полная документация по настройке
 - [Circuit Breaker](circuit-breaker.md) - Автоматический выключатель и защита от каскадных сбоев
 - [Метрики](metrics.md) - Описание метрик и PromQL запросы
+- [OpenTelemetry метрики](opentelemetry-metrics.md) - Интеграция с OpenTelemetry
 - [Тестирование](testing.md) - Утилиты и примеры тестов
 - [API справочник](api-reference.md) - Полное описание всех функций
 - [Лучшие практики](best-practices.md) - Рекомендации по использованию
@@ -23,9 +24,9 @@
 - Настраиваемые таймауты и количество попыток
 
 ### 📊 Автоматические Метрики
-- 6 типов Prometheus метрик через prometheus/client_golang v1.22.0
-- Подсчет запросов, длительности, retry, размеров
-- Метрики inflight запросов
+- Поддержка Prometheus (prometheus/client_golang v1.22.0) и OpenTelemetry
+- 6 типов метрик: запросы, длительности, retry, размеры, inflight
+- Настраиваемые провайдеры метрик (Prometheus/OpenTelemetry/Noop)
 - Готовые PromQL запросы и алерты
 
 ### 🔍 Observability
@@ -88,6 +89,25 @@ config := httpclient.Config{
 client := httpclient.New(config, "payment-service")
 ```
 
+## Конфигурация с OpenTelemetry метриками
+
+```go
+// Основная конфигурация OpenTelemetry
+config := httpclient.Config{
+    MetricsBackend: httpclient.MetricsBackendOpenTelemetry,
+    // Можно указать кастомный MeterProvider
+    // OTelMeterProvider: customMeterProvider,
+}
+
+client := httpclient.New(config, "otel-service")
+
+// Отключение метрик
+config = httpclient.Config{
+    MetricsBackend: httpclient.MetricsBackendNone,
+}
+client = httpclient.New(config, "no-metrics-service")
+```
+
 ## Доступные метрики
 
 1. **http_client_requests_total** - Общее количество запросов
@@ -129,7 +149,8 @@ client := httpclient.New(config, "payment-service")
 - [`quick-start.md`](quick-start.md) - Быстрый старт с примерами
 - [`configuration.md`](configuration.md) - Детальная документация по конфигурации
 - [`circuit-breaker.md`](circuit-breaker.md) - Подробная документация по Circuit Breaker
-- [`metrics.md`](metrics.md) - Метрики, PromQL запросы и алерты  
+- [`metrics.md`](metrics.md) - Метрики, PromQL запросы и алерты
+- [`opentelemetry-metrics.md`](opentelemetry-metrics.md) - Интеграция с OpenTelemetry метриками
 - [`api-reference.md`](api-reference.md) - Полный справочник API
 - [`best-practices.md`](best-practices.md) - Лучшие практики использования
 - [`testing.md`](testing.md) - Руководство по тестированию
