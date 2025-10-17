@@ -135,7 +135,6 @@ Rate Limiter использует алгоритм Token Bucket ("Корзина
 type RateLimiterConfig struct {
     RequestsPerSecond float64 // Максимальное количество запросов в секунду
     BurstCapacity     int     // Размер корзины для пиковых запросов
-    PerHost           bool    // Отдельные лимиты для каждого хоста
 }
 ```
 
@@ -173,16 +172,6 @@ RateLimiterConfig{
 }
 ```
 
-### PerHost (Лимиты по хостам)
-- **Тип:** `bool`
-- **По умолчанию:** `false`
-- **Описание:** При `true` создает отдельные лимитеры для каждого хоста. При `false` использует глобальный лимитер для всех запросов
-
-```go
-RateLimiterConfig{
-    PerHost: true, // Отдельные лимиты для api.service1.com и api.service2.com
-}
-```
 
 ## Конфигурация Retry
 
@@ -202,7 +191,7 @@ type RetryConfig struct {
 
 ### MaxAttempts (Максимум попыток)
 - **Тип:** `int`
-- **По умолчанию:** `1` (без повторов)
+- **По умолчанию:** `3` (1 основная + 2 повтора)
 - **Описание:** Общее количество попыток (включая первоначальную)
 
 ```go
@@ -224,7 +213,7 @@ RetryConfig{
 
 ### MaxDelay (Максимальная задержка)
 - **Тип:** `time.Duration`
-- **По умолчанию:** `5 * time.Second`
+- **По умолчанию:** `2 * time.Second`
 - **Описание:** Максимальная задержка между попытками
 
 ```go
@@ -337,9 +326,9 @@ defaultConfig := Config{
     Timeout:       5 * time.Second,
     PerTryTimeout: 2 * time.Second,
     RetryConfig: RetryConfig{
-        MaxAttempts: 1,        // Без повторов
+        MaxAttempts: 3,        // 1 основная + 2 повтора
         BaseDelay:   100 * time.Millisecond,
-        MaxDelay:    5 * time.Second,
+        MaxDelay:    2 * time.Second,
         Jitter:      0.2,
     },
     TracingEnabled:     false,

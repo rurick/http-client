@@ -30,8 +30,8 @@ LINT_REPORT := lint-report.xml
 SAST_REPORT := sast-report.json
 SECURITY_REPORT := security-report.json
 
-.PHONY: help install-tools build test lint format check security deps clean coverage \
-         lint-full lint-fix lint-report lint-godot lint-lll \
+.PHONY: help install-tools build test test-short test-quiet lint format check security deps clean coverage \
+         lint-full lint-fix lint-report lint-godot lint-lll split zip \
          sast sast-full sast-report security-full security-report \
          deps-check deps-audit deps-license vuln-check nancy-audit
 
@@ -49,13 +49,19 @@ build: ## Собрать проект
 
 test: ## Запустить тесты
 	go clean -testcache
-	@echo "Запуск тестов..."
-	$(GO) test -v -race ./...
-	$(GO) test -v -race -tags=integration ./... -timeout 120s
+	@echo "Запуск unit тестов..."
+	$(GO) test -v -race ./... -timeout 2m
+	@echo "Запуск integration тестов..."
+	$(GO) test -v -race -tags=integration ./tests/integration -timeout 2m
 
 test-short: ## Запустить быстрые тесты
 	@echo "Запуск быстрых тестов..."
 	$(GO) test -short -v ./...
+
+test-quiet: ## Запустить тесты без предупреждений
+	go clean -testcache
+	@echo "Запуск тестов без предупреждений..."
+	$(GO) test -v -race ./... -timeout 2m 2>/dev/null || $(GO) test -v -race ./... -timeout 2m
 
 coverage: ## Запустить тесты с покрытием
 	@echo "Запуск тестов с покрытием..."
@@ -109,12 +115,18 @@ security: ## Проверка безопасности
 		echo "govulncheck не найден, запустите 'make install-tools'"; \
 	fi
 
-split:
-	./project2file.sh
+split: ## Разделить проект на файлы
+	@echo "Разделение проекта на файлы..."
+	@if [ -f ./project2file.sh ]; then \
+		./project2file.sh; \
+	else \
+		echo "Скрипт project2file.sh не найден"; \
+	fi
 
-zip:
-	rm project.zip
-	zip -r project.zip ./ -x ".*" "*/.*"
+zip: ## Создать архив проекта
+	@echo "Создание архива проекта..."
+	@if [ -f project.zip ]; then rm project.zip; fi
+	zip -r project.zip ./ -x ".*" "*/.*" "tools/*" "coverage.*"
 
 cyclo: ## Проверка цикломатической сложности
 	@echo "Проверка цикломатической сложности..."

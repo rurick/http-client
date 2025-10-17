@@ -1,6 +1,6 @@
 # Метрики и мониторинг
 
-HTTP клиент автоматически собирает комплексные Prometheus метрики через prometheus/client_golang v1.22.0 для полной observability ваших HTTP запросов.
+HTTP клиент автоматически собирает комплексные Prometheus метрики на базе prometheus/client_golang v1.22.0 для полной observability ваших HTTP запросов.
 
 ## Доступные метрики
 
@@ -408,8 +408,8 @@ resp, err := client.Get(ctx, "https://api.example.com/data")
 ## Troubleshooting метрик
 
 ### Метрики не появляются
-1. Проверьте настройку OpenTelemetry
-2. Убедитесь что exporter настроен корректно
+1. Проверьте регистрацию метрик в prometheus.DefaultRegistry
+2. Убедитесь что HTTP endpoint /metrics настроен корректно
 3. Проверьте что клиент выполняет запросы
 
 ### Неожиданные значения

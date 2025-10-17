@@ -1,13 +1,14 @@
 # HTTP Client Package
 
-Комплексный Go HTTP клиент с автоматическими retry механизмами, Prometheus метриками через OpenTelemetry и политиками идемпотентности.
+Комплексный Go HTTP клиент с автоматическими retry механизмами, встроенными Prometheus метриками и distributed tracing через OpenTelemetry.
 
 ## Основные возможности
 
 - **Умные повторы** с экспоненциальным backoff и джиттером
-- **Автоматические Prometheus метрики** через OpenTelemetry  
+- **Встроенные Prometheus метрики** на базе prometheus/client_golang
+- **Distributed tracing** через OpenTelemetry
+- **Встроенный Rate Limiter** с Token Bucket алгоритмом
 - **Политики идемпотентности** для безопасных повторов POST/PATCH
-- **Distributed tracing** с полной поддержкой OpenTelemetry
 - **Настраиваемые таймауты** и стратегии backoff
 - **Testing utilities** для unit и integration тестов
 
@@ -30,7 +31,7 @@ func main() {
     if err != nil {
         // обработка ошибки
     }
-    defer _ = resp.Body.Close()
+    defer resp.Body.Close()
     
     // GET с заголовками через новые опции
     resp, err = client.Get(context.Background(), "https://api.example.com/users",
@@ -38,6 +39,10 @@ func main() {
             "Authorization": "Bearer your-token",
             "Accept": "application/json",
         }))
+    if err != nil {
+        return
+    }
+    defer resp.Body.Close()
     
     // POST с JSON телом
     user := map[string]interface{}{
@@ -47,12 +52,30 @@ func main() {
     resp, err = client.Post(context.Background(), "https://api.example.com/users", nil,
         httpclient.WithJSONBody(user),
         httpclient.WithBearerToken("your-token"))
+    if err != nil {
+        return
+    }
+    defer resp.Body.Close()
 
-	// POST с JSON телом как строка
+    // POST с JSON телом как строка
 	userString := `{"name": "John Doe","email": "john@example.com"}`
 	resp, err = client.Post(context.Background(), "https://api.example.com/users", nil,
 		httpclient.WithJSONBody(userString),
 		httpclient.WithBearerToken("your-token"))
+	if err != nil {
+		return
+	}
+	defer resp.Body.Close()
+
+	// Использование Rate Limiter
+	clientWithRateLimit := httpclient.New(httpclient.Config{
+		RateLimiterEnabled: true,
+		RateLimiterConfig: httpclient.RateLimiterConfig{
+			RequestsPerSecond: 5.0, // 5 запросов в секунду
+			BurstCapacity:     10,  // до 10 запросов сразу
+		},
+	}, "rate-limited-service")
+	defer clientWithRateLimit.Close()
 }
 ```
 
