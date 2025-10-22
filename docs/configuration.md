@@ -88,6 +88,42 @@ config := httpclient.Config{
 
 Rate Limiter реализует алгоритм Token Bucket для ограничения частоты исходящих запросов. Это помогает соблюдать ограничения API внешних сервисов и защищать от перегрузки.
 
+### Интерфейс RateLimiter
+
+```go
+type RateLimiter interface {
+    // Allow проверяет, можно ли выполнить запрос немедленно
+    Allow() bool
+
+    // Wait блокирует выполнение до получения разрешения на запрос
+    Wait(ctx context.Context) error
+}
+```
+
+**Методы:**
+- `Allow()` - Неблокирующая проверка доступности токена. Возвращает `true`, если запрос можно выполнить немедленно
+- `Wait(ctx)` - Блокирует выполнение до появления токена. Учитывает контекст для отмены
+
+### Реализация TokenBucketLimiter
+
+```go
+type TokenBucketLimiter struct {
+    rate     float64    // токенов в секунду
+    capacity int        // максимальная емкость корзины
+    tokens   float64    // текущее количество токенов
+    lastTime time.Time  // время последнего обновления
+    mu       sync.Mutex // защита от конкурентного доступа
+}
+```
+
+**Создание:**
+```go
+limiter := httpclient.NewTokenBucketLimiter(
+    5.0,  // rate: 5 запросов в секунду
+    10,   // capacity: корзина на 10 токенов
+)
+```
+
 ### Архитектура Rate Limiter
 
 Rate Limiter реализован как middleware в цепочке RoundTripper'ов. Он выполняется перед основным механизмом retry и метрик, но после Circuit Breaker.
@@ -316,6 +352,49 @@ config := httpclient.Config{
 }
 
 client := httpclient.New(config, "conservative-client")
+```
+
+### Кастомный Rate Limiter
+
+Можно создать собственную реализацию `RateLimiter` для особых случаев:
+
+```go
+// Создание кастомного limiter напрямую
+limiter := httpclient.NewTokenBucketLimiter(50.0, 100)
+
+// Использование в клиенте через Config
+// ВАЖНО: при использовании кастомного RateLimiter,
+// RateLimiterConfig игнорируется
+config := httpclient.Config{
+    RateLimiterEnabled: true,
+    // RateLimiterConfig не используется, если установлен RateLimiter
+}
+
+// Кастомный limiter устанавливается через внутренние механизмы
+// (см. исходный код для деталей реализации)
+client := httpclient.New(config, "custom-limiter-client")
+```
+
+**Когда использовать кастомный limiter:**
+- Нужна специфическая логика ограничения (например, разные лимиты для разных endpoint'ов)
+- Требуется интеграция с внешней системой rate limiting
+- Необходим особый алгоритм (не Token Bucket)
+
+**Реализация собственного RateLimiter:**
+```go
+type MyCustomLimiter struct {
+    // ваша логика
+}
+
+func (m *MyCustomLimiter) Allow() bool {
+    // реализация неблокирующей проверки
+    return true
+}
+
+func (m *MyCustomLimiter) Wait(ctx context.Context) error {
+    // реализация блокирующего ожидания
+    return nil
+}
 ```
 
 ## Значения по умолчанию

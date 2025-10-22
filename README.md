@@ -7,6 +7,7 @@
 - **Умные повторы** с экспоненциальным backoff и джиттером
 - **Встроенные Prometheus метрики** на базе prometheus/client_golang
 - **Distributed tracing** через OpenTelemetry
+- **Circuit Breaker** для защиты от каскадных сбоев
 - **Встроенный Rate Limiter** с Token Bucket алгоритмом
 - **Политики идемпотентности** для безопасных повторов POST/PATCH
 - **Настраиваемые таймауты** и стратегии backoff

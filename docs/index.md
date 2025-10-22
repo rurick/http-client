@@ -7,6 +7,7 @@
 - [Быстрый старт](quick-start.md) - Примеры использования и первые шаги
 - [Конфигурация](configuration.md) - Полная документация по настройке
 - [Circuit Breaker](circuit-breaker.md) - Автоматический выключатель и защита от каскадных сбоев
+- [Rate Limiter](rate-limiter.md) - Управление частотой запросов с Token Bucket алгоритмом
 - [Метрики](metrics.md) - Описание метрик и PromQL запросы
 - [OpenTelemetry метрики](opentelemetry-metrics.md) - Интеграция с OpenTelemetry
 - [Тестирование](testing.md) - Утилиты и примеры тестов
@@ -149,6 +150,7 @@ client = httpclient.New(config, "no-metrics-service")
 - [`quick-start.md`](quick-start.md) - Быстрый старт с примерами
 - [`configuration.md`](configuration.md) - Детальная документация по конфигурации
 - [`circuit-breaker.md`](circuit-breaker.md) - Подробная документация по Circuit Breaker
+- [`rate-limiter.md`](rate-limiter.md) - Подробное руководство по Rate Limiter
 - [`metrics.md`](metrics.md) - Метрики, PromQL запросы и алерты
 - [`opentelemetry-metrics.md`](opentelemetry-metrics.md) - Интеграция с OpenTelemetry метриками
 - [`api-reference.md`](api-reference.md) - Полный справочник API
