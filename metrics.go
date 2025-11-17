@@ -1,10 +1,6 @@
 package httpclient
 
-import (
-	"context"
-
-	"github.com/prometheus/client_golang/prometheus"
-)
+import "context"
 
 // Metrics содержит конфигурацию метрик для конкретного HTTP клиента.
 type Metrics struct {
@@ -111,8 +107,3 @@ func (m *Metrics) Close() error {
 	return nil
 }
 
-// GetDefaultMetricsRegistry возвращает глобальный Prometheus DefaultGatherer.
-// Сохраняется для обратной совместимости.
-func GetDefaultMetricsRegistry() prometheus.Gatherer {
-	return prometheus.DefaultGatherer
-}

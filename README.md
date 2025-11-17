@@ -1,11 +1,11 @@
 # HTTP Client Package
 
-Комплексный Go HTTP клиент с автоматическими retry механизмами, встроенными Prometheus метриками и distributed tracing через OpenTelemetry.
+Комплексный Go HTTP клиент с автоматическими retry механизмами, метриками через OpenTelemetry и distributed tracing.
 
 ## Основные возможности
 
 - **Умные повторы** с экспоненциальным backoff и джиттером
-- **Встроенные Prometheus метрики** на базе prometheus/client_golang
+- **Встроенные метрики через OpenTelemetry** (с поддержкой Prometheus)
 - **Distributed tracing** через OpenTelemetry
 - **Circuit Breaker** для защиты от каскадных сбоев
 - **Встроенный Rate Limiter** с Token Bucket алгоритмом

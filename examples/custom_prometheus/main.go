@@ -19,7 +19,7 @@ func main() {
 
 	// Создаём клиент с кастомным регистратором
 	client := httpclient.New(httpclient.Config{
-		MetricsBackend:       httpclient.MetricsBackendPrometheus, // или можно не указывать - по умолчанию
+		MetricsBackend:       httpclient.MetricsBackendPrometheus, // явно указываем prometheus
 		PrometheusRegisterer: customRegistry,
 		RetryEnabled:         true,
 		RetryConfig: httpclient.RetryConfig{

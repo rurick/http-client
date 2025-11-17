@@ -67,7 +67,7 @@ type Config struct {
 	MetricsEnabled *bool
 
 	// MetricsBackend выбор бэкенда для метрик
-	// По умолчанию "prometheus"
+	// По умолчанию "otel"
 	MetricsBackend MetricsBackend
 
 	// PrometheusRegisterer опциональный регистратор Prometheus
@@ -141,13 +141,13 @@ func (c Config) withDefaults() Config {
 		c.RateLimiterConfig = c.RateLimiterConfig.withDefaults()
 	}
 
-	// Метрики по умолчанию включены с Prometheus бэкендом
+	// Метрики по умолчанию включены с OpenTelemetry бэкендом
 	if c.MetricsEnabled == nil {
 		enabled := true
 		c.MetricsEnabled = &enabled
 	}
 	if c.MetricsBackend == "" {
-		c.MetricsBackend = MetricsBackendPrometheus
+		c.MetricsBackend = MetricsBackendOpenTelemetry
 	}
 
 	return c

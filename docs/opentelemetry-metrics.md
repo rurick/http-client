@@ -4,23 +4,22 @@ HTTP-клиент теперь поддерживает сбор метрик ч
 
 ## Быстрый старт
 
-### Prometheus (по умолчанию)
+### Prometheus
 
 ```go
-// Создание клиента с Prometheus метриками (по умолчанию)
 client := httpclient.New(httpclient.Config{
-    // MetricsBackend опускается - используется "prometheus" по умолчанию
+    MetricsBackend: httpclient.MetricsBackendPrometheus,
 }, "my-client")
 ```
 
-### OpenTelemetry
+### OpenTelemetry (по умолчанию)
 
 ```go
 import "go.opentelemetry.io/otel/metric"
 
-// Создание клиента с OpenTelemetry метриками
+// Создание клиента с OpenTelemetry метриками (по умолчанию)
 client := httpclient.New(httpclient.Config{
-    MetricsBackend: httpclient.MetricsBackendOpenTelemetry,
+    // MetricsBackend опускается - используется "otel" по умолчанию
     // OTelMeterProvider опционально - по умолчанию otel.GetMeterProvider()
 }, "my-client")
 ```
@@ -102,7 +101,7 @@ import "github.com/prometheus/client_golang/prometheus"
 customRegistry := prometheus.NewRegistry()
 
 client := httpclient.New(httpclient.Config{
-    MetricsBackend:       httpclient.MetricsBackendPrometheus, // можно опустить
+    MetricsBackend:       httpclient.MetricsBackendPrometheus, // явно указываем prometheus
     PrometheusRegisterer: customRegistry,
 }, "my-client")
 
@@ -150,10 +149,10 @@ http.Handle("/custom-metrics", promhttp.HandlerFor(
 
 ## Миграция
 
-Существующий код продолжает работать без изменений - Prometheus остается провайдером по умолчанию. Для переключения на OpenTelemetry достаточно указать:
+OpenTelemetry используется по умолчанию. Для переключения на Prometheus укажите:
 
 ```go
-config.MetricsBackend = httpclient.MetricsBackendOpenTelemetry
+config.MetricsBackend = httpclient.MetricsBackendPrometheus
 ```
 
 API клиента остается неизменным независимо от выбранного провайдера метрик.
