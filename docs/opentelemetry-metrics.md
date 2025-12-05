@@ -60,37 +60,15 @@ client := httpclient.New(httpclient.Config{
 }, "my-client")
 ```
 
-## Настройка бакетов гистограмм
+## Бакеты гистограмм
 
-В отличие от Prometheus, OpenTelemetry не задает бакеты гистограмм в коде библиотеки. Вместо этого используются Views:
+Библиотека автоматически задает бакеты для всех гистограмм в обоих провайдерах (Prometheus и OpenTelemetry), обеспечивая согласованность метрик.
 
-```go
-import (
-    "go.opentelemetry.io/otel/sdk/metric"
-    "go.opentelemetry.io/otel/sdk/metric/metricdata"
-)
+**Бакеты для длительности запросов** (`http_client_request_duration_seconds`):
+`0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60` секунд
 
-// Настройка бакетов для гистограммы длительности запросов
-view := metric.NewView(
-    metric.Instrument{
-        Name: "http_client_request_duration_seconds",
-        Kind: metric.InstrumentKindHistogram,
-    },
-    metric.Stream{
-        Aggregation: metric.AggregationExplicitBucketHistogram{
-            Boundaries: []float64{
-                0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
-                1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
-            },
-        },
-    },
-)
-
-meterProvider := sdkmetric.NewMeterProvider(
-    sdkmetric.WithView(view),
-    sdkmetric.WithReader(exporter),
-)
-```
+**Бакеты для размеров** (`http_client_request_size_bytes`, `http_client_response_size_bytes`):
+`256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216` байт
 
 ## Кастомный Prometheus Registry
 

@@ -58,18 +58,21 @@ func NewOpenTelemetryMetricsProvider(clientName string, mp metric.MeterProvider)
 			MetricRequestDuration,
 			metric.WithDescription("HTTP client request duration in seconds"),
 			metric.WithUnit("s"),
+			metric.WithExplicitBucketBoundaries(DefaultDurationBuckets...),
 		)
 
 		reqSize, _ := meter.Float64Histogram(
 			MetricRequestSizeBytes,
 			metric.WithDescription("HTTP client request size in bytes"),
 			metric.WithUnit("By"),
+			metric.WithExplicitBucketBoundaries(DefaultSizeBuckets...),
 		)
 
 		respSize, _ := meter.Float64Histogram(
 			MetricResponseSizeBytes,
 			metric.WithDescription("HTTP client response size in bytes"),
 			metric.WithUnit("By"),
+			metric.WithExplicitBucketBoundaries(DefaultSizeBuckets...),
 		)
 
 		inflight, _ := meter.Int64UpDownCounter(
