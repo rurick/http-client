@@ -56,16 +56,5 @@ func main() {
 
 	fmt.Println("Метрики успешно записаны в OpenTelemetry!")
 	fmt.Println("Для просмотра метрик настройте OpenTelemetry SDK с подходящим экспортером.")
-	fmt.Println()
-	fmt.Println("Пример настройки бакетов гистограмм через Views:")
-	fmt.Println(`
-	view.New(view.Instrument{
-		Name: "http_client_request_duration_seconds",
-		Kind: view.InstrumentKindHistogram,
-	}, view.Stream{
-		Aggregation: view.AggregationExplicitBucketHistogram{
-			Boundaries: []float64{0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10},
-		},
-	})
-	`)
+	fmt.Println("Бакеты гистограмм задаются автоматически и одинаковы для Prometheus и OpenTelemetry.")
 }

@@ -12,6 +12,17 @@ const (
 	MetricResponseSizeBytes = "http_client_response_size_bytes"
 )
 
+// DefaultDurationBuckets содержит бакеты по умолчанию для гистограмм длительности запросов (в секундах).
+var DefaultDurationBuckets = []float64{
+	0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
+	1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
+}
+
+// DefaultSizeBuckets содержит бакеты по умолчанию для гистограмм размеров запросов и ответов (в байтах).
+var DefaultSizeBuckets = []float64{
+	256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
+}
+
 // MetricsProvider определяет интерфейс для различных бэкендов метрик.
 type MetricsProvider interface {
 	// RecordRequest записывает метрику запроса
@@ -43,6 +54,6 @@ type MetricsProvider interface {
 type MetricsBackend string
 
 const (
-	MetricsBackendPrometheus     MetricsBackend = "prometheus"
-	MetricsBackendOpenTelemetry  MetricsBackend = "otel"
+	MetricsBackendPrometheus    MetricsBackend = "prometheus"
+	MetricsBackendOpenTelemetry MetricsBackend = "otel"
 )

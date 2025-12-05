@@ -50,12 +50,9 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 			),
 			RequestDuration: prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
-					Name: MetricRequestDuration,
-					Help: "HTTP client request duration in seconds",
-					Buckets: []float64{
-						0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5,
-						1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60,
-					},
+					Name:    MetricRequestDuration,
+					Help:    "HTTP client request duration in seconds",
+					Buckets: DefaultDurationBuckets,
 				},
 				[]string{"client_name", "method", "host", "status", "attempt"},
 			),
@@ -75,21 +72,17 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 			),
 			RequestSize: prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
-					Name: MetricRequestSizeBytes,
-					Help: "HTTP client request size in bytes",
-					Buckets: []float64{
-						256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
-					},
+					Name:    MetricRequestSizeBytes,
+					Help:    "HTTP client request size in bytes",
+					Buckets: DefaultSizeBuckets,
 				},
 				[]string{"client_name", "method", "host"},
 			),
 			ResponseSize: prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
-					Name: MetricResponseSizeBytes,
-					Help: "HTTP client response size in bytes",
-					Buckets: []float64{
-						256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216,
-					},
+					Name:    MetricResponseSizeBytes,
+					Help:    "HTTP client response size in bytes",
+					Buckets: DefaultSizeBuckets,
 				},
 				[]string{"client_name", "method", "host", "status"},
 			),
