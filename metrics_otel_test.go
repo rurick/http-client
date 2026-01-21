@@ -7,7 +7,7 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// TestOpenTelemetryMetricsProvider тестирует создание провайдера OpenTelemetry метрик
+// TestOpenTelemetryMetricsProvider tests creation of OpenTelemetry metrics provider
 func TestOpenTelemetryMetricsProvider(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", nil)
 	
@@ -24,9 +24,9 @@ func TestOpenTelemetryMetricsProvider(t *testing.T) {
 	}
 }
 
-// TestOpenTelemetryMetricsProvider_WithCustomMeterProvider тестирует создание с кастомным MeterProvider
+// TestOpenTelemetryMetricsProvider_WithCustomMeterProvider tests creation with custom MeterProvider
 func TestOpenTelemetryMetricsProvider_WithCustomMeterProvider(t *testing.T) {
-	// Создаём тестовый MeterProvider
+	// Create a test MeterProvider
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	defer meterProvider.Shutdown(context.Background())
@@ -42,7 +42,7 @@ func TestOpenTelemetryMetricsProvider_WithCustomMeterProvider(t *testing.T) {
 	}
 }
 
-// TestOpenTelemetryMetricsProvider_RecordRequest тестирует запись метрик запросов
+// TestOpenTelemetryMetricsProvider_RecordRequest tests recording request metrics
 func TestOpenTelemetryMetricsProvider_RecordRequest(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -51,15 +51,15 @@ func TestOpenTelemetryMetricsProvider_RecordRequest(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", meterProvider)
 	ctx := context.Background()
 	
-	// Записываем несколько метрик
+	// Record several metrics
 	provider.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	provider.RecordRequest(ctx, "POST", "api.example.com", "500", true, true)
 	
-	// Проверяем что вызовы не вызывают панику
-	// (детальная проверка значений может быть сложной из-за внутренней структуры OpenTelemetry)
+	// Check that calls do not panic
+	// (detailed value checking can be complex due to OpenTelemetry's internal structure)
 }
 
-// TestOpenTelemetryMetricsProvider_RecordDuration тестирует запись метрик длительности
+// TestOpenTelemetryMetricsProvider_RecordDuration tests recording duration metrics
 func TestOpenTelemetryMetricsProvider_RecordDuration(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -68,14 +68,14 @@ func TestOpenTelemetryMetricsProvider_RecordDuration(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", meterProvider)
 	ctx := context.Background()
 	
-	// Записываем метрики длительности
+	// Record duration metrics
 	provider.RecordDuration(ctx, 0.5, "GET", "example.com", "200", 1)
 	provider.RecordDuration(ctx, 1.2, "POST", "api.example.com", "500", 2)
 	
-	// Проверяем что вызовы не вызывают панику
+	// Check that calls do not panic
 }
 
-// TestOpenTelemetryMetricsProvider_RecordRetry тестирует запись метрик повторных попыток
+// TestOpenTelemetryMetricsProvider_RecordRetry tests recording retry metrics
 func TestOpenTelemetryMetricsProvider_RecordRetry(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -84,14 +84,14 @@ func TestOpenTelemetryMetricsProvider_RecordRetry(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", meterProvider)
 	ctx := context.Background()
 	
-	// Записываем метрики retry
+	// Record retry metrics
 	provider.RecordRetry(ctx, "status", "GET", "example.com")
 	provider.RecordRetry(ctx, "timeout", "POST", "api.example.com")
 	
-	// Проверяем что вызовы не вызывают панику
+	// Check that calls do not panic
 }
 
-// TestOpenTelemetryMetricsProvider_RecordSizes тестирует запись метрик размеров
+// TestOpenTelemetryMetricsProvider_RecordSizes tests recording size metrics
 func TestOpenTelemetryMetricsProvider_RecordSizes(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -100,14 +100,14 @@ func TestOpenTelemetryMetricsProvider_RecordSizes(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", meterProvider)
 	ctx := context.Background()
 	
-	// Записываем метрики размеров
+	// Record size metrics
 	provider.RecordRequestSize(ctx, 1024, "POST", "example.com")
 	provider.RecordResponseSize(ctx, 2048, "GET", "example.com", "200")
 	
-	// Проверяем что вызовы не вызывают панику
+	// Check that calls do not panic
 }
 
-// TestOpenTelemetryMetricsProvider_Inflight тестирует метрики активных запросов
+// TestOpenTelemetryMetricsProvider_Inflight tests active requests metrics
 func TestOpenTelemetryMetricsProvider_Inflight(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -116,16 +116,16 @@ func TestOpenTelemetryMetricsProvider_Inflight(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", meterProvider)
 	ctx := context.Background()
 	
-	// Тестируем инкремент/декремент активных запросов
+	// Test increment/decrement of active requests
 	provider.InflightInc(ctx, "GET", "example.com")
 	provider.InflightInc(ctx, "POST", "api.example.com")
 	provider.InflightDec(ctx, "GET", "example.com")
 	provider.InflightDec(ctx, "POST", "api.example.com")
 	
-	// Проверяем что вызовы не вызывают панику
+	// Check that calls do not panic
 }
 
-// TestOpenTelemetryMetricsProvider_Close тестирует закрытие провайдера
+// TestOpenTelemetryMetricsProvider_Close tests closing the provider
 func TestOpenTelemetryMetricsProvider_Close(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("test-client", nil)
 	
@@ -135,7 +135,7 @@ func TestOpenTelemetryMetricsProvider_Close(t *testing.T) {
 	}
 }
 
-// TestOpenTelemetryMetricsProvider_Integration интеграционный тест с реальной последовательностью вызовов
+// TestOpenTelemetryMetricsProvider_Integration integration test with real sequence of calls
 func TestOpenTelemetryMetricsProvider_Integration(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -144,35 +144,35 @@ func TestOpenTelemetryMetricsProvider_Integration(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("integration-test", meterProvider)
 	ctx := context.Background()
 	
-	// Симулируем последовательность вызовов метрик как в реальном HTTP запросе
+	// Simulate a sequence of metric calls as in a real HTTP request
 	
-	// 1. Увеличиваем счётчик активных запросов
+	// 1. Increment active requests counter
 	provider.InflightInc(ctx, "POST", "example.com")
 	
-	// 2. Записываем размер запроса
+	// 2. Record request size
 	provider.RecordRequestSize(ctx, 1024, "POST", "example.com")
 	
-	// 3. Записываем метрику запроса (первая попытка)
+	// 3. Record request metric (first attempt)
 	provider.RecordRequest(ctx, "POST", "example.com", "500", false, true)
 	provider.RecordDuration(ctx, 0.5, "POST", "example.com", "500", 1)
 	
-	// 4. Записываем retry
+	// 4. Record retry
 	provider.RecordRetry(ctx, "status", "POST", "example.com")
 	
-	// 5. Записываем метрику запроса (retry попытка)
+	// 5. Record request metric (retry attempt)
 	provider.RecordRequest(ctx, "POST", "example.com", "200", true, false)
 	provider.RecordDuration(ctx, 0.3, "POST", "example.com", "200", 2)
 	
-	// 6. Записываем размер ответа
+	// 6. Record response size
 	provider.RecordResponseSize(ctx, 512, "POST", "example.com", "200")
 	
-	// 7. Уменьшаем счётчик активных запросов
+	// 7. Decrement active requests counter
 	provider.InflightDec(ctx, "POST", "example.com")
 	
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }
 
-// TestOpenTelemetryMetricsProvider_EdgeCases тестирует граничные случаи
+// TestOpenTelemetryMetricsProvider_EdgeCases tests edge cases
 func TestOpenTelemetryMetricsProvider_EdgeCases(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
@@ -181,7 +181,7 @@ func TestOpenTelemetryMetricsProvider_EdgeCases(t *testing.T) {
 	provider := NewOpenTelemetryMetricsProvider("edge-cases", meterProvider)
 	ctx := context.Background()
 	
-	// Тест с пустыми значениями
+	// Test with empty values
 	provider.RecordRequest(ctx, "", "", "", false, false)
 	provider.RecordDuration(ctx, 0, "", "", "", 0)
 	provider.RecordRetry(ctx, "", "", "")
@@ -190,30 +190,30 @@ func TestOpenTelemetryMetricsProvider_EdgeCases(t *testing.T) {
 	provider.RecordRequestSize(ctx, 0, "", "")
 	provider.RecordResponseSize(ctx, 0, "", "", "")
 	
-	// Тест с очень большими значениями
+	// Test with very large values
 	provider.RecordDuration(ctx, 999999.999, "GET", "example.com", "200", 1)
 	provider.RecordRequestSize(ctx, 1<<60, "POST", "example.com")
 	provider.RecordResponseSize(ctx, 1<<60, "GET", "example.com", "200")
 	
-	// Тест с отрицательными значениями (для inflight)
-	provider.InflightDec(ctx, "GET", "example.com") // декремент без инкремента
+	// Test with negative values (for inflight)
+	provider.InflightDec(ctx, "GET", "example.com") // decrement without increment
 	
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }
 
-// TestOpenTelemetryMetricsProvider_MultipleClients тестирует работу с несколькими клиентами
+// TestOpenTelemetryMetricsProvider_MultipleClients tests working with multiple clients
 func TestOpenTelemetryMetricsProvider_MultipleClients(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	defer meterProvider.Shutdown(context.Background())
 	
-	// Создаём несколько провайдеров с одним MeterProvider
+	// Create multiple providers with one MeterProvider
 	provider1 := NewOpenTelemetryMetricsProvider("client-1", meterProvider)
 	provider2 := NewOpenTelemetryMetricsProvider("client-2", meterProvider)
 	
 	ctx := context.Background()
 	
-	// Проверяем что у каждого провайдера свой clientName
+	// Check that each provider has its own clientName
 	if provider1.clientName != "client-1" {
 		t.Errorf("expected client-1 name, got %s", provider1.clientName)
 	}
@@ -221,30 +221,30 @@ func TestOpenTelemetryMetricsProvider_MultipleClients(t *testing.T) {
 		t.Errorf("expected client-2 name, got %s", provider2.clientName)
 	}
 	
-	// Записываем метрики от разных клиентов
+	// Record metrics from different clients
 	provider1.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	provider2.RecordRequest(ctx, "POST", "api.example.com", "201", false, false)
 	
-	// Проверяем что оба используют одни инструменты (кеширование работает)
+	// Check that both use the same instruments (caching works)
 	if provider1.inst != provider2.inst {
 		t.Error("providers should share the same instruments when using the same MeterProvider")
 	}
 }
 
-// TestMetricsWithOpenTelemetryBackend тестирует интеграцию через Config
+// TestMetricsWithOpenTelemetryBackend tests integration through Config
 func TestMetricsWithOpenTelemetryBackend(t *testing.T) {
 	reader := sdkmetric.NewManualReader()
 	meterProvider := sdkmetric.NewMeterProvider(sdkmetric.WithReader(reader))
 	defer meterProvider.Shutdown(context.Background())
 	
-	// Создаём клиент с OpenTelemetry бэкендом
+	// Create a client with OpenTelemetry backend
 	client := New(Config{
 		MetricsBackend:    MetricsBackendOpenTelemetry,
 		OTelMeterProvider: meterProvider,
 	}, "test-otel-client")
 	defer client.Close()
 	
-	// Проверяем что метрики инициализированы
+	// Check that metrics are initialized
 	if client.metrics == nil {
 		t.Fatal("expected metrics to be initialized")
 	}
@@ -257,10 +257,10 @@ func TestMetricsWithOpenTelemetryBackend(t *testing.T) {
 		t.Errorf("expected clientName to be 'test-otel-client', got %s", client.metrics.clientName)
 	}
 	
-	// Тестируем запись метрик через клиент
+	// Test recording metrics through the client
 	ctx := context.Background()
 	client.metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	client.metrics.RecordDuration(ctx, 0.5, "GET", "example.com", "200", 1)
 	
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }

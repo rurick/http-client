@@ -66,11 +66,11 @@ func main() {
 	startMetricsServer(client)
 }
 
-// Метрики теперь создаются автоматически в клиенте
+// Metrics are now created automatically in the client
 
-// testRetryOn5xx тестирует retry на 5xx ошибки
+// testRetryOn5xx tests retry on 5xx errors
 func testRetryOn5xx(ctx context.Context, client *httpclient.Client) error {
-	// httpbin.org/status/500 всегда возвращает 500
+	// httpbin.org/status/500 always returns 500
 	fmt.Println("Making request to endpoint that returns 500...")
 
 	start := time.Now()
@@ -85,7 +85,7 @@ func testRetryOn5xx(ctx context.Context, client *httpclient.Client) error {
 	fmt.Printf("Response status: %s\n", resp.Status)
 	fmt.Printf("Total time with retries: %v\n", elapsed)
 
-	// С 3 попытками и exponential backoff время должно быть больше base delay
+	// With 3 attempts and exponential backoff time should be greater than base delay
 	if elapsed < 100*time.Millisecond {
 		fmt.Printf("Warning: Expected longer duration due to retries, got %v\n", elapsed)
 	}
@@ -93,13 +93,13 @@ func testRetryOn5xx(ctx context.Context, client *httpclient.Client) error {
 	return nil
 }
 
-// testRetryAfter тестирует уважение Retry-After заголовка
+// testRetryAfter tests respect for Retry-After header
 func testRetryAfter(ctx context.Context, client *httpclient.Client) error {
-	// httpbin.org не возвращает Retry-After, поэтому симулируем с помощью кастомного сервера
+	// httpbin.org doesn't return Retry-After, so we simulate with custom server
 	fmt.Println("This would test Retry-After header in a real scenario...")
 	fmt.Println("(httpbin.org doesn't return Retry-After, but our client supports it)")
 
-	// Попробуем запрос к rate-limited endpoint
+	// Try request to rate-limited endpoint
 	start := time.Now()
 	resp, err := client.Get(ctx, "https://httpbin.org/status/429")
 	elapsed := time.Since(start)
@@ -115,7 +115,7 @@ func testRetryAfter(ctx context.Context, client *httpclient.Client) error {
 	return nil
 }
 
-// testMaxAttempts тестирует ограничение максимального количества попыток
+// testMaxAttempts tests maximum number of attempts limitation
 func testMaxAttempts(ctx context.Context, client *httpclient.Client) error {
 	fmt.Println("Making request that will exhaust max attempts...")
 
@@ -131,7 +131,7 @@ func testMaxAttempts(ctx context.Context, client *httpclient.Client) error {
 	fmt.Printf("Final response status: %s\n", resp.Status)
 	fmt.Printf("Total time for all attempts: %v\n", elapsed)
 
-	// С 3 попытками общее время должно включать все задержки
+	// With 3 attempts total time should include all delays
 	expectedMinTime := 100*time.Millisecond + 200*time.Millisecond // base + first retry
 	if elapsed < expectedMinTime {
 		fmt.Printf("Warning: Expected at least %v due to retries, got %v\n", expectedMinTime, elapsed)
@@ -140,7 +140,7 @@ func testMaxAttempts(ctx context.Context, client *httpclient.Client) error {
 	return nil
 }
 
-// testNonRetryableMethod тестирует метод, который не подлежит retry
+// testNonRetryableMethod tests a method that should not be retried
 func testNonRetryableMethod(ctx context.Context, client *httpclient.Client) error {
 	fmt.Println("Making POST request (non-retryable method)...")
 
@@ -156,7 +156,7 @@ func testNonRetryableMethod(ctx context.Context, client *httpclient.Client) erro
 	fmt.Printf("Response status: %s\n", resp.Status)
 	fmt.Printf("Time (should be quick, no retries): %v\n", elapsed)
 
-	// POST без Idempotency-Key не должен retry, поэтому время должно быть коротким
+	// POST without Idempotency-Key should not retry, so time should be short
 	if elapsed > 1*time.Second {
 		fmt.Printf("Warning: POST took too long (%v), might have retried incorrectly\n", elapsed)
 	}
@@ -164,14 +164,14 @@ func testNonRetryableMethod(ctx context.Context, client *httpclient.Client) erro
 	return nil
 }
 
-// Prometheus/client_golang использует свои стандартные buckets,
-// конфигурируемые при создании метрик
+// Prometheus/client_golang uses its own standard buckets,
+// configurable when creating metrics
 
 func startMetricsServer(client *httpclient.Client) {
 	fmt.Println("\n=== Metrics Server ===")
 	fmt.Println("Starting metrics server on :2112/metrics")
 
-	// Метрики автоматически доступны через стандартный handler
+	// Metrics are automatically available through standard handler
 	http.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{

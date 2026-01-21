@@ -1,8 +1,8 @@
 //go:build integration
 
-// Пакет integration: интеграционные тесты высокого уровня для http-клиента.
-// Данный тест проверяет успешный сценарий: сервер возвращает 200 OK,
-// метод (*Client).Do возвращает первый ответ без ретраев и тело соответствует ожиданию.
+// Package integration: high-level integration tests for the HTTP client.
+// This test checks a successful scenario: the server returns 200 OK,
+// the (*Client).Do method returns the first response without retries and the body matches expectations.
 package integration
 
 import (
@@ -28,9 +28,9 @@ func TestClientDo_SuccessNoRetry(t *testing.T) {
 	defer server.Close()
 
 	cfg := httpclient.Config{
-		RetryEnabled:  false,           // ретраи отключены
-		Timeout:       2 * time.Second, // общий таймаут
-		PerTryTimeout: 2 * time.Second, // таймаут на попытку
+		RetryEnabled:  false,           // retries disabled
+		Timeout:       2 * time.Second, // overall timeout
+		PerTryTimeout: 2 * time.Second, // per-attempt timeout
 	}
 	client := httpclient.New(cfg, "test-success-no-retry")
 	defer client.Close()
@@ -48,6 +48,6 @@ func TestClientDo_SuccessNoRetry(t *testing.T) {
 		assert.Equal(t, "success", string(b))
 	}
 
-	// Должен быть ровно один вызов сервера
+	// There should be exactly one server call
 	assert.Equal(t, int32(1), atomic.LoadInt32(&calls))
 }

@@ -1,4 +1,4 @@
-// Пример настройки retry механизма
+// Example of configuring retry mechanism
 package main
 
 import (
@@ -12,14 +12,14 @@ import (
 )
 
 func main() {
-	// Конфигурация с агрессивными повторными попытками
+	// Configuration with aggressive retry attempts
 	config := httpclient.Config{
 		Timeout: 30 * time.Second,
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts: 5,                      // До 5 попыток
-			BaseDelay:   200 * time.Millisecond, // Базовая задержка
-			MaxDelay:    10 * time.Second,       // Максимальная задержка
-			Jitter:      0.3,                    // 30% jitter для избежания thundering herd
+			MaxAttempts: 5,                      // Up to 5 attempts
+			BaseDelay:   200 * time.Millisecond, // Base delay
+			MaxDelay:    10 * time.Second,       // Maximum delay
+			Jitter:      0.3,                    // 30% jitter to avoid thundering herd
 		},
 		TracingEnabled: true,
 		RetryEnabled:   true,
@@ -31,24 +31,24 @@ func main() {
 
 	ctx := context.Background()
 
-	// Тестируем на эндпоинте, который иногда возвращает 503
-	fmt.Println("Тестируем retry механизм...")
+	// Test on endpoint that sometimes returns 503
+	fmt.Println("Testing retry mechanism...")
 
 	resp, err := client.Get(ctx, "https://httpbin.org/status/200,503,503,200")
 	if err != nil {
 		if maxErr, ok := err.(*httpclient.MaxAttemptsExceededError); ok {
-			log.Printf("Запрос не удался после %d попыток: %v", maxErr.MaxAttempts, maxErr.LastError)
+			log.Printf("Request failed after %d attempts: %v", maxErr.MaxAttempts, maxErr.LastError)
 		} else {
-			log.Printf("Не retriable ошибка: %v", err)
+			log.Printf("Non-retriable error: %v", err)
 		}
 		return
 	}
 
-	fmt.Printf("Успешный ответ: %s\n", resp.Status)
+	fmt.Printf("Successful response: %s\n", resp.Status)
 	_ = resp.Body.Close()
 
-	// Пример POST запроса с идемпотентностью
-	fmt.Println("Тестируем POST с Idempotency-Key...")
+	// Example POST request with idempotency
+	fmt.Println("Testing POST with Idempotency-Key...")
 
 	req, _ := http.NewRequestWithContext(ctx, "POST", "https://httpbin.org/status/500,500,201", nil)
 	req.Header.Set("Idempotency-Key", "operation-12345")
@@ -56,10 +56,10 @@ func main() {
 
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("POST запрос не удался: %v", err)
+		log.Printf("POST request failed: %v", err)
 		return
 	}
 
-	fmt.Printf("POST ответ: %s\n", resp.Status)
+	fmt.Printf("POST response: %s\n", resp.Status)
 	_ = resp.Body.Close()
 }

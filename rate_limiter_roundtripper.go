@@ -4,14 +4,14 @@ import (
 	"net/http"
 )
 
-// RateLimiterRoundTripper обертка для RoundTripper с rate limiting.
+// RateLimiterRoundTripper is a wrapper for RoundTripper with rate limiting.
 type RateLimiterRoundTripper struct {
 	base    http.RoundTripper
 	config  RateLimiterConfig
-	limiter RateLimiter // глобальный лимитер
+	limiter RateLimiter // global limiter
 }
 
-// NewRateLimiterRoundTripper создает новый RoundTripper с rate limiting.
+// NewRateLimiterRoundTripper creates a new RoundTripper with rate limiting.
 func NewRateLimiterRoundTripper(base http.RoundTripper, config RateLimiterConfig) *RateLimiterRoundTripper {
 	config = config.withDefaults()
 	return &RateLimiterRoundTripper{
@@ -21,13 +21,13 @@ func NewRateLimiterRoundTripper(base http.RoundTripper, config RateLimiterConfig
 	}
 }
 
-// RoundTrip выполняет HTTP запрос с учетом rate limiting.
+// RoundTrip executes an HTTP request with rate limiting.
 func (rt *RateLimiterRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
-	// Ждем доступности токена.
+	// Wait for token availability.
 	if err := rt.limiter.Wait(req.Context()); err != nil {
 		return nil, err
 	}
 
-	// Выполняем запрос через базовый RoundTripper.
+	// Execute request through base RoundTripper.
 	return rt.base.RoundTrip(req)
 }

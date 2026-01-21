@@ -1,19 +1,19 @@
-# Автоматический выключатель (Circuit Breaker)
+# Circuit Breaker
 
-Circuit Breaker защищает систему от каскадных сбоев, автоматически «отключая» проблемные сервисы и быстро возвращая ошибку, не дожидаясь таймаутов.
+Circuit Breaker protects the system from cascading failures by automatically "disabling" problematic services and quickly returning an error without waiting for timeouts.
 
-## Состояния
+## States
 
-1. **Closed (закрыт)**: все запросы выполняются. При ошибках увеличивается счетчик неудач.
-2. **Open (открыт)**: запросы не отправляются. Возвращается последняя неуспешная реакция (клон) и ошибка `ErrCircuitBreakerOpen`.
-3. **Half-Open (полуоткрыт)**: единичные «пробные» запросы. Успехи закрывают выключатель, неудачи возвращают его в открытое состояние.
+1. **Closed**: all requests are executed. On errors, the failure counter increases.
+2. **Open**: requests are not sent. Returns the last unsuccessful response (clone) and `ErrCircuitBreakerOpen` error.
+3. **Half-Open**: single "probe" requests. Successes close the breaker, failures return it to open state.
 
-## Включение и базовое использование
+## Enabling and Basic Usage
 
 ```go
 config := httpclient.Config{
-    CircuitBreakerEnable: true, // включаем CB
-    // CircuitBreaker: nil     // не задаем — будет использован SimpleCircuitBreaker с дефолтами
+    CircuitBreakerEnable: true, // enable CB
+    // CircuitBreaker: nil     // not set — SimpleCircuitBreaker with defaults will be used
 }
 
 client := httpclient.New(config, "my-service")
@@ -22,18 +22,18 @@ defer client.Close()
 resp, err := client.Get(ctx, "https://api.example.com")
 ```
 
-Если `CircuitBreakerEnable == true` и `CircuitBreaker == nil`, автоматически создается `SimpleCircuitBreaker` с настройками по умолчанию.
+If `CircuitBreakerEnable == true` and `CircuitBreaker == nil`, `SimpleCircuitBreaker` is automatically created with default settings.
 
-## Кастомная конфигурация
+## Custom Configuration
 
 ```go
 cb := httpclient.NewCircuitBreakerWithConfig(httpclient.CircuitBreakerConfig{
-    FailureThreshold: 3,              // сколько неудач до открытия
-    SuccessThreshold: 1,               // сколько успехов для закрытия из Half-Open
-    Timeout:          10 * time.Second, // пауза перед переходом в Half-Open
-    FailStatusCodes:  []int{429, 500, 502, 503}, // опционально: что считать неуспехом
+    FailureThreshold: 3,              // how many failures before opening
+    SuccessThreshold: 1,               // how many successes to close from Half-Open
+    Timeout:          10 * time.Second, // pause before transitioning to Half-Open
+    FailStatusCodes:  []int{429, 500, 502, 503}, // optional: what counts as failure
     OnStateChange: func(from, to httpclient.CircuitBreakerState) {
-        // ваш логгер/метрики
+        // your logger/metrics
     },
 })
 
@@ -43,38 +43,38 @@ client := httpclient.New(httpclient.Config{
 }, "my-service")
 ```
 
-## Что считается успехом/неуспехом
+## What Counts as Success/Failure
 
-- Неуспех: любая ошибка транспорта, `nil`-ответ, либо HTTP статус из `FailStatusCodes`.
-- Если `FailStatusCodes == nil`, неуспехом считаются `429` и любые `5xx`. Остальные статусы (включая `4xx`, кроме `429`) считаются успехом.
+- Failure: any transport error, `nil` response, or HTTP status from `FailStatusCodes`.
+- If `FailStatusCodes == nil`, failures are considered `429` and any `5xx`. Other statuses (including `4xx`, except `429`) are considered success.
 
-## Значения по умолчанию (SimpleCircuitBreaker)
+## Default Values (SimpleCircuitBreaker)
 
 ```text
 FailureThreshold: 5
 SuccessThreshold: 3
 Timeout:          60s
-FailStatusCodes:  nil   // означает: 429 и >=500 считаются неуспехом
+FailStatusCodes:  nil   // means: 429 and >=500 are considered failures
 ```
 
-## Поведение с ретраями
+## Behavior with Retries
 
-- Circuit Breaker применяется на каждую попытку.
-- Ошибка `ErrCircuitBreakerOpen` не является поводом для retry и завершает попытки.
+- Circuit Breaker is applied to each attempt.
+- `ErrCircuitBreakerOpen` error is not a reason for retry and terminates attempts.
 
-## Получение состояния и сброс
+## Getting State and Reset
 
 ```go
 state := cb.State() // httpclient.CircuitBreakerClosed/Open/HalfOpen
-cb.Reset()          // принудительно закрыть выключатель
+cb.Reset()          // forcibly close the breaker
 ```
 
-## Наблюдаемость
+## Observability
 
-- Используйте `OnStateChange` для логирования и метрик состояния выключателя.
-- Метрики HTTP-клиента продолжают работать как обычно (запросы/длительности/ретраи).
+- Use `OnStateChange` for logging and metrics of breaker state.
+- HTTP client metrics continue to work as usual (requests/durations/retries).
 
-## Пример
+## Example
 
 ```go
 cb := httpclient.NewCircuitBreakerWithConfig(httpclient.CircuitBreakerConfig{
@@ -89,11 +89,11 @@ client := httpclient.New(httpclient.Config{
 }, "orders-client")
 
 resp, err := client.Get(ctx, "https://service.internal/orders/123")
-// при открытом выключателе вернется клон последнего неуспешного ответа и ErrCircuitBreakerOpen
+// when breaker is open, a clone of the last unsuccessful response and ErrCircuitBreakerOpen will be returned
 ```
 
-## Лучшие практики
+## Best Practices
 
-1. Подбирайте пороги под сервис (слишком низкие — ложные срабатывания, слишком высокие — поздняя реакция).
-2. Логируйте переходы состояний через `OnStateChange` и мониторьте последствия в метриках клиента.
-3. Для UX предусмотрите fallback, если выключатель открыт (кэш/заготовленный ответ).
+1. Adjust thresholds for the service (too low — false positives, too high — late response).
+2. Log state transitions via `OnStateChange` and monitor consequences in client metrics.
+3. For UX, provide a fallback if the breaker is open (cache/prepared response).

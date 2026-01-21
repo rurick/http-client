@@ -9,7 +9,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 )
 
-// prometheusGlobalMetrics содержит глобальные векторы метрик Prometheus.
+// prometheusGlobalMetrics contains global Prometheus metric vectors.
 type prometheusGlobalMetrics struct {
 	RequestsTotal    *prometheus.CounterVec
 	RequestDuration  *prometheus.HistogramVec
@@ -19,27 +19,27 @@ type prometheusGlobalMetrics struct {
 	ResponseSize     *prometheus.HistogramVec
 }
 
-// globalPrometheusMetrics кеширует зарегистрированные метрики по регистратору.
+// globalPrometheusMetrics caches registered metrics by registerer.
 var globalPrometheusMetrics sync.Map // map[string]*prometheusGlobalMetrics
 
-// PrometheusMetricsProvider - провайдер для сбора метрик через Prometheus.
+// PrometheusMetricsProvider is a provider for collecting metrics via Prometheus.
 type PrometheusMetricsProvider struct {
 	clientName string
 	metrics    *prometheusGlobalMetrics
 }
 
-// NewPrometheusMetricsProvider создает новый провайдер метрик Prometheus.
+// NewPrometheusMetricsProvider creates a new Prometheus metrics provider.
 func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) *PrometheusMetricsProvider {
 	if reg == nil {
 		reg = prometheus.DefaultRegisterer
 	}
 
-	// Используем адрес регистратора как ключ кеша
+	// Use registerer address as cache key
 	registryKey := fmt.Sprintf("%p", reg)
 
 	metrics, exists := globalPrometheusMetrics.Load(registryKey)
 	if !exists {
-		// Создаем и регистрируем метрики
+		// Create and register metrics
 		newMetrics := &prometheusGlobalMetrics{
 			RequestsTotal: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
@@ -88,7 +88,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 			),
 		}
 
-		// Регистрируем все метрики
+		// Register all metrics
 		reg.MustRegister(
 			newMetrics.RequestsTotal,
 			newMetrics.RequestDuration,
@@ -98,7 +98,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 			newMetrics.ResponseSize,
 		)
 
-		// Сохраняем в кеше
+		// Store in cache
 		globalPrometheusMetrics.Store(registryKey, newMetrics)
 		metrics = newMetrics
 	}
@@ -109,7 +109,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 	}
 }
 
-// RecordRequest записывает метрику запроса.
+// RecordRequest records a request metric.
 func (p *PrometheusMetricsProvider) RecordRequest(_ context.Context, method, host, status string, retry, hasError bool) {
 	retryStr := "false"
 	if retry {
@@ -122,38 +122,38 @@ func (p *PrometheusMetricsProvider) RecordRequest(_ context.Context, method, hos
 	p.metrics.RequestsTotal.WithLabelValues(p.clientName, method, host, status, retryStr, errorStr).Inc()
 }
 
-// RecordDuration записывает длительность запроса.
+// RecordDuration records request duration.
 func (p *PrometheusMetricsProvider) RecordDuration(_ context.Context, seconds float64, method, host, status string, attempt int) {
 	attemptStr := strconv.Itoa(attempt)
 	p.metrics.RequestDuration.WithLabelValues(p.clientName, method, host, status, attemptStr).Observe(seconds)
 }
 
-// RecordRetry записывает метрику повторной попытки.
+// RecordRetry records a retry attempt metric.
 func (p *PrometheusMetricsProvider) RecordRetry(_ context.Context, reason, method, host string) {
 	p.metrics.RetriesTotal.WithLabelValues(p.clientName, reason, method, host).Inc()
 }
 
-// RecordRequestSize записывает размер запроса.
+// RecordRequestSize records request size.
 func (p *PrometheusMetricsProvider) RecordRequestSize(_ context.Context, bytes int64, method, host string) {
 	p.metrics.RequestSize.WithLabelValues(p.clientName, method, host).Observe(float64(bytes))
 }
 
-// RecordResponseSize записывает размер ответа.
+// RecordResponseSize records response size.
 func (p *PrometheusMetricsProvider) RecordResponseSize(_ context.Context, bytes int64, method, host, status string) {
 	p.metrics.ResponseSize.WithLabelValues(p.clientName, method, host, status).Observe(float64(bytes))
 }
 
-// InflightInc увеличивает счетчик активных запросов.
+// InflightInc increments the active requests counter.
 func (p *PrometheusMetricsProvider) InflightInc(_ context.Context, method, host string) {
 	p.metrics.InflightRequests.WithLabelValues(p.clientName, method, host).Inc()
 }
 
-// InflightDec уменьшает счетчик активных запросов.
+// InflightDec decrements the active requests counter.
 func (p *PrometheusMetricsProvider) InflightDec(_ context.Context, method, host string) {
 	p.metrics.InflightRequests.WithLabelValues(p.clientName, method, host).Dec()
 }
 
-// Close освобождает ресурсы.
+// Close releases resources.
 func (p *PrometheusMetricsProvider) Close() error {
 	return nil
 }

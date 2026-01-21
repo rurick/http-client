@@ -1,21 +1,21 @@
-# API справочник
+# API Reference
 
-Полный справочник всех функций, типов и констант HTTP клиент пакета.
+Complete reference of all functions, types, and constants of the HTTP client package.
 
-## Основные типы
+## Main Types
 
 ### Client
 ```go
 type Client struct {
-    // содержит неэкспортируемые поля
+    // contains unexported fields
 }
 ```
 
-Основной HTTP клиент с автоматическим сбором метрик и возможностями повторов.
+Main HTTP client with automatic metrics collection and retry capabilities.
 
-#### Методы Client
+#### Client Methods
 
-##### HTTP методы
+##### HTTP Methods
 ```go
 func (c *Client) Get(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error)
 func (c *Client) Post(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error)
@@ -27,24 +27,24 @@ func (c *Client) Do(req *http.Request) (*http.Response, error)
 func (c *Client) PostForm(ctx context.Context, url string, data url.Values) (*http.Response, error)
 ```
 
-##### Утилитарные методы
+##### Utility Methods
 ```go
 func (c *Client) Close() error
 func (c *Client) GetConfig() Config
 ```
 
-**Примеры:**
+**Examples:**
 ```go
-// GET запрос
+// GET request
 resp, err := client.Get(ctx, "https://api.example.com/users")
 
-// GET с заголовками
+// GET with headers
 resp, err := client.Get(ctx, url, WithHeaders(map[string]string{
     "Authorization": "Bearer token",
     "Accept": "application/json",
 }))
 
-// POST с JSON body через опцию
+// POST with JSON body via option
 type User struct {
     Name string `json:"name"`
     Email string `json:"email"`
@@ -52,41 +52,41 @@ type User struct {
 user := User{Name: "John", Email: "john@example.com"}
 resp, err := client.Post(ctx, url, nil, WithJSONBody(user))
 
-// POST с form данными
+// POST with form data
 formData := url.Values{}
 formData.Set("username", "john")
 formData.Set("password", "secret")
 resp, err := client.Post(ctx, url, nil, WithFormBody(formData))
 
-// PATCH с идемпотентностью
+// PATCH with idempotency
 resp, err := client.Patch(ctx, url, strings.NewReader(data), 
     WithContentType("application/json"),
     WithIdempotencyKey("unique-key-123"))
 
-// Произвольный запрос
+// Arbitrary request
 req, _ := http.NewRequestWithContext(ctx, "PATCH", url, body)
 resp, err := client.Do(req)
 
-// Закрытие клиента
+// Close client
 client.Close()
 ```
 
 ### Config
 ```go
 type Config struct {
-    Timeout         time.Duration    // Общий таймаут запроса
-    PerTryTimeout   time.Duration    // Таймаут на попытку
-    RetryConfig     RetryConfig      // Конфигурация повторов
-    TracingEnabled  bool             // Включить OpenTelemetry tracing
-    Transport       http.RoundTripper // Пользовательский транспорт
-    CircuitBreakerEnable bool        // Включить Circuit Breaker
-    CircuitBreaker       httpclient.CircuitBreaker // Экземпляр Circuit Breaker
+    Timeout         time.Duration    // Overall request timeout
+    PerTryTimeout   time.Duration    // Timeout per attempt
+    RetryConfig     RetryConfig      // Retry configuration
+    TracingEnabled  bool             // Enable OpenTelemetry tracing
+    Transport       http.RoundTripper // Custom transport
+    CircuitBreakerEnable bool        // Enable Circuit Breaker
+    CircuitBreaker       httpclient.CircuitBreaker // Circuit Breaker instance
 }
 ```
 
-Конфигурация поведения HTTP клиента.
+HTTP client behavior configuration.
 
-**Пример:**
+**Example:**
 ```go
 config := httpclient.Config{
     Timeout:       30 * time.Second,
@@ -131,23 +131,23 @@ type CircuitBreakerConfig struct {
 }
 ```
 
-**Конструкторы:**
+**Constructors:**
 ```go
 func NewSimpleCircuitBreaker() *SimpleCircuitBreaker
 func NewCircuitBreakerWithConfig(CircuitBreakerConfig) *SimpleCircuitBreaker
 ```
 ```go
 type RetryConfig struct {
-    MaxAttempts int           // Максимальное количество попыток
-    BaseDelay   time.Duration // Базовая задержка для backoff
-    MaxDelay    time.Duration // Максимальная задержка
-    Jitter      float64       // Фактор джиттера (0.0-1.0)
+    MaxAttempts int           // Maximum number of attempts
+    BaseDelay   time.Duration // Base delay for backoff
+    MaxDelay    time.Duration // Maximum delay
+    Jitter      float64       // Jitter factor (0.0-1.0)
 }
 ```
 
-Конфигурация для поведения повторов и экспоненциального backoff.
+Configuration for retry behavior and exponential backoff.
 
-**Пример:**
+**Example:**
 ```go
 retryConfig := httpclient.RetryConfig{
     MaxAttempts: 5,
@@ -157,27 +157,27 @@ retryConfig := httpclient.RetryConfig{
 }
 ```
 
-## Типы ошибок
+## Error Types
 
 ### RetryableError
 ```go
 type RetryableError struct {
-    Err      error // Исходная ошибка
-    Attempts int   // Количество попыток
+    Err      error // Original error
+    Attempts int   // Number of attempts
 }
 
 func (e *RetryableError) Error() string
 func (e *RetryableError) Unwrap() error
 ```
 
-Ошибка, которая произошла после исчерпания всех попыток повтора.
+Error that occurred after all retry attempts were exhausted.
 
-**Пример обработки:**
+**Handling Example:**
 ```go
 resp, err := client.Get(ctx, url)
 if err != nil {
     if retryableErr, ok := err.(*httpclient.RetryableError); ok {
-        log.Printf("Запрос не удался после %d попыток: %v", 
+        log.Printf("Request failed after %d attempts: %v", 
             retryableErr.Attempts, retryableErr.Err)
     }
 }
@@ -186,75 +186,75 @@ if err != nil {
 ### NonRetryableError
 ```go
 type NonRetryableError struct {
-    Err error // Исходная ошибка
+    Err error // Original error
 }
 
 func (e *NonRetryableError) Error() string
 func (e *NonRetryableError) Unwrap() error
 ```
 
-Ошибка, которую не следует повторять (например, 400 Bad Request).
+Error that should not be retried (e.g., 400 Bad Request).
 
-**Пример обработки:**
+**Handling Example:**
 ```go
 resp, err := client.Get(ctx, url)
 if err != nil {
     if nonRetryableErr, ok := err.(*httpclient.NonRetryableError); ok {
-        log.Printf("Неповторяемая ошибка: %v", nonRetryableErr.Err)
+        log.Printf("Non-retryable error: %v", nonRetryableErr.Err)
     }
 }
 ```
 
-## Функции-конструкторы
+## Constructor Functions
 
 ### New
 ```go
 func New(config Config, meterName string) *Client
 ```
 
-Создает новый HTTP клиент с указанной конфигурацией.
+Creates a new HTTP client with the specified configuration.
 
-**Параметры:**
-- `config`: Конфигурация клиента (передается по значению)
-- `meterName`: Имя для OpenTelemetry метера (если пустой, используется "http-client")
+**Parameters:**
+- `config`: Client configuration (passed by value)
+- `meterName`: Name for OpenTelemetry meter (if empty, "http-client" is used)
 
-**Возвращает:** Настроенный HTTP клиент
+**Returns:** Configured HTTP client
 
-**Примеры:**
+**Examples:**
 ```go
-// Базовый клиент
+// Basic client
 client := httpclient.New(httpclient.Config{}, "my-service")
 
-// С конфигурацией
+// With configuration
 config := httpclient.Config{Timeout: 10 * time.Second}
 client := httpclient.New(config, "api-client")
 
-// Имя метера по умолчанию
+// Default meter name
 client := httpclient.New(httpclient.Config{}, "")
 ```
 
-## Функции backoff
+## Backoff Functions
 
 ### CalculateBackoffDelay
 ```go
 func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitter float64) time.Duration
 ```
 
-Вычисляет задержку экспоненциального backoff с джиттером.
+Calculates exponential backoff delay with jitter.
 
-**Параметры:**
-- `attempt`: Номер текущей попытки (начиная с 1)
-- `baseDelay`: Базовая задержка для экспоненциального backoff
-- `maxDelay`: Максимально разрешенная задержка
-- `jitter`: Фактор джиттера (0.0-1.0)
+**Parameters:**
+- `attempt`: Current attempt number (starting from 1)
+- `baseDelay`: Base delay for exponential backoff
+- `maxDelay`: Maximum allowed delay
+- `jitter`: Jitter factor (0.0-1.0)
 
-**Возвращает:** Вычисленная задержка
+**Returns:** Calculated delay
 
-**Пример:**
+**Example:**
 ```go
-// Для 3-й попытки
+// For 3rd attempt
 delay := httpclient.CalculateBackoffDelay(3, 100*time.Millisecond, 5*time.Second, 0.2)
-// Результат: ~400ms ± 20% джиттер
+// Result: ~400ms ± 20% jitter
 ```
 
 ### CalculateExponentialBackoff
@@ -262,19 +262,19 @@ delay := httpclient.CalculateBackoffDelay(3, 100*time.Millisecond, 5*time.Second
 func CalculateExponentialBackoff(attempt int, baseDelay, maxDelay time.Duration) time.Duration
 ```
 
-Вычисляет задержку экспоненциального backoff без джиттера.
+Calculates exponential backoff delay without jitter.
 
-**Параметры:**
-- `attempt`: Номер текущей попытки (начиная с 1)
-- `baseDelay`: Базовая задержка
-- `maxDelay`: Максимально разрешенная задержка
+**Parameters:**
+- `attempt`: Current attempt number (starting from 1)
+- `baseDelay`: Base delay
+- `maxDelay`: Maximum allowed delay
 
-**Возвращает:** Вычисленная задержка
+**Returns:** Calculated delay
 
-**Пример:**
+**Example:**
 ```go
 delay := httpclient.CalculateExponentialBackoff(2, 100*time.Millisecond, 5*time.Second)
-// Результат: 200ms (100ms * 2^(2-1))
+// Result: 200ms (100ms * 2^(2-1))
 ```
 
 ### CalculateLinearBackoff
@@ -282,19 +282,19 @@ delay := httpclient.CalculateExponentialBackoff(2, 100*time.Millisecond, 5*time.
 func CalculateLinearBackoff(attempt int, baseDelay, maxDelay time.Duration) time.Duration
 ```
 
-Вычисляет задержку линейного backoff.
+Calculates linear backoff delay.
 
-**Параметры:**
-- `attempt`: Номер текущей попытки (начиная с 1)
-- `baseDelay`: Базовый инкремент задержки
-- `maxDelay`: Максимально разрешенная задержка
+**Parameters:**
+- `attempt`: Current attempt number (starting from 1)
+- `baseDelay`: Base delay increment
+- `maxDelay`: Maximum allowed delay
 
-**Возвращает:** Вычисленная задержка
+**Returns:** Calculated delay
 
-**Пример:**
+**Example:**
 ```go
 delay := httpclient.CalculateLinearBackoff(3, 100*time.Millisecond, 5*time.Second)
-// Результат: 300ms (100ms * 3)
+// Result: 300ms (100ms * 3)
 ```
 
 ### CalculateConstantBackoff

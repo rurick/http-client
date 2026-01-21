@@ -1,4 +1,4 @@
-// Демонстрация новых опций для работы с телом запроса
+// Demonstration of new options for working with request body
 package main
 
 import (
@@ -12,7 +12,7 @@ import (
 	httpclient "github.com/rurick/http-client"
 )
 
-// User структура для JSON/XML примеров
+// User structure for JSON/XML examples
 type User struct {
 	XMLName xml.Name `xml:"user" json:"-"`
 	ID      int      `json:"id" xml:"id"`

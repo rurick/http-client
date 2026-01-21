@@ -10,7 +10,7 @@ import (
 	"time"
 )
 
-// mockRoundTripper имитирует http.RoundTripper для тестирования
+// mockRoundTripper mocks http.RoundTripper for testing
 type mockRoundTripper struct {
 	responses []*http.Response
 	errors    []error
@@ -438,7 +438,7 @@ func TestRoundTripper_PreservesOriginalStatusCode(t *testing.T) {
 	}
 }
 
-// Вспомогательные типы для тестирования
+// Helper types for testing
 
 type mockNetworkError struct {
 	timeout bool

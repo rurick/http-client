@@ -12,17 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TC001: Создание рейтлимитера с валидными параметрами
+// TC001: Creating rate limiter with valid parameters
 func TestNewTokenBucketLimiter_ValidParams(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10.0, 5)
 
 	assert.NotNil(t, limiter)
 	assert.Equal(t, 10.0, limiter.rate)
 	assert.Equal(t, 5, limiter.capacity)
-	assert.Equal(t, 5.0, limiter.tokens) // начинаем с полной корзины
+	assert.Equal(t, 5.0, limiter.tokens) // start with full bucket
 }
 
-// TC001: Создание рейтлимитера с невалидными параметрами
+// TC001: Creating rate limiter with invalid parameters
 func TestNewTokenBucketLimiter_InvalidParams(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -44,55 +44,55 @@ func TestNewTokenBucketLimiter_InvalidParams(t *testing.T) {
 	}
 }
 
-// TC002: Токены пополняются с заданной скоростью
+// TC002: Tokens are refilled at the specified rate
 func TestTokenBucketLimiter_Refill(t *testing.T) {
-	limiter := NewTokenBucketLimiter(2.0, 5) // 2 токена в секунду
+	limiter := NewTokenBucketLimiter(2.0, 5) // 2 tokens per second
 
-	// Потребляем все токены
+	// Consume all tokens
 	for i := 0; i < 5; i++ {
 		assert.True(t, limiter.Allow())
 	}
-	assert.False(t, limiter.Allow()) // корзина пуста
+	assert.False(t, limiter.Allow()) // bucket is empty
 
-	// Ждем половину секунды - должен появиться 1 токен
+	// Wait half a second - 1 token should appear
 	time.Sleep(500 * time.Millisecond)
 	assert.True(t, limiter.Allow())
 	assert.False(t, limiter.Allow())
 }
 
-// TC003: Allow() возвращает true при наличии токенов
+// TC003: Allow() returns true when tokens are available
 func TestTokenBucketLimiter_Allow_WithTokens(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10.0, 3)
 
-	// Должны быть доступны 3 токена
+	// Should have 3 tokens available
 	assert.True(t, limiter.Allow())
 	assert.True(t, limiter.Allow())
 	assert.True(t, limiter.Allow())
 }
 
-// TC004: Allow() возвращает false при отсутствии токенов
+// TC004: Allow() returns false when no tokens are available
 func TestTokenBucketLimiter_Allow_NoTokens(t *testing.T) {
 	limiter := NewTokenBucketLimiter(10.0, 2)
 
-	// Потребляем все токены
+	// Consume all tokens
 	assert.True(t, limiter.Allow())
 	assert.True(t, limiter.Allow())
 
-	// Следующий вызов должен вернуть false
+	// Next call should return false
 	assert.False(t, limiter.Allow())
 }
 
-// TC005: Wait() ждет появления токена
+// TC005: Wait() waits for token to appear
 func TestTokenBucketLimiter_Wait_Success(t *testing.T) {
-	limiter := NewTokenBucketLimiter(4.0, 1) // 4 токена в секунду
+	limiter := NewTokenBucketLimiter(4.0, 1) // 4 tokens per second
 
-	// Потребляем единственный токен
+	// Consume the only token
 	assert.True(t, limiter.Allow())
 
 	ctx := context.Background()
 	start := time.Now()
 
-	// Wait должен подождать ~250ms до появления следующего токена
+	// Wait should wait ~250ms until next token appears
 	err := limiter.Wait(ctx)
 	elapsed := time.Since(start)
 
@@ -101,11 +101,11 @@ func TestTokenBucketLimiter_Wait_Success(t *testing.T) {
 	assert.Less(t, elapsed, 500*time.Millisecond)
 }
 
-// TC006: Wait() отменяется по context timeout
+// TC006: Wait() is canceled on context timeout
 func TestTokenBucketLimiter_Wait_ContextTimeout(t *testing.T) {
-	limiter := NewTokenBucketLimiter(1.0, 1) // 1 токен в секунду
+	limiter := NewTokenBucketLimiter(1.0, 1) // 1 token per second
 
-	// Потребляем единственный токен
+	// Consume the only token
 	assert.True(t, limiter.Allow())
 
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
@@ -121,7 +121,7 @@ func TestTokenBucketLimiter_Wait_ContextTimeout(t *testing.T) {
 	assert.Less(t, elapsed, 150*time.Millisecond)
 }
 
-// TC007: Rate limiter по умолчанию выключен
+// TC007: Rate limiter is disabled by default
 func TestConfig_RateLimiterDisabledByDefault(t *testing.T) {
 	config := Config{}
 	config = config.withDefaults()
@@ -129,7 +129,7 @@ func TestConfig_RateLimiterDisabledByDefault(t *testing.T) {
 	assert.False(t, config.RateLimiterEnabled)
 }
 
-// TC008: Включение rate limiter через конфигурацию
+// TC008: Enabling rate limiter through configuration
 func TestConfig_RateLimiterEnabled(t *testing.T) {
 	config := Config{
 		RateLimiterEnabled: true,
@@ -145,16 +145,16 @@ func TestConfig_RateLimiterEnabled(t *testing.T) {
 	assert.Equal(t, 10, config.RateLimiterConfig.BurstCapacity)
 }
 
-// TC009: Валидация параметров конфигурации (значения по умолчанию)
+// TC009: Configuration parameter validation (default values)
 func TestRateLimiterConfig_WithDefaults(t *testing.T) {
 	config := RateLimiterConfig{}
 	config = config.withDefaults()
 
 	assert.Equal(t, 10.0, config.RequestsPerSecond)
-	assert.Equal(t, 10, config.BurstCapacity) // равен rate
+	assert.Equal(t, 10, config.BurstCapacity) // equals rate
 }
 
-// TC010: Использование пользовательских значений.
+// TC010: Using custom values.
 func TestRateLimiterConfig_UserValues(t *testing.T) {
 	config := RateLimiterConfig{
 		RequestsPerSecond: 20.0,
@@ -166,7 +166,7 @@ func TestRateLimiterConfig_UserValues(t *testing.T) {
 	assert.Equal(t, 5, config.BurstCapacity)
 }
 
-// TC011: Запрос проходит при наличии токенов
+// TC011: Request passes when tokens are available
 func TestRateLimiterRoundTripper_RequestPasses(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -191,7 +191,7 @@ func TestRateLimiterRoundTripper_RequestPasses(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-// TC012: Запрос ждет при отсутствии токенов (wait strategy)
+// TC012: Request waits when no tokens are available (wait strategy)
 func TestRateLimiterRoundTripper_WaitStrategy(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -199,8 +199,8 @@ func TestRateLimiterRoundTripper_WaitStrategy(t *testing.T) {
 	defer server.Close()
 
 	config := RateLimiterConfig{
-		RequestsPerSecond: 2.0, // 2 запроса в секунду
-		BurstCapacity:     1,   // только 1 токен в корзине
+		RequestsPerSecond: 2.0, // 2 requests per second
+		BurstCapacity:     1,   // only 1 token in bucket
 	}
 
 	transport := NewRateLimiterRoundTripper(http.DefaultTransport, config)
@@ -211,25 +211,25 @@ func TestRateLimiterRoundTripper_WaitStrategy(t *testing.T) {
 	req2, err := http.NewRequest("GET", server.URL, nil)
 	require.NoError(t, err)
 
-	// Первый запрос должен пройти сразу
+	// First request should pass immediately
 	start := time.Now()
 	resp1, err := client.Do(req1)
 	require.NoError(t, err)
 	resp1.Body.Close()
 	elapsed1 := time.Since(start)
 
-	// Второй запрос должен ждать
+	// Second request should wait
 	start = time.Now()
 	resp2, err := client.Do(req2)
 	require.NoError(t, err)
 	resp2.Body.Close()
 	elapsed2 := time.Since(start)
 
-	assert.Less(t, elapsed1, 100*time.Millisecond)           // первый быстро
-	assert.GreaterOrEqual(t, elapsed2, 400*time.Millisecond) // второй ждет
+	assert.Less(t, elapsed1, 100*time.Millisecond)           // first is fast
+	assert.GreaterOrEqual(t, elapsed2, 400*time.Millisecond) // second waits
 }
 
-// TC013: Контекстная отмена во время ожидания
+// TC013: Context cancellation during wait
 func TestRateLimiterRoundTripper_ContextCancel(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -237,21 +237,21 @@ func TestRateLimiterRoundTripper_ContextCancel(t *testing.T) {
 	defer server.Close()
 
 	config := RateLimiterConfig{
-		RequestsPerSecond: 1.0, // очень медленно
+		RequestsPerSecond: 1.0, // very slow
 		BurstCapacity:     1,
 	}
 
 	transport := NewRateLimiterRoundTripper(http.DefaultTransport, config)
 	client := &http.Client{Transport: transport}
 
-	// Потребляем единственный токен
+	// Consume the only token
 	req1, err := http.NewRequest("GET", server.URL, nil)
 	require.NoError(t, err)
 	resp1, err := client.Do(req1)
 	require.NoError(t, err)
 	resp1.Body.Close()
 
-	// Второй запрос с коротким таймаутом
+	// Second request with short timeout
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
 
@@ -260,14 +260,14 @@ func TestRateLimiterRoundTripper_ContextCancel(t *testing.T) {
 
 	_, err = client.Do(req2)
 	assert.Error(t, err)
-	// Проверяем, что ошибка связана с контекстом
+	// Check that error is related to context
 	if !assert.Contains(t, err.Error(), "context deadline exceeded") {
-		// Если не содержит эту строку, проверяем другие варианты
+		// If it doesn't contain this string, check other variants
 		assert.Contains(t, err.Error(), "failed to acquire token")
 	}
 }
 
-// TC014: Rate limiter не влияет на запросы когда отключен
+// TC014: Rate limiter does not affect requests when disabled
 func TestClient_RateLimiterDisabled(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -275,9 +275,9 @@ func TestClient_RateLimiterDisabled(t *testing.T) {
 	defer server.Close()
 
 	config := Config{
-		RateLimiterEnabled: false, // выключен
+		RateLimiterEnabled: false, // disabled
 		RateLimiterConfig: RateLimiterConfig{
-			RequestsPerSecond: 0.1, // очень медленно, но не должно влиять
+			RequestsPerSecond: 0.1, // very slow, but should not affect
 			BurstCapacity:     1,
 		},
 	}
@@ -285,7 +285,7 @@ func TestClient_RateLimiterDisabled(t *testing.T) {
 	client := New(config, "test")
 	defer client.Close()
 
-	// Делаем много быстрых запросов
+	// Make many fast requests
 	for i := 0; i < 5; i++ {
 		start := time.Now()
 		resp, err := client.Get(context.Background(), server.URL)
@@ -294,12 +294,12 @@ func TestClient_RateLimiterDisabled(t *testing.T) {
 		require.NoError(t, err)
 		resp.Body.Close()
 
-		// Все запросы должны быть быстрыми (rate limiter отключен)
+		// All requests should be fast (rate limiter disabled)
 		assert.Less(t, elapsed, 100*time.Millisecond)
 	}
 }
 
-// TC015: Глобальный rate limiter ограничивает все запросы.
+// TC015: Global rate limiter limits all requests.
 func TestRateLimiterRoundTripper_GlobalLimiter(t *testing.T) {
 	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -319,7 +319,7 @@ func TestRateLimiterRoundTripper_GlobalLimiter(t *testing.T) {
 	transport := NewRateLimiterRoundTripper(http.DefaultTransport, config)
 	client := &http.Client{Transport: transport}
 
-	// Используем оба токена на разных серверах.
+	// Use both tokens on different servers.
 	req1, _ := http.NewRequest("GET", server1.URL, nil)
 	req2, _ := http.NewRequest("GET", server2.URL, nil)
 
@@ -331,7 +331,7 @@ func TestRateLimiterRoundTripper_GlobalLimiter(t *testing.T) {
 	resp1.Body.Close()
 	resp2.Body.Close()
 
-	// Третий запрос должен ждать (глобальный лимит исчерпан).
+	// Third request should wait (global limit exhausted).
 	req3, _ := http.NewRequest("GET", server1.URL, nil)
 	start := time.Now()
 	resp3, err3 := client.Do(req3)
@@ -340,59 +340,59 @@ func TestRateLimiterRoundTripper_GlobalLimiter(t *testing.T) {
 	require.NoError(t, err3)
 	resp3.Body.Close()
 
-	assert.GreaterOrEqual(t, elapsed, 400*time.Millisecond) // должен ждать
+	assert.GreaterOrEqual(t, elapsed, 400*time.Millisecond) // should wait
 }
 
-// TC018: Burst capacity позволяет превысить rate на короткое время
+// TC018: Burst capacity allows exceeding rate for a short time
 func TestTokenBucketLimiter_BurstCapacity(t *testing.T) {
-	limiter := NewTokenBucketLimiter(1.0, 5) // 1 токен/сек, но корзина на 5
+	limiter := NewTokenBucketLimiter(1.0, 5) // 1 token/sec, but bucket of 5
 
-	// Должны сразу получить 5 токенов (burst)
+	// Should immediately get 5 tokens (burst)
 	for i := 0; i < 5; i++ {
 		assert.True(t, limiter.Allow(), "token %d should be available", i+1)
 	}
 
-	// 6-й токен недоступен
+	// 6th token unavailable
 	assert.False(t, limiter.Allow())
 }
 
-// TC019: Конкурентный доступ к рейтлимитеру (race conditions)
+// TC019: Concurrent access to rate limiter (race conditions)
 func TestTokenBucketLimiter_ConcurrentAccess(t *testing.T) {
 	limiter := NewTokenBucketLimiter(100.0, 50)
 
 	var wg sync.WaitGroup
 
-	// Запускаем 100 горутин, каждая пытается получить токен
+	// Start 100 goroutines, each trying to get a token
 	for i := 0; i < 100; i++ {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			limiter.Allow() // Просто вызываем, результат не важен
+			limiter.Allow() // Just call, result doesn't matter
 		}()
 	}
 
 	wg.Wait()
-	// Главное - не должно быть race condition'ов и panic'ов
+	// Main thing - should be no race conditions and panics
 }
 
-// TC020: Большие временные интервалы не переполняют capacity
+// TC020: Large time intervals do not overflow capacity
 func TestTokenBucketLimiter_CapacityLimit(t *testing.T) {
-	limiter := NewTokenBucketLimiter(1.0, 3) // 1 токен/сек, макс 3
+	limiter := NewTokenBucketLimiter(1.0, 3) // 1 token/sec, max 3
 
-	// Потребляем все токены
+	// Consume all tokens
 	limiter.Allow()
 	limiter.Allow()
 	limiter.Allow()
 	assert.False(t, limiter.Allow())
 
-	// Ждем долго (больше чем нужно для заполнения корзины)
+	// Wait long (longer than needed to fill bucket)
 	time.Sleep(5 * time.Second)
 
-	// Должно быть доступно максимум 3 токена, не больше
+	// Should have maximum 3 tokens available, no more
 	count := 0
 	for limiter.Allow() {
 		count++
-		if count > 5 { // защита от бесконечного цикла
+		if count > 5 { // protection against infinite loop
 			break
 		}
 	}

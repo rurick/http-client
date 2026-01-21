@@ -80,9 +80,9 @@ func main() {
 	}
 }
 
-// Метрики создаются автоматически с стандартными buckets
+// Metrics are created automatically with standard buckets
 
-// Prometheus/client_golang создаёт метрики со стандартными buckets
+// Prometheus/client_golang creates metrics with standard buckets
 
 func startMetricsServer(client *httpclient.Client) *http.Server {
 	mux := http.NewServeMux()
@@ -121,7 +121,7 @@ func startMetricsServer(client *httpclient.Client) *http.Server {
 </html>`)
 	})
 
-	// PromQL примеры
+	// PromQL examples
 	mux.HandleFunc("/promql", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain")
 		fmt.Fprintf(w, `# Example PromQL Queries for HTTP Client Metrics
@@ -173,12 +173,12 @@ sum by (method) (rate(http_client_requests_total{error="false"}[5m])) / sum by (
 		}
 	}()
 
-	// Даём серверу время на запуск
+	// Give server time to start
 	time.Sleep(500 * time.Millisecond)
 	return server
 }
 
-// generateTraffic генерирует различные типы HTTP трафика для демонстрации метрик
+// generateTraffic generates various types of HTTP traffic to demonstrate metrics
 func generateTraffic(ctx context.Context, client *httpclient.Client) {
 	ticker := time.NewTicker(2 * time.Second)
 	defer ticker.Stop()

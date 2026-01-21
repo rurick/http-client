@@ -1,208 +1,208 @@
-# Метрики и мониторинг
+# Metrics and Monitoring
 
-HTTP клиент автоматически собирает метрики через OpenTelemetry (с возможностью использования Prometheus бэкенда) для полной observability ваших HTTP запросов.
+The HTTP client automatically collects metrics via OpenTelemetry (with Prometheus backend support) for full observability of your HTTP requests.
 
-## Доступные метрики
+## Available Metrics
 
-### 1. http_client_requests_total (Счетчик)
-Отслеживает общее количество HTTP запросов.
+### 1. http_client_requests_total (Counter)
+Tracks the total number of HTTP requests.
 
-**Метки:**
-- `method`: HTTP метод (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
-- `host`: Целевой хост (example.com)
-- `status`: HTTP статус код (200, 404, 500, и т.д.)
-- `retry`: Была ли это попытка повтора (true/false)
-- `error`: Привел ли запрос к ошибке (true/false)
+**Labels:**
+- `method`: HTTP method (GET, POST, PUT, DELETE, PATCH, HEAD, OPTIONS)
+- `host`: Target host (example.com)
+- `status`: HTTP status code (200, 404, 500, etc.)
+- `retry`: Whether this was a retry attempt (true/false)
+- `error`: Whether the request resulted in an error (true/false)
 
 ```promql
-# Общее количество запросов
+# Total number of requests
 http_client_requests_total
 
-# Запросы по методам
+# Requests by method
 http_client_requests_total{method="GET"}
 
-# Успешные запросы
+# Successful requests
 http_client_requests_total{error="false"}
 ```
 
-### 2. http_client_request_duration_seconds (Гистограмма)
-Измеряет длительность запросов в секундах.
+### 2. http_client_request_duration_seconds (Histogram)
+Measures request duration in seconds.
 
-**Метки:**
-- `method`: HTTP метод
-- `host`: Целевой хост
-- `status`: HTTP статус код
-- `attempt`: Номер попытки (1, 2, 3, и т.д.)
+**Labels:**
+- `method`: HTTP method
+- `host`: Target host
+- `status`: HTTP status code
+- `attempt`: Attempt number (1, 2, 3, etc.)
 
-**Бакеты:** `0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60`
+**Buckets:** `0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1, 2, 3, 5, 7, 10, 13, 16, 20, 25, 30, 40, 50, 60`
 
 ```promql
-# 95-й перцентиль латентности
+# 95th percentile latency
 histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le))
 
-# Средняя латентность
+# Average latency
 rate(http_client_request_duration_seconds_sum[5m]) / rate(http_client_request_duration_seconds_count[5m])
 ```
 
-### 3. http_client_retries_total (Счетчик)
-Подсчитывает попытки повторов с детализацией причин.
+### 3. http_client_retries_total (Counter)
+Counts retry attempts with reason details.
 
-**Метки:**
-- `reason`: Причина повтора (status_code, network_error, timeout, connection_error)
-- `method`: HTTP метод
-- `host`: Целевой хост
+**Labels:**
+- `reason`: Retry reason (status_code, network_error, timeout, connection_error)
+- `method`: HTTP method
+- `host`: Target host
 
 ```promql
-# Частота повторов
+# Retry rate
 rate(http_client_retries_total[5m])
 
-# Повторы по причинам
+# Retries by reason
 sum(rate(http_client_retries_total[5m])) by (reason)
 ```
 
 ### 4. http_client_inflight_requests (UpDownCounter)
-Текущее количество активных запросов.
+Current number of active requests.
 
-**Метки:**
-- `host`: Целевой хост
+**Labels:**
+- `host`: Target host
 
 ```promql
-# Текущие активные запросы
+# Current active requests
 http_client_inflight_requests
 
-# Максимум за период
+# Maximum over period
 max_over_time(http_client_inflight_requests[5m])
 ```
 
-### 5. http_client_request_size_bytes (Гистограмма)
-Размер тела запроса в байтах.
+### 5. http_client_request_size_bytes (Histogram)
+Request body size in bytes.
 
-**Метки:**
-- `method`: HTTP метод
-- `host`: Целевой хост
+**Labels:**
+- `method`: HTTP method
+- `host`: Target host
 
-**Бакеты:** `256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216`
+**Buckets:** `256, 1024, 4096, 16384, 65536, 262144, 1048576, 4194304, 16777216`
 
 ```promql
-# 95-й перцентиль размера запросов
+# 95th percentile request size
 histogram_quantile(0.95, sum(rate(http_client_request_size_bytes_bucket[5m])) by (le))
 ```
 
-### 6. http_client_response_size_bytes (Гистограмма)
-Размер тела ответа в байтах.
+### 6. http_client_response_size_bytes (Histogram)
+Response body size in bytes.
 
-**Метки:**
-- `method`: HTTP метод
-- `host`: Целевой хост
-- `status`: HTTP статус код
+**Labels:**
+- `method`: HTTP method
+- `host`: Target host
+- `status`: HTTP status code
 
-**Бакеты:** Те же, что и для размера запроса
+**Buckets:** Same as request size
 
 ```promql
-# 95-й перцентиль размера ответов
+# 95th percentile response size
 histogram_quantile(0.95, sum(rate(http_client_response_size_bytes_bucket[5m])) by (le))
 ```
 
-## PromQL запросы
+## PromQL Queries
 
-### Базовые метрики производительности
+### Basic Performance Metrics
 
-#### Частота запросов (RPS)
+#### Request Rate (RPS)
 ```promql
-# Запросов в секунду
+# Requests per second
 sum(rate(http_client_requests_total[5m]))
 
-# RPS по сервисам
+# RPS by services
 sum(rate(http_client_requests_total[5m])) by (host)
 
-# RPS по методам
+# RPS by methods
 sum(rate(http_client_requests_total[5m])) by (method)
 ```
 
-#### Процент ошибок
+#### Error Percentage
 ```promql
-# Общий процент ошибок
+# Overall error percentage
 sum(rate(http_client_requests_total{error="true"}[5m])) / 
 sum(rate(http_client_requests_total[5m])) * 100
 
-# Процент ошибок по сервисам
+# Error percentage by services
 sum(rate(http_client_requests_total{error="true"}[5m])) by (host) / 
 sum(rate(http_client_requests_total[5m])) by (host) * 100
 
-# Процент HTTP ошибок (4xx, 5xx)
+# HTTP error percentage (4xx, 5xx)
 sum(rate(http_client_requests_total{status=~"[45].."}[5m])) by (host) /
 sum(rate(http_client_requests_total[5m])) by (host) * 100
 ```
 
-#### Анализ латентности
+#### Latency Analysis
 ```promql
-# 50-й, 95-й, 99-й перцентили
+# 50th, 95th, 99th percentiles
 histogram_quantile(0.50, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
 histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
 histogram_quantile(0.99, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
 
-# Средняя латентность
+# Average latency
 sum(rate(http_client_request_duration_seconds_sum[5m])) by (host) /
 sum(rate(http_client_request_duration_seconds_count[5m])) by (host)
 
-# Латентность по статус кодам
+# Latency by status codes
 histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, status))
 ```
 
-### Анализ retry поведения
+### Retry Behavior Analysis
 
-#### Статистика повторов
+#### Retry Statistics
 ```promql
-# Частота повторов
+# Retry rate
 sum(rate(http_client_retries_total[5m])) by (host, reason)
 
-# Процент запросов с повторами
+# Percentage of requests with retries
 sum(rate(http_client_requests_total{retry="true"}[5m])) by (host) /
 sum(rate(http_client_requests_total[5m])) by (host) * 100
 
-# Успешность повторов
+# Retry success rate
 sum(rate(http_client_requests_total{retry="true", error="false"}[5m])) by (host) /
 sum(rate(http_client_retries_total[5m])) by (host) * 100
 ```
 
-#### Топ причин повторов
+#### Top Retry Reasons
 ```promql
-# Самые частые причины повторов
+# Most frequent retry reasons
 topk(5, sum(rate(http_client_retries_total[5m])) by (reason))
 
-# Повторы по сервисам
+# Retries by services
 topk(10, sum(rate(http_client_retries_total[5m])) by (host))
 ```
 
-### Анализ нагрузки
+### Load Analysis
 
-#### Активные соединения
+#### Active Connections
 ```promql
-# Текущие активные запросы
+# Current active requests
 http_client_inflight_requests
 
-# Пиковая нагрузка за час
+# Peak load over hour
 max_over_time(http_client_inflight_requests[1h])
 
-# Средняя нагрузка
+# Average load
 avg_over_time(http_client_inflight_requests[5m])
 ```
 
-#### Анализ размеров
+#### Size Analysis
 ```promql
-# Средний размер запросов
+# Average request size
 rate(http_client_request_size_bytes_sum[5m]) / rate(http_client_request_size_bytes_count[5m])
 
-# Средний размер ответов
+# Average response size
 rate(http_client_response_size_bytes_sum[5m]) / rate(http_client_response_size_bytes_count[5m])
 
-# Топ самых "тяжелых" эндпоинтов
+# Top "heaviest" endpoints
 topk(10, histogram_quantile(0.95, sum(rate(http_client_response_size_bytes_bucket[5m])) by (le, host)))
 ```
 
-### Dashboard запросы
+### Dashboard Queries
 
-#### SLI метрики
+#### SLI Metrics
 ```promql
 # Availability (99.9% target)
 sum(rate(http_client_requests_total{error="false"}[5m])) /
@@ -215,11 +215,11 @@ histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m
 sum(rate(http_client_requests_total[5m]))
 ```
 
-## Правила алертов
+## Alert Rules
 
-### Критичные алерты
+### Critical Alerts
 
-#### Высокий процент ошибок
+#### High Error Rate
 ```yaml
 groups:
 - name: httpclient.critical
@@ -234,11 +234,11 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: "Высокий процент ошибок HTTP клиента"
-      description: "{{ $labels.host }} имеет {{ $value | humanizePercentage }} ошибок за последние 5 минут"
+      summary: "High HTTP client error rate"
+      description: "{{ $labels.host }} has {{ $value | humanizePercentage }} errors in the last 5 minutes"
 ```
 
-#### Критически высокая латентность
+#### Critically High Latency
 ```yaml
   - alert: HTTPClientCriticalLatency
     expr: |
@@ -247,13 +247,13 @@ groups:
     labels:
       severity: critical
     annotations:
-      summary: "Критически высокая латентность HTTP клиента"
-      description: "{{ $labels.host }} имеет 95-й перцентиль латентности {{ $value }}с"
+      summary: "Critically high HTTP client latency"
+      description: "{{ $labels.host }} has 95th percentile latency of {{ $value }}s"
 ```
 
-### Предупреждения
+### Warnings
 
-#### Повышенная латентность
+#### Elevated Latency
 ```yaml
 - name: httpclient.warnings
   rules:
@@ -264,11 +264,11 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "Повышенная латентность HTTP клиента"
-      description: "{{ $labels.host }} имеет 95-й перцентиль латентности {{ $value }}с за 5 минут"
+      summary: "Elevated HTTP client latency"
+      description: "{{ $labels.host }} has 95th percentile latency of {{ $value }}s over 5 minutes"
 ```
 
-#### Чрезмерные повторы
+#### Excessive Retries
 ```yaml
   - alert: HTTPClientExcessiveRetries
     expr: |
@@ -277,11 +277,11 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "Высокая частота повторов HTTP клиента"
-      description: "{{ $labels.host }} делает {{ $value }} повторов/сек за последние 5 минут"
+      summary: "High HTTP client retry rate"
+      description: "{{ $labels.host }} makes {{ $value }} retries/sec over the last 5 minutes"
 ```
 
-#### Много активных запросов
+#### Many Active Requests
 ```yaml
   - alert: HTTPClientHighInflight
     expr: |
@@ -290,13 +290,13 @@ groups:
     labels:
       severity: warning
     annotations:
-      summary: "Много одновременных HTTP запросов"
-      description: "{{ $labels.host }} имеет {{ $value }} одновременных запросов"
+      summary: "Many concurrent HTTP requests"
+      description: "{{ $labels.host }} has {{ $value }} concurrent requests"
 ```
 
-### Информационные алерты
+### Informational Alerts
 
-#### Необычно большие ответы
+#### Unusually Large Responses
 ```yaml
 - name: httpclient.info
   rules:
@@ -307,13 +307,13 @@ groups:
     labels:
       severity: info
     annotations:
-      summary: "Большие HTTP ответы"
-      description: "{{ $labels.host }} возвращает ответы размером {{ $value | humanizeBytes }}"
+      summary: "Large HTTP responses"
+      description: "{{ $labels.host }} returns responses of size {{ $value | humanizeBytes }}"
 ```
 
 ## Grafana Dashboard
 
-### Основные панели
+### Main Panels
 
 #### Overview Panel
 ```promql
@@ -348,7 +348,7 @@ histogram_quantile(0.95, sum(rate(http_client_request_size_bytes_bucket[5m])) by
 
 ### Recording Rules
 
-Для оптимизации производительности используйте recording rules:
+Use recording rules for performance optimization:
 
 ```yaml
 groups:
@@ -370,22 +370,22 @@ groups:
     expr: sum(rate(http_client_retries_total[5m])) by (host)
 ```
 
-## Использование метрик в коде
+## Using Metrics in Code
 
-Метрики собираются автоматически, но вы можете получить к ним доступ:
+Metrics are collected automatically, but you can access them:
 
 ```go
-// Метрики доступны через клиент (internal API)
-// Обычно не требуется прямое взаимодействие
+// Metrics are available through the client (internal API)
+// Usually no direct interaction is required
 
 client := httpclient.New(config, "my-service")
 defer client.Close()
 
-// Все метрики собираются автоматически при выполнении запросов
+// All metrics are collected automatically when executing requests
 resp, err := client.Get(ctx, "https://api.example.com/data")
 ```
 
-## Использование метрик в коде
+## Using Metrics in Code
 
 ```go
 import (
@@ -394,30 +394,30 @@ import (
     httpclient "github.com/rurick/http-client"
 )
 
-// Метрики создаются автоматически при создании клиента
+// Metrics are created automatically when creating the client
 client := httpclient.New(httpclient.Config{}, "my-service")
 defer client.Close()
 
-// Создаём HTTP endpoint для метрик - метрики автоматически регистрируются
+// Create HTTP endpoint for metrics - metrics are automatically registered
 http.Handle("/metrics", promhttp.Handler())
 
-// Метрики собираются автоматически при выполнении запросов
+// Metrics are collected automatically when executing requests
 resp, err := client.Get(ctx, "https://api.example.com/data")
 ```
 
-## Troubleshooting метрик
+## Metrics Troubleshooting
 
-### Метрики не появляются
-1. Проверьте регистрацию метрик в prometheus.DefaultRegistry
-2. Убедитесь что HTTP endpoint /metrics настроен корректно
-3. Проверьте что клиент выполняет запросы
+### Metrics Not Appearing
+1. Check metric registration in prometheus.DefaultRegistry
+2. Ensure HTTP endpoint /metrics is configured correctly
+3. Check that the client is making requests
 
-### Неожиданные значения
-1. Проверьте лейблы в PromQL запросах
-2. Убедитесь в правильности временных интервалов
-3. Проверьте фильтры по host/method
+### Unexpected Values
+1. Check labels in PromQL queries
+2. Verify time intervals are correct
+3. Check filters by host/method
 
-### Производительность
-1. Используйте recording rules для часто используемых запросов
-2. Оптимизируйте время выполнения PromQL запросов
-3. Настройте appropriate retention policy
+### Performance
+1. Use recording rules for frequently used queries
+2. Optimize PromQL query execution time
+3. Configure appropriate retention policy

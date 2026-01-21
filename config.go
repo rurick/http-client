@@ -9,111 +9,111 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// Константы по умолчанию для конфигурации.
+// Default constants for configuration.
 const (
-	// Таймауты по умолчанию.
+	// Default timeouts.
 	defaultTimeout       = 5 * time.Second
 	defaultPerTryTimeout = 2 * time.Second
 
-	// Retry настройки по умолчанию.
+	// Default retry settings.
 	defaultMaxAttempts = 3
 	defaultBaseDelay   = 100 * time.Millisecond
 	defaultMaxDelay    = 2 * time.Second
 	defaultJitter      = 0.2
 
-	// CircuitBreaker настройки по умолчанию.
+	// Default CircuitBreaker settings.
 	defaultFailureThreshold = 5
 	defaultSuccessThreshold = 3
 	defaultCircuitTimeout   = 60 * time.Second
 )
 
-// Config содержит конфигурацию HTTP клиента.
+// Config contains HTTP client configuration.
 type Config struct {
-	// Timeout общий таймаут для всей операции (включая ретраи)
+	// Timeout is the overall timeout for the entire operation (including retries)
 	Timeout time.Duration
 
-	// PerTryTimeout таймаут для каждой попытки
+	// PerTryTimeout is the timeout for each attempt
 	PerTryTimeout time.Duration
 
-	// Transport базовый HTTP транспорт (опционально)
+	// Transport is the base HTTP transport (optional)
 	Transport http.RoundTripper
 
-	// RetryEnabled включает/выключает retry механизм
+	// RetryEnabled enables/disables retry mechanism
 	RetryEnabled bool
 
-	// RetryConfig конфигурация retry механизма
+	// RetryConfig is the retry mechanism configuration
 	RetryConfig RetryConfig
 
-	// TracingEnabled включает/выключает OpenTelemetry трассировку
+	// TracingEnabled enables/disables OpenTelemetry tracing
 	TracingEnabled bool
 
-	// MaxResponseBytes ограничивает максимальный размер ответа
+	// MaxResponseBytes limits the maximum response size
 	MaxResponseBytes *int64
 
-	// CircuitBreakerEnable включает/выключает использование CircuitBreaker
+	// CircuitBreakerEnable enables/disables CircuitBreaker usage
 	CircuitBreakerEnable bool
 
-	// CircuitBreaker настраиваемый автоматический выключатель
+	// CircuitBreaker is a configurable automatic circuit breaker
 	CircuitBreaker CircuitBreaker
 
-	// RateLimiterEnabled включает/выключает rate limiting
+	// RateLimiterEnabled enables/disables rate limiting
 	RateLimiterEnabled bool
 
-	// RateLimiterConfig конфигурация rate limiter
+	// RateLimiterConfig is the rate limiter configuration
 	RateLimiterConfig RateLimiterConfig
 
-	// MetricsEnabled включает/выключает сбор метрик
-	// По умолчанию true - метрики включены
+	// MetricsEnabled enables/disables metrics collection
+	// Default is true - metrics are enabled
 	MetricsEnabled *bool
 
-	// MetricsBackend выбор бэкенда для метрик
-	// По умолчанию "otel"
+	// MetricsBackend selects the metrics backend
+	// Default is "otel"
 	MetricsBackend MetricsBackend
 
-	// PrometheusRegisterer опциональный регистратор Prometheus
-	// Если nil, используется prometheus.DefaultRegisterer
+	// PrometheusRegisterer is an optional Prometheus registerer
+	// If nil, prometheus.DefaultRegisterer is used
 	PrometheusRegisterer prometheus.Registerer
 
-	// OTelMeterProvider опциональный провайдер метрик OpenTelemetry
-	// Если nil, используется otel.GetMeterProvider()
+	// OTelMeterProvider is an optional OpenTelemetry metrics provider
+	// If nil, otel.GetMeterProvider() is used
 	OTelMeterProvider metric.MeterProvider
 }
 
-// RetryConfig содержит настройки retry механизма.
+// RetryConfig contains retry mechanism settings.
 type RetryConfig struct {
-	// MaxAttempts максимальное количество попыток (включая первоначальную)
+	// MaxAttempts is the maximum number of attempts (including the initial one)
 	MaxAttempts int
 
-	// BaseDelay базовая задержка для exponential backoff
+	// BaseDelay is the base delay for exponential backoff
 	BaseDelay time.Duration
 
-	// MaxDelay максимальная задержка между попытками
+	// MaxDelay is the maximum delay between attempts
 	MaxDelay time.Duration
 
-	// Jitter коэффициент джиттера (0.0 - 1.0)
+	// Jitter is the jitter coefficient (0.0 - 1.0)
 	Jitter float64
 
-	// RetryMethods список HTTP методов для retry
+	// RetryMethods is the list of HTTP methods for retry
 	RetryMethods []string
 
-	// RetryStatusCodes список HTTP статусов для retry
+	// RetryStatusCodes is the list of HTTP status codes for retry
 	RetryStatusCodes []int
 
-	// RespectRetryAfter учитывать заголовок Retry-After
+	// RespectRetryAfter respects the Retry-After header
 	RespectRetryAfter bool
 }
 
-// RateLimiterConfig содержит настройки rate limiter.
-// Rate limiter работает глобально для всех запросов клиента.
+// RateLimiterConfig contains rate limiter settings.
+// Rate limiter works globally for all client requests.
 type RateLimiterConfig struct {
-	// RequestsPerSecond максимальное количество запросов в секунду.
+	// RequestsPerSecond is the maximum number of requests per second.
 	RequestsPerSecond float64
 
-	// BurstCapacity размер корзины для пиковых запросов.
+	// BurstCapacity is the bucket size for peak requests.
 	BurstCapacity int
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации.
+// withDefaults applies default values to the configuration.
 func (c Config) withDefaults() Config {
 	if c.Timeout == 0 {
 		c.Timeout = defaultTimeout
@@ -131,17 +131,17 @@ func (c Config) withDefaults() Config {
 		c.RetryConfig = c.RetryConfig.withDefaults()
 	}
 
-	// Circuit breaker по умолчанию выключен. Если включён и не задан — используем простой.
+	// Circuit breaker is disabled by default. If enabled and not set, use a simple one.
 	if c.CircuitBreakerEnable && c.CircuitBreaker == nil {
 		c.CircuitBreaker = NewSimpleCircuitBreaker()
 	}
 
-	// Rate limiter по умолчанию выключен
+	// Rate limiter is disabled by default
 	if c.RateLimiterEnabled {
 		c.RateLimiterConfig = c.RateLimiterConfig.withDefaults()
 	}
 
-	// Метрики по умолчанию включены с OpenTelemetry бэкендом
+	// Metrics are enabled by default with OpenTelemetry backend
 	if c.MetricsEnabled == nil {
 		enabled := true
 		c.MetricsEnabled = &enabled
@@ -153,7 +153,7 @@ func (c Config) withDefaults() Config {
 	return c
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации retry.
+// withDefaults applies default values to the retry configuration.
 func (rc RetryConfig) withDefaults() RetryConfig {
 	if rc.MaxAttempts == 0 {
 		rc.MaxAttempts = defaultMaxAttempts
@@ -185,7 +185,7 @@ func (rc RetryConfig) withDefaults() RetryConfig {
 		rc.RetryStatusCodes = []int{429, 500, 502, 503, 504}
 	}
 
-	// RespectRetryAfter по умолчанию true, но проверим явное присвоение false
+	// RespectRetryAfter defaults to true, but check for explicit false assignment
 	if !rc.RespectRetryAfter {
 		rc.RespectRetryAfter = true
 	}
@@ -193,16 +193,16 @@ func (rc RetryConfig) withDefaults() RetryConfig {
 	return rc
 }
 
-// isRequestRetryable проверяет, можно ли повторять конкретный запрос с учетом идемпотентности.
+// isRequestRetryable checks if a specific request can be retried considering idempotency.
 func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	method := req.Method
 
-	// Проверяем основные идемпотентные методы
+	// Check main idempotent methods
 	if slices.Contains(rc.RetryMethods, method) {
 		return true
 	}
 
-	// Для POST и PATCH проверяем наличие Idempotency-Key
+	// For POST and PATCH, check for Idempotency-Key header
 	if method == "POST" || method == "PATCH" {
 		return req.Header.Get("Idempotency-Key") != ""
 	}
@@ -210,19 +210,19 @@ func (rc RetryConfig) isRequestRetryable(req *http.Request) bool {
 	return false
 }
 
-// isStatusRetryable проверяет, можно ли повторять запрос для данного HTTP статуса.
+// isStatusRetryable checks if a request can be retried for the given HTTP status.
 func (rc RetryConfig) isStatusRetryable(status int) bool {
 	return slices.Contains(rc.RetryStatusCodes, status)
 }
 
-// withDefaults применяет значения по умолчанию к конфигурации rate limiter.
+// withDefaults applies default values to the rate limiter configuration.
 func (rl RateLimiterConfig) withDefaults() RateLimiterConfig {
 	if rl.RequestsPerSecond == 0 {
-		rl.RequestsPerSecond = 10.0 // 10 запросов в секунду
+		rl.RequestsPerSecond = 10.0 // 10 requests per second
 	}
 
 	if rl.BurstCapacity == 0 {
-		rl.BurstCapacity = int(rl.RequestsPerSecond) // размер корзины равен rate
+		rl.BurstCapacity = int(rl.RequestsPerSecond) // bucket size equals rate
 	}
 
 	return rl

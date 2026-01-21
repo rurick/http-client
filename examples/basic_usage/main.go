@@ -39,9 +39,9 @@ func main() {
 	startMetricsServerBasic(client)
 }
 
-// Метрики теперь создаются автоматически в клиенте через prometheus/client_golang
+// Metrics are now created automatically in the client via prometheus/client_golang
 
-// performGetRequest выполняет простой GET запрос
+// performGetRequest executes a simple GET request
 func performGetRequest(ctx context.Context, client *httpclient.Client) error {
 	fmt.Println("Performing GET request...")
 
@@ -53,7 +53,7 @@ func performGetRequest(ctx context.Context, client *httpclient.Client) error {
 
 	fmt.Printf("GET Response Status: %s\n", resp.Status)
 
-	// Читаем первые 200 символов ответа
+	// Read first 200 characters of response
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 200))
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
@@ -63,7 +63,7 @@ func performGetRequest(ctx context.Context, client *httpclient.Client) error {
 	return nil
 }
 
-// performPostRequest выполняет простой POST запрос
+// performPostRequest executes a simple POST request
 func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 	fmt.Println("Performing POST request...")
 
@@ -76,7 +76,7 @@ func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 
 	fmt.Printf("POST Response Status: %s\n", resp.Status)
 
-	// Читаем первые 200 символов ответа
+	// Read first 200 characters of response
 	body, err := io.ReadAll(io.LimitReader(resp.Body, 200))
 	if err != nil {
 		return fmt.Errorf("failed to read response body: %w", err)
@@ -86,11 +86,11 @@ func performPostRequest(ctx context.Context, client *httpclient.Client) error {
 	return nil
 }
 
-// startMetricsServerBasic запускает HTTP сервер для метрик на порту 2112
+// startMetricsServerBasic starts HTTP server for metrics on port 2112
 func startMetricsServerBasic(client *httpclient.Client) {
 	fmt.Println("Starting metrics server on :2112/metrics")
 
-	// Метрики автоматически регистрируются в default registry
+	// Metrics are automatically registered in default registry
 	http.Handle("/metrics", promhttp.Handler())
 
 	server := &http.Server{

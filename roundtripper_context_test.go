@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestContextNotCanceledDuringBodyRead проверяет, что контекст не отменяется
-// до тех пор, пока тело ответа не будет закрыто
+// TestContextNotCanceledDuringBodyRead verifies that context is not canceled
+// until the response body is closed
 func TestContextNotCanceledDuringBodyRead(t *testing.T) {
 	t.Parallel()
 
@@ -24,9 +24,9 @@ func TestContextNotCanceledDuringBodyRead(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Создаём клиент с коротким PerTryTimeout
+	// Create a client with short PerTryTimeout
 	config := Config{
-		PerTryTimeout: 100 * time.Millisecond, // Короткий таймаут
+		PerTryTimeout: 100 * time.Millisecond, // Short timeout
 	}
 	client := New(config, "test-client")
 	defer client.Close()
@@ -37,20 +37,20 @@ func TestContextNotCanceledDuringBodyRead(t *testing.T) {
 	require.NotNil(t, resp)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Ждём дольше чем PerTryTimeout, но контекст не должен быть отменён
-	// потому что тело ответа ещё не закрыто
+	// Wait longer than PerTryTimeout, but context should not be canceled
+	// because response body is not yet closed
 	time.Sleep(150 * time.Millisecond)
 
-	// Должны успешно прочитать тело ответа
+	// Should successfully read response body
 	body, err := io.ReadAll(resp.Body)
 	require.NoError(t, err, "Context should not be canceled while reading response body")
 	assert.Equal(t, "response body content", string(body))
 
-	// Закрываем тело ответа - только сейчас контекст должен быть отменён
+	// Close response body - only now context should be canceled
 	_ = resp.Body.Close()
 }
 
-// TestContextCanceledOnBodyClose проверяет, что контекст отменяется при закрытии тела ответа
+// TestContextCanceledOnBodyClose verifies that context is canceled when response body is closed
 func TestContextCanceledOnBodyClose(t *testing.T) {
 	t.Parallel()
 
@@ -71,25 +71,25 @@ func TestContextCanceledOnBodyClose(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, resp)
 
-	// Проверяем, что это наш contextAwareBody
+	// Check that this is our contextAwareBody
 	if cab, ok := resp.Body.(*contextAwareBody); ok {
 		assert.NotNil(t, cab.cancel, "contextAwareBody should have cancel function")
 	}
 
-	// Закрываем тело ответа
+	// Close response body
 	err = resp.Body.Close()
 	require.NoError(t, err)
 
-	// Повторное закрытие не должно вызывать ошибку (sync.Once protection)
+	// Repeated closing should not cause error (sync.Once protection)
 	err = resp.Body.Close()
 	require.NoError(t, err)
 }
 
-// TestContextCanceledOnError проверяет, что контекст отменяется сразу при ошибке
+// TestContextCanceledOnError verifies that context is canceled immediately on error
 func TestContextCanceledOnError(t *testing.T) {
 	t.Parallel()
 
-	// Сервер, который не существует
+	// Server that does not exist
 	nonExistentURL := "http://localhost:99999/nonexistent"
 
 	config := Config{
@@ -101,14 +101,14 @@ func TestContextCanceledOnError(t *testing.T) {
 	ctx := context.Background()
 	resp, err := client.Get(ctx, nonExistentURL)
 
-	// Должна быть ошибка
+	// Should be an error
 	assert.Error(t, err)
-	// Ответ может быть nil или не nil в зависимости от типа ошибки
+	// Response may be nil or not nil depending on error type
 	if resp != nil {
 		_ = resp.Body.Close()
 	}
 
-	// Главное - что мы не зависаем и ошибка обрабатывается корректно
+	// Main thing - we don't hang and error is handled correctly
 	assert.True(t, strings.Contains(err.Error(), "connection refused") ||
 		strings.Contains(err.Error(), "no such host") ||
 		strings.Contains(err.Error(), "dial"),

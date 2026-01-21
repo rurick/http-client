@@ -7,19 +7,19 @@ import (
 	"strings"
 )
 
-// Константы для классификации причин retry.
+// Constants for classifying retry reasons.
 const (
 	RetryReasonTimeout = "timeout"
 	RetryReasonNetwork = "net"
 )
 
-// RetryableError интерфейс для ошибок, которые можно повторить.
+// RetryableError interface for errors that can be retried.
 type RetryableError interface {
 	error
 	Retryable() bool
 }
 
-// retryableError обёртка для ошибок, которые можно повторить.
+// retryableError wrapper for errors that can be retried.
 type retryableError struct {
 	err       error
 	retryable bool
@@ -37,7 +37,7 @@ func (re *retryableError) Unwrap() error {
 	return re.err
 }
 
-// NewRetryableError создаёт новую ошибку, которую можно повторить.
+// NewRetryableError creates a new error that can be retried.
 func NewRetryableError(err error) error {
 	return &retryableError{
 		err:       err,
@@ -45,7 +45,7 @@ func NewRetryableError(err error) error {
 	}
 }
 
-// NewNonRetryableError создаёт новую ошибку, которую нельзя повторить.
+// NewNonRetryableError creates a new error that cannot be retried.
 func NewNonRetryableError(err error) error {
 	return &retryableError{
 		err:       err,
@@ -53,7 +53,7 @@ func NewNonRetryableError(err error) error {
 	}
 }
 
-// IsRetryableError проверяет, можно ли повторить ошибку.
+// IsRetryableError checks if an error can be retried.
 func IsRetryableError(err error) bool {
 	if err == nil {
 		return false
@@ -64,32 +64,32 @@ func IsRetryableError(err error) bool {
 		return retryableErr.Retryable()
 	}
 
-	// Проверяем стандартные типы ошибок
+	// Check standard error types
 	return isNetworkRetryableError(err) || isTimeoutRetryableError(err)
 }
 
-// isNetworkRetryableError проверяет, является ли сетевая ошибка повторяемой.
+// isNetworkRetryableError checks if a network error is retryable.
 func isNetworkRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Проверяем net.Error (таймауты можно повторять)
+	// Check net.Error (timeouts can be retried)
 	var netErr net.Error
 	if errors.As(err, &netErr) {
-		// Проверяем таймауты как повторяемые ошибки
+		// Check timeouts as retryable errors
 		if netErr.Timeout() {
 			return true
 		}
 	}
 
-	// Проверяем url.Error
+	// Check url.Error
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		return isNetworkRetryableError(urlErr.Err)
 	}
 
-	// Проверяем специфические сетевые ошибки (заменя deprecated Temporary())
+	// Check specific network errors (replaces deprecated Temporary())
 	errStr := err.Error()
 	retryableErrors := []string{
 		"connection reset",
@@ -109,19 +109,19 @@ func isNetworkRetryableError(err error) bool {
 	return false
 }
 
-// isTimeoutRetryableError проверяет, является ли ошибка таймаута повторяемой.
+// isTimeoutRetryableError checks if a timeout error is retryable.
 func isTimeoutRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
 
-	// Проверяем net.Error на таймаут
+	// Check net.Error for timeout
 	var netErr net.Error
 	if errors.As(err, &netErr) && netErr.Timeout() {
 		return true
 	}
 
-	// Проверяем url.Error
+	// Check url.Error
 	var urlErr *url.Error
 	if errors.As(err, &urlErr) {
 		return isTimeoutRetryableError(urlErr.Err)
@@ -129,7 +129,7 @@ func isTimeoutRetryableError(err error) bool {
 
 	errStr := err.Error()
 
-	// Проверяем строки, связанные с таймаутом
+	// Check timeout-related strings
 	timeoutErrors := []string{
 		"timeout",
 		"deadline exceeded",
@@ -146,7 +146,7 @@ func isTimeoutRetryableError(err error) bool {
 	return false
 }
 
-// ClassifyError классифицирует ошибку для целей retry.
+// ClassifyError classifies an error for retry purposes.
 func ClassifyError(err error) string {
 	if err == nil {
 		return ""

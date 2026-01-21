@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// CalculateBackoffDelay вычисляет задержку для exponential backoff с jitter.
+// CalculateBackoffDelay calculates the delay for exponential backoff with jitter.
 func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitter float64) time.Duration {
 	if attempt <= 1 {
 		return 0
@@ -16,17 +16,17 @@ func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitte
 	backoffMultiplier := math.Pow(exponentialBase, float64(attempt-2)) //nolint:mnd // exponential backoff formula
 	delay := time.Duration(float64(baseDelay) * backoffMultiplier)
 
-	// Ограничиваем максимальной задержкой
+	// Limit by maximum delay
 	if delay > maxDelay {
 		delay = maxDelay
 	}
 
-	// Применяем jitter только если параметры валидны
+	// Apply jitter only if parameters are valid
 	if isValidJitter(jitter, delay) {
 		delay = applyJitterToDelay(delay, jitter, attempt)
 	}
 
-	// Убеждаемся, что задержка не отрицательная и не превышает максимум
+	// Ensure delay is not negative and doesn't exceed maximum
 	if delay < 0 {
 		delay = baseDelay
 	}
@@ -37,40 +37,40 @@ func CalculateBackoffDelay(attempt int, baseDelay, maxDelay time.Duration, jitte
 	return delay
 }
 
-// isValidJitter проверяет валидность параметров jitter.
+// isValidJitter checks jitter parameter validity.
 func isValidJitter(jitter float64, delay time.Duration) bool {
 	return jitter > 0 && jitter <= 1 && delay > 0
 }
 
-// applyJitterToDelay применяет jitter к задержке с детерминированным псевдослучайным значением.
+// applyJitterToDelay applies jitter to delay with deterministic pseudorandom value.
 func applyJitterToDelay(delay time.Duration, jitter float64, attempt int) time.Duration {
 	jitterRange := time.Duration(float64(delay) * jitter)
 	if jitterRange <= 0 {
 		return delay
 	}
 
-	// Вычисляем детерминированное псевдослучайное смещение
+	// Calculate deterministic pseudorandom offset
 	hash := calculateDeterministicHash(attempt)
 	timeComponent := getTimeComponent()
 	finalHash := hash + timeComponent
 
-	// Безопасное преобразование jitterRange в uint64
+	// Safe conversion of jitterRange to uint64
 	jitterRangeUint := safeTimeToUint64(jitterRange)
 	if jitterRangeUint == 0 {
 		return delay
 	}
 
-	// Безопасное преобразование результата модуля в time.Duration
+	// Safe conversion of modulo result to time.Duration
 	jitterOffset := calculateSafeJitterOffset(finalHash, jitterRangeUint)
 
-	// Применяем jitter симметрично (чётные/нечётные попытки)
+	// Apply jitter symmetrically (even/odd attempts)
 	if attempt%2 == 0 {
 		return delay + jitterOffset
 	}
 	return delay - jitterOffset
 }
 
-// calculateSafeJitterOffset вычисляет безопасное смещение jitter.
+// calculateSafeJitterOffset calculates safe jitter offset.
 func calculateSafeJitterOffset(finalHash, jitterRangeUint uint64) time.Duration {
 	if jitterRangeUint == 0 {
 		return 0
@@ -83,62 +83,62 @@ func calculateSafeJitterOffset(finalHash, jitterRangeUint uint64) time.Duration 
 		return time.Duration(modResult)
 	}
 
-	// Если результат слишком большой, попробуем поделить на два
+	// If result is too large, try dividing by two
 	halfResult := modResult / 2 //nolint:mnd // safe overflow handling
 	if halfResult <= maxSafeInt64 {
 		return time.Duration(halfResult)
 	}
 
-	// В крайнем случае возвращаем максимальное безопасное значение
+	// As last resort return maximum safe value
 	return time.Duration(maxSafeInt64)
 }
 
-// calculateDeterministicHash вычисляет детерминированный хэш на основе attempt.
+// calculateDeterministicHash calculates a deterministic hash based on attempt.
 func calculateDeterministicHash(attempt int) uint64 {
-	// Константа для хэш-функции (большое простое число)
+	// Constant for hash function (large prime number)
 	const hashMultiplier = uint64(2654435761)
 	if attempt >= 0 {
 		return uint64(attempt) * hashMultiplier
 	}
-	return hashMultiplier // fallback для отрицательных значений
+	return hashMultiplier // fallback for negative values
 }
 
-// getTimeComponent получает компонент времени для псевдослучайности.
+// getTimeComponent gets time component for pseudorandomness.
 func getTimeComponent() uint64 {
 	nanoTime := time.Now().UnixNano()
 	const timeShiftBits = 20
 
-	// Безопасное преобразование времени с проверкой диапазона
+	// Safe time conversion with range check
 	if nanoTime >= 0 {
 		shiftedTime := nanoTime >> timeShiftBits
-		if shiftedTime >= 0 && shiftedTime <= (1<<63-1) { // Дополнительная проверка после сдвига
+		if shiftedTime >= 0 && shiftedTime <= (1<<63-1) { // Additional check after shift
 			return uint64(shiftedTime)
 		}
 	}
-	return 0 // fallback для отрицательного времени или переполнения
+	return 0 // fallback for negative time or overflow
 }
 
-// safeTimeToUint64 безопасно преобразует time.Duration в uint64.
+// safeTimeToUint64 safely converts time.Duration to uint64.
 func safeTimeToUint64(d time.Duration) uint64 {
-	// Проверяем положительное значение и безопасный диапазон для преобразования
+	// Check positive value and safe range for conversion
 	const maxSafeDuration = time.Duration(1 << 62)
 	if d > 0 && d <= maxSafeDuration {
-		// Оставляем запас для предотвращения переполнения
-		// Преобразовываем через int64 для безопасности
+		// Leave margin to prevent overflow
+		// Convert via int64 for safety
 		dInt64 := int64(d)
-		if dInt64 >= 0 { // Дополнительная проверка положительности
+		if dInt64 >= 0 { // Additional positivity check
 			return uint64(dInt64)
 		}
 	}
-	return 1 // fallback для предотвращения деления на ноль
+	return 1 // fallback to prevent division by zero
 }
 
-// CalculateExponentialBackoff вычисляет exponential backoff без jitter.
+// CalculateExponentialBackoff calculates exponential backoff without jitter.
 func CalculateExponentialBackoff(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
 	return CalculateBackoffDelay(attempt, baseDelay, maxDelay, 0)
 }
 
-// CalculateLinearBackoff вычисляет линейную задержку.
+// CalculateLinearBackoff calculates linear delay.
 func CalculateLinearBackoff(attempt int, baseDelay, maxDelay time.Duration) time.Duration {
 	delay := time.Duration(attempt-1) * baseDelay
 	if delay > maxDelay {
@@ -147,7 +147,7 @@ func CalculateLinearBackoff(attempt int, baseDelay, maxDelay time.Duration) time
 	return delay
 }
 
-// CalculateConstantBackoff возвращает константную задержку.
+// CalculateConstantBackoff returns a constant delay.
 func CalculateConstantBackoff(baseDelay time.Duration) time.Duration {
 	return baseDelay
 }

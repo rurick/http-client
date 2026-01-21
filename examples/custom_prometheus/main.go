@@ -1,4 +1,4 @@
-// Пример работы с кастомным Prometheus регистратором
+// Example of working with custom Prometheus registry
 package main
 
 import (
@@ -14,12 +14,12 @@ import (
 )
 
 func main() {
-	// Создаём кастомный Prometheus registry
+	// Create custom Prometheus registry
 	customRegistry := prometheus.NewRegistry()
 
-	// Создаём клиент с кастомным регистратором
+	// Create client with custom registerer
 	client := httpclient.New(httpclient.Config{
-		MetricsBackend:       httpclient.MetricsBackendPrometheus, // явно указываем prometheus
+		MetricsBackend:       httpclient.MetricsBackendPrometheus, // explicitly specify prometheus
 		PrometheusRegisterer: customRegistry,
 		RetryEnabled:         true,
 		RetryConfig: httpclient.RetryConfig{
@@ -32,34 +32,34 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("Выполняем запросы с кастомным Prometheus регистратором...")
+	fmt.Println("Executing requests with custom Prometheus registry...")
 
-	// Успешные запросы
+	// Successful requests
 	for i := 0; i < 3; i++ {
 		resp, err := client.Get(ctx, "https://httpbin.org/get")
 		if err != nil {
-			log.Printf("Ошибка запроса %d: %v", i, err)
+			log.Printf("Request error %d: %v", i, err)
 			continue
 		}
-		fmt.Printf("Запрос %d: %s\n", i+1, resp.Status)
+		fmt.Printf("Request %d: %s\n", i+1, resp.Status)
 		_ = resp.Body.Close()
 
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	fmt.Println("Метрики сохранены в кастомном регистраторе!")
-	fmt.Println("Доступ к метрикам через кастомный handler на http://localhost:8081/custom-metrics")
+	fmt.Println("Metrics saved in custom registry!")
+	fmt.Println("Access metrics via custom handler at http://localhost:8081/custom-metrics")
 
-	// Создаём HTTP сервер с кастомным handler
+	// Create HTTP server with custom handler
 	http.Handle("/custom-metrics", promhttp.HandlerFor(customRegistry, promhttp.HandlerOpts{}))
-	fmt.Println("Сервер запущен на :8081")
-	fmt.Println("Откройте http://localhost:8081/custom-metrics для просмотра метрик")
+	fmt.Println("Server started on :8081")
+	fmt.Println("Open http://localhost:8081/custom-metrics to view metrics")
 	
-	// В этом примере метрики будут доступны только через кастомный registry,
-	// а не через стандартный DefaultRegistry
+	// In this example, metrics will only be available through the custom registry,
+	// not through the standard DefaultRegistry
 	
-	// Запускаем сервер (закомментировано, чтобы не блокировать выполнение)
+	// Start server (commented out to avoid blocking execution)
 	// log.Fatal(http.ListenAndServe(":8081", nil))
 	
-	fmt.Println("Пример завершен. В production используйте кастомный registry для изоляции метрик.")
+	fmt.Println("Example completed. In production, use a custom registry for metrics isolation.")
 }

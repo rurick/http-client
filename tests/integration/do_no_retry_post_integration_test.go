@@ -1,9 +1,9 @@
 //go:build integration
 
-// Пакет integration: интеграционные тесты высокого уровня для http-клиента.
-// Данный тест проверяет, что даже для идемпотентного POST (с Idempotency-Key)
-// при отключённых ретраях клиент не выполняет повторные попытки и возвращает
-// первый ответ сервера.
+// Package integration: high-level integration tests for the HTTP client.
+// This test verifies that even for an idempotent POST (with Idempotency-Key)
+// when retries are disabled, the client does not perform retry attempts and returns
+// the first server response.
 package integration
 
 import (
@@ -20,14 +20,14 @@ import (
 	httpclient "github.com/rurick/http-client"
 )
 
-// TestClientDo_NoRetryOnIdempotentPOST проверяет отсутствие ретраев на POST c Idempotency-Key,
-// когда RetryEnabled=false.
+// TestClientDo_NoRetryOnIdempotentPOST verifies absence of retries on POST with Idempotency-Key,
+// when RetryEnabled=false.
 func TestClientDo_NoRetryOnIdempotentPOST(t *testing.T) {
 	var calls int32
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if atomic.AddInt32(&calls, 1) == 1 {
-			w.WriteHeader(http.StatusServiceUnavailable) // 503 на первую попытку
-			_, _ = w.Write([]byte("fail-1"))             // ожидаемое тело ошибки
+			w.WriteHeader(http.StatusServiceUnavailable) // 503 on first attempt
+			_, _ = w.Write([]byte("fail-1"))             // expected error body
 			return
 		}
 		w.WriteHeader(http.StatusCreated)
@@ -54,12 +54,12 @@ func TestClientDo_NoRetryOnIdempotentPOST(t *testing.T) {
 	assert.NoError(t, err)
 	if assert.NotNil(t, resp) {
 		defer resp.Body.Close()
-		// Должны вернуть первый статус от сервера без ретраев
+		// Should return the first status from the server without retries
 		assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 		b, readErr := io.ReadAll(resp.Body)
 		assert.NoError(t, readErr)
-		assert.Equal(t, "fail-1", string(b), "тело ответа должно соответствовать ожидаемому")
+		assert.Equal(t, "fail-1", string(b), "response body should match expected")
 	}
 
-	assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "должна быть ровно одна попытка запроса")
+	assert.Equal(t, int32(1), atomic.LoadInt32(&calls), "there should be exactly one request attempt")
 }

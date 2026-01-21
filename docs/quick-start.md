@@ -1,18 +1,18 @@
-# Быстрый старт
+# Quick Start
 
-Этот раздел поможет вам быстро начать использовать HTTP клиент пакет.
+This section will help you quickly start using the HTTP client package.
 
-## Установка
+## Installation
 
-Пакет является частью внутренней экосистемы CityDrive и доступен через внутренний GitLab:
+The package is available via GitHub:
 
 ```bash
 go get github.com/rurick/http-client
 ```
 
-## Базовое использование
+## Basic Usage
 
-### Простой HTTP клиент
+### Simple HTTP Client
 
 ```go
 package main
@@ -24,18 +24,18 @@ import (
 )
 
 func main() {
-    // Создание клиента с настройками по умолчанию
+    // Create client with default settings
     client := httpclient.New(httpclient.Config{}, "my-service")
     defer client.Close()
     
-    // GET запрос
+    // GET request
     resp, err := client.Get(context.Background(), "https://api.example.com/users")
     if err != nil {
         log.Fatal(err)
     }
     defer resp.Body.Close()
     
-    // Чтение ответа
+    // Read response
     body, err := io.ReadAll(resp.Body)
     if err != nil {
         log.Fatal(err)
@@ -45,7 +45,7 @@ func main() {
 }
 ```
 
-### POST запрос с JSON
+### POST Request with JSON
 
 ```go
 func createUser(client *httpclient.Client) error {
@@ -73,7 +73,7 @@ func createUser(client *httpclient.Client) error {
 }
 ```
 
-### Использование с контекстом и таймаутом
+### Using Context and Timeout
 
 ```go
 func fetchWithTimeout() error {
@@ -82,7 +82,7 @@ func fetchWithTimeout() error {
     }, "api-client")
     defer client.Close()
     
-    // Создание контекста с таймаутом
+    // Create context with timeout
     ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
     defer cancel()
     
@@ -96,9 +96,9 @@ func fetchWithTimeout() error {
 }
 ```
 
-## Конфигурация с retry
+## Configuration with Retry
 
-### Базовые retry настройки
+### Basic Retry Settings
 
 ```go
 func createRetryClient() *httpclient.Client {
@@ -117,11 +117,11 @@ func createRetryClient() *httpclient.Client {
 }
 ```
 
-### Идемпотентные операции
+### Idempotent Operations
 
 ```go
 func updateResource(client *httpclient.Client, id string, data string) error {
-    // PUT запросы автоматически повторяются
+    // PUT requests are automatically retried
     resp, err := client.Put(
         context.Background(),
         fmt.Sprintf("https://api.example.com/resources/%s", id),
@@ -137,7 +137,7 @@ func updateResource(client *httpclient.Client, id string, data string) error {
 }
 ```
 
-### POST с Idempotency-Key
+### POST with Idempotency-Key
 
 ```go
 func createPayment(client *httpclient.Client, paymentData string) error {
@@ -151,7 +151,7 @@ func createPayment(client *httpclient.Client, paymentData string) error {
         return err
     }
     
-    // Добавление Idempotency-Key позволяет повторять POST запросы
+    // Adding Idempotency-Key allows retrying POST requests
     req.Header.Set("Idempotency-Key", "payment-12345")
     req.Header.Set("Content-Type", "application/json")
     
@@ -165,16 +165,18 @@ func createPayment(client *httpclient.Client, paymentData string) error {
 }
 ```
 
-## Circuit Breaker (коротко)
+## Circuit Breaker (Brief)
 
-### Включить по умолчанию
+### Enable by Default
+
 ```go
 client := httpclient.New(httpclient.Config{
-    CircuitBreakerEnable: true, // если экземпляр не задан, используется SimpleCircuitBreaker
+    CircuitBreakerEnable: true, // if instance not set, SimpleCircuitBreaker is used
 }, "my-service")
 ```
 
-### Кастомные пороги и обработчик
+### Custom Thresholds and Handler
+
 ```go
 cb := httpclient.NewCircuitBreakerWithConfig(httpclient.CircuitBreakerConfig{
     FailureThreshold: 2,
@@ -189,44 +191,44 @@ client := httpclient.New(httpclient.Config{
 }, "orders-client")
 ```
 
-## Обработка ошибок
+## Error Handling
 
-### Проверка типов ошибок
+### Error Type Checking
 
 ```go
 func handleErrors(client *httpclient.Client) {
     resp, err := client.Get(context.Background(), "https://api.example.com/data")
     if err != nil {
-        // Проверка на ошибки после исчерпания retry попыток
+        // Check for errors after retry attempts exhausted
         if retryableErr, ok := err.(*httpclient.RetryableError); ok {
-            log.Printf("Запрос не удался после %d попыток: %v", 
+            log.Printf("Request failed after %d attempts: %v", 
                 retryableErr.Attempts, retryableErr.Err)
             return
         }
         
-        // Ошибки, которые не подлежат повтору
+        // Errors that cannot be retried
         if nonRetryableErr, ok := err.(*httpclient.NonRetryableError); ok {
-            log.Printf("Неповторяемая ошибка: %v", nonRetryableErr.Err)
+            log.Printf("Non-retryable error: %v", nonRetryableErr.Err)
             return
         }
         
-        // Другие ошибки
-        log.Printf("Общая ошибка: %v", err)
+        // Other errors
+        log.Printf("General error: %v", err)
         return
     }
     defer resp.Body.Close()
     
-    // Проверка статус кода
+    // Check status code
     if resp.StatusCode >= 400 {
-        log.Printf("HTTP ошибка: %d", resp.StatusCode)
+        log.Printf("HTTP error: %d", resp.StatusCode)
         return
     }
 }
 ```
 
-## Monitoring и Observability
+## Monitoring and Observability
 
-### Включение tracing
+### Enable Tracing
 
 ```go
 func createTracedClient() *httpclient.Client {
@@ -239,20 +241,20 @@ func createTracedClient() *httpclient.Client {
 }
 ```
 
-### Метрики автоматически собираются
+### Metrics are Automatically Collected
 
-Пакет автоматически собирает метрики Prometheus:
-- Количество запросов
-- Латентность
-- Ошибки и retry попытки
-- Размеры запросов/ответов
-- Активные соединения
+The package automatically collects Prometheus metrics:
+- Request count
+- Latency
+- Errors and retry attempts
+- Request/response sizes
+- Active connections
 
-Никаких дополнительных настроек не требуется!
+No additional configuration required!
 
-## Распространенные паттерны
+## Common Patterns
 
-### Клиент для микросервиса
+### Microservice Client
 
 ```go
 type UserService struct {
@@ -295,7 +297,7 @@ func (s *UserService) Close() error {
 }
 ```
 
-### Внешний API клиент
+### External API Client
 
 ```go
 func createExternalAPIClient() *httpclient.Client {
@@ -310,7 +312,7 @@ func createExternalAPIClient() *httpclient.Client {
         },
         TracingEnabled: true,
         
-        // Пользовательский transport при необходимости
+        // Custom transport if needed
         Transport: &http.Transport{
             MaxIdleConns:       100,
             IdleConnTimeout:    90 * time.Second,
@@ -322,27 +324,27 @@ func createExternalAPIClient() *httpclient.Client {
 }
 ```
 
-## Следующие шаги
+## Next Steps
 
-После освоения базового использования изучите:
+After mastering basic usage, explore:
 
-- [Конфигурация](configuration.md) - Детальные настройки клиента
-- [Метрики](metrics.md) - Monitoring и alerting
-- [Тестирование](testing.md) - Mock utilities и тестовые сервера
-- [Лучшие практики](best-practices.md) - Рекомендации для продакшена
+- [Configuration](configuration.md) - Detailed client settings
+- [Metrics](metrics.md) - Monitoring and alerting
+- [Testing](testing.md) - Mock utilities and test servers
+- [Best Practices](best-practices.md) - Production recommendations
 
-## Частые вопросы
+## Frequently Asked Questions
 
-**Q: Как настроить custom headers для всех запросов?**
+**Q: How to configure custom headers for all requests?**
 
-A: Используйте пользовательский Transport или добавляйте headers к каждому запросу через http.Request.
+A: Use a custom Transport or add headers to each request via http.Request.
 
-**Q: Можно ли отключить retry для конкретного запроса?**
+**Q: Can I disable retry for a specific request?**
 
-A: Установите MaxAttempts = 1 в конфигурации или создайте отдельный клиент.
+A: Set MaxAttempts = 1 in the configuration or create a separate client.
 
-**Q: Как логировать все HTTP запросы?**
+**Q: How to log all HTTP requests?**
 
-A: Включите TracingEnabled: true и настройте OpenTelemetry logging экспорт.
+A: Enable TracingEnabled: true and configure OpenTelemetry logging export.
 
-Больше ответов в разделе [Troubleshooting](troubleshooting.md).
+More answers in the [Troubleshooting](troubleshooting.md) section.

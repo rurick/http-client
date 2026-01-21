@@ -1,4 +1,4 @@
-// Демонстрация нового API с функциональными опциями и методами WithHeaders
+// Demonstration of new API with functional options and WithHeaders methods
 package main
 
 import (
@@ -11,30 +11,30 @@ import (
 )
 
 func main() {
-	// Создаем клиент
+	// Create client
 	client := httpclient.New(httpclient.Config{}, "demo-service")
 	defer client.Close()
 
 	ctx := context.Background()
 
-	fmt.Println("=== Демонстрация нового API ===")
+	fmt.Println("=== New API Demonstration ===")
 
-	// 1. GET с функциональными опциями
-	fmt.Println("1. GET запрос с функциональными опциями:")
+	// 1. GET with functional options
+	fmt.Println("1. GET request with functional options:")
 	resp, err := client.Get(ctx, "https://httpbin.org/headers",
 		httpclient.WithHeader("Accept", "application/json"),
 		httpclient.WithUserAgent("MyApp/1.0"),
 		httpclient.WithHeader("X-Custom-Header", "custom-value"),
 	)
 	if err != nil {
-		log.Printf("Ошибка GET: %v", err)
+		log.Printf("GET error: %v", err)
 	} else {
-		fmt.Printf("GET успешно: %s\n", resp.Status)
+		fmt.Printf("GET successful: %s\n", resp.Status)
 		resp.Body.Close()
 	}
 
-	// 2. POST с функциональными опциями
-	fmt.Println("\n2. POST запрос с функциональными опциями:")
+	// 2. POST with functional options
+	fmt.Println("\n2. POST request with functional options:")
 	jsonData := []byte(`{"name": "example", "value": 123}`)
 	resp, err = client.Post(ctx, "https://httpbin.org/post", bytes.NewReader(jsonData),
 		httpclient.WithContentType("application/json"),
@@ -43,14 +43,14 @@ func main() {
 		httpclient.WithHeader("X-Request-ID", "req-789"),
 	)
 	if err != nil {
-		log.Printf("Ошибка POST: %v", err)
+		log.Printf("POST error: %v", err)
 	} else {
-		fmt.Printf("POST успешно: %s\n", resp.Status)
+		fmt.Printf("POST successful: %s\n", resp.Status)
 		resp.Body.Close()
 	}
 
-	// 3. GET с методом WithHeaders
-	fmt.Println("\n3. GET запрос через GetWithHeaders:")
+	// 3. GET with WithHeaders method
+	fmt.Println("\n3. GET request via GetWithHeaders:")
 	headers := map[string]string{
 		"Accept":      "application/json",
 		"User-Agent":  "MyApp/2.0",
@@ -59,14 +59,14 @@ func main() {
 	}
 	resp, err = client.GetWithHeaders(ctx, "https://httpbin.org/headers", headers)
 	if err != nil {
-		log.Printf("Ошибка GetWithHeaders: %v", err)
+		log.Printf("GetWithHeaders error: %v", err)
 	} else {
-		fmt.Printf("GetWithHeaders успешно: %s\n", resp.Status)
+		fmt.Printf("GetWithHeaders successful: %s\n", resp.Status)
 		resp.Body.Close()
 	}
 
-	// 4. POST с методом WithHeaders
-	fmt.Println("\n4. POST запрос через PostWithHeaders:")
+	// 4. POST with WithHeaders method
+	fmt.Println("\n4. POST request via PostWithHeaders:")
 	postHeaders := map[string]string{
 		"Content-Type":    "application/json",
 		"Authorization":   "Bearer another-token",
@@ -75,45 +75,45 @@ func main() {
 	}
 	resp, err = client.PostWithHeaders(ctx, "https://httpbin.org/post", bytes.NewReader(jsonData), postHeaders)
 	if err != nil {
-		log.Printf("Ошибка PostWithHeaders: %v", err)
+		log.Printf("PostWithHeaders error: %v", err)
 	} else {
-		fmt.Printf("PostWithHeaders успешно: %s\n", resp.Status)
+		fmt.Printf("PostWithHeaders successful: %s\n", resp.Status)
 		resp.Body.Close()
 	}
 
-	// 5. PATCH - новый метод
-	fmt.Println("\n5. PATCH запрос (новый метод):")
+	// 5. PATCH - new method
+	fmt.Println("\n5. PATCH request (new method):")
 	patchData := []byte(`{"status": "updated"}`)
 	resp, err = client.Patch(ctx, "https://httpbin.org/patch", bytes.NewReader(patchData),
 		httpclient.WithContentType("application/json"),
 		httpclient.WithIdempotencyKey("patch-operation-123"),
 	)
 	if err != nil {
-		log.Printf("Ошибка PATCH: %v", err)
+		log.Printf("PATCH error: %v", err)
 	} else {
-		fmt.Printf("PATCH успешно: %s\n", resp.Status)
+		fmt.Printf("PATCH successful: %s\n", resp.Status)
 		resp.Body.Close()
 	}
 
-	// 6. Комбинация опций
-	fmt.Println("\n6. PUT с комбинацией опций:")
-	// Сначала создаем map с основными заголовками
+	// 6. Combination of options
+	fmt.Println("\n6. PUT with combination of options:")
+	// First create map with main headers
 	baseHeaders := map[string]string{
 		"Content-Type": "application/json",
 		"X-API-Key":    "api-key-999",
 	}
-	// Затем добавляем дополнительные через опции
+	// Then add additional ones via options
 	resp, err = client.Put(ctx, "https://httpbin.org/put", bytes.NewReader(jsonData),
-		httpclient.WithHeaders(baseHeaders),         // map заголовков
-		httpclient.WithBearerToken("special-token"), // дополнительный заголовок
-		httpclient.WithHeader("X-Priority", "high"), // еще один заголовок
+		httpclient.WithHeaders(baseHeaders),         // header map
+		httpclient.WithBearerToken("special-token"), // additional header
+		httpclient.WithHeader("X-Priority", "high"), // another header
 	)
 	if err != nil {
-		log.Printf("Ошибка PUT: %v", err)
+		log.Printf("PUT error: %v", err)
 	} else {
-		fmt.Printf("PUT успешно: %s\n", resp.Status)
+		fmt.Printf("PUT successful: %s\n", resp.Status)
 		resp.Body.Close()
 	}
 
-	fmt.Println("\n=== Демонстрация завершена ===")
+	fmt.Println("\n=== Demonstration completed ===")
 }

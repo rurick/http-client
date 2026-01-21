@@ -1,4 +1,4 @@
-// Пример работы с метриками
+// Example of working with metrics
 package main
 
 import (
@@ -13,7 +13,7 @@ import (
 )
 
 func main() {
-	// Создаём клиент с стандартной конфигурацией
+	// Create client with standard configuration
 	client := httpclient.New(httpclient.Config{
 		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
@@ -26,43 +26,43 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("Выполняем несколько запросов для генерации метрик...")
+	fmt.Println("Executing several requests to generate metrics...")
 
-	// Успешные запросы
+	// Successful requests
 	for i := 0; i < 5; i++ {
 		resp, err := client.Get(ctx, "https://httpbin.org/get")
 		if err != nil {
-			log.Printf("Ошибка запроса %d: %v", i, err)
+			log.Printf("Request %d error: %v", i, err)
 			continue
 		}
-		fmt.Printf("Запрос %d: %s\n", i+1, resp.Status)
+		fmt.Printf("Request %d: %s\n", i+1, resp.Status)
 		_ = resp.Body.Close()
 
 		time.Sleep(100 * time.Millisecond)
 	}
 
-	// Запросы с ошибками для демонстрации retry метрик
-	fmt.Println("Тестируем запросы с ошибками...")
+	// Requests with errors to demonstrate retry metrics
+	fmt.Println("Testing requests with errors...")
 	for i := 0; i < 3; i++ {
 		resp, err := client.Get(ctx, "https://httpbin.org/status/503")
 		if err != nil {
-			log.Printf("Ошибка (ожидается): %v", err)
+			log.Printf("Error (expected): %v", err)
 		} else {
-			fmt.Printf("Неожиданный успех: %s\n", resp.Status)
+			fmt.Printf("Unexpected success: %s\n", resp.Status)
 			_ = resp.Body.Close()
 		}
 
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	fmt.Println("Метрики собраны. Проверьте /metrics эндпоинт для просмотра.")
-	fmt.Println("В production среде метрики будут доступны через Prometheus scraper.")
+	fmt.Println("Metrics collected. Check /metrics endpoint to view.")
+	fmt.Println("In production environment metrics will be available through Prometheus scraper.")
 
-	// Пример создания HTTP сервера с /metrics endpoint
-	// Метрики автоматически доступны через стандартный Prometheus handler
+	// Example of creating HTTP server with /metrics endpoint
+	// Metrics are automatically available through standard Prometheus handler
 	http.Handle("/metrics", promhttp.Handler())
-	fmt.Println("Метрики доступны на http://localhost:8080/metrics")
-	fmt.Println("Все метрики HTTP клиента автоматически регистрируются в DefaultRegistry")
-	// Откомментируйте для запуска:
+	fmt.Println("Metrics available at http://localhost:8080/metrics")
+	fmt.Println("All HTTP client metrics are automatically registered in DefaultRegistry")
+	// Uncomment to run:
 	// log.Fatal(http.ListenAndServe(":8080", nil))
 }

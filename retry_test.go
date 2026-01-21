@@ -20,7 +20,7 @@ func (e *mockNetError) Error() string {
 }
 
 func (e *mockNetError) Temporary() bool {
-	// Deprecated: не используется в новой логике retry
+	// Deprecated: not used in new retry logic
 	return false
 }
 
@@ -28,7 +28,7 @@ func (e *mockNetError) Timeout() bool {
 	return e.timeout
 }
 
-// Убеждаемся, что mockNetError реализует net.Error
+// Ensure that mockNetError implements net.Error
 var _ net.Error = (*mockNetError)(nil)
 
 func TestIsRetryableError(t *testing.T) {

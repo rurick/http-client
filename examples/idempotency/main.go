@@ -1,4 +1,4 @@
-// Пример использования идемпотентности
+// Example of using idempotency
 package main
 
 import (
@@ -25,56 +25,56 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("=== Тестируем идемпотентные запросы ===")
+	fmt.Println("=== Testing idempotent requests ===")
 
-	// GET запросы всегда идемпотентны и повторяются
-	fmt.Println("1. GET запрос (всегда идемпотентный):")
+	// GET requests are always idempotent and retried
+	fmt.Println("1. GET request (always idempotent):")
 	resp, err := client.Get(ctx, "https://httpbin.org/status/500,200")
 	if err != nil {
-		log.Printf("GET ошибка: %v", err)
+		log.Printf("GET error: %v", err)
 	} else {
-		fmt.Printf("GET успех: %s\n", resp.Status)
+		fmt.Printf("GET success: %s\n", resp.Status)
 		_ = resp.Body.Close()
 	}
 
 	time.Sleep(500 * time.Millisecond)
 
-	// PUT запросы всегда идемпотентны
-	fmt.Println("2. PUT запрос (всегда идемпотентный):")
+	// PUT requests are always idempotent
+	fmt.Println("2. PUT request (always idempotent):")
 	req, _ := http.NewRequestWithContext(ctx, "PUT", "https://httpbin.org/status/500,200",
 		strings.NewReader(`{"data": "test"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("PUT ошибка: %v", err)
+		log.Printf("PUT error: %v", err)
 	} else {
-		fmt.Printf("PUT успех: %s\n", resp.Status)
+		fmt.Printf("PUT success: %s\n", resp.Status)
 		_ = resp.Body.Close()
 	}
 
 	time.Sleep(500 * time.Millisecond)
 
-	fmt.Println("=== Тестируем POST запросы ===")
+	fmt.Println("=== Testing POST requests ===")
 
-	// POST без Idempotency-Key НЕ повторяется
-	fmt.Println("3. POST без Idempotency-Key (НЕ повторяется):")
+	// POST without Idempotency-Key is NOT retried
+	fmt.Println("3. POST without Idempotency-Key (NOT retried):")
 	req, _ = http.NewRequestWithContext(ctx, "POST", "https://httpbin.org/status/503",
 		strings.NewReader(`{"order": "12345"}`))
 	req.Header.Set("Content-Type", "application/json")
 
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("POST без idempotency ошибка (ожидается): %v", err)
+		log.Printf("POST without idempotency error (expected): %v", err)
 	} else {
-		fmt.Printf("POST без idempotency успех: %s\n", resp.Status)
+		fmt.Printf("POST without idempotency success: %s\n", resp.Status)
 		_ = resp.Body.Close()
 	}
 
 	time.Sleep(500 * time.Millisecond)
 
-	// POST с Idempotency-Key повторяется
-	fmt.Println("4. POST с Idempotency-Key (повторяется):")
+	// POST with Idempotency-Key is retried
+	fmt.Println("4. POST with Idempotency-Key (retried):")
 	req, _ = http.NewRequestWithContext(ctx, "POST", "https://httpbin.org/status/500,500,201",
 		strings.NewReader(`{"payment": "67890"}`))
 	req.Header.Set("Content-Type", "application/json")
@@ -82,14 +82,14 @@ func main() {
 
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("POST с idempotency ошибка: %v", err)
+		log.Printf("POST with idempotency error: %v", err)
 	} else {
-		fmt.Printf("POST с idempotency успех: %s\n", resp.Status)
+		fmt.Printf("POST with idempotency success: %s\n", resp.Status)
 		_ = resp.Body.Close()
 	}
 
-	fmt.Println("\n=== Резюме ===")
-	fmt.Println("✓ GET, PUT, DELETE - всегда повторяются при ошибках")
-	fmt.Println("✓ POST, PATCH - повторяются только с Idempotency-Key заголовком")
-	fmt.Println("✓ Idempotency-Key должен быть уникальным для каждой операции")
+	fmt.Println("\n=== Summary ===")
+	fmt.Println("✓ GET, PUT, DELETE - always retried on errors")
+	fmt.Println("✓ POST, PATCH - retried only with Idempotency-Key header")
+	fmt.Println("✓ Idempotency-Key must be unique for each operation")
 }

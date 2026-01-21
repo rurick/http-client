@@ -1,5 +1,5 @@
-// Package httpclient предоставляет HTTP клиент с автоматическим сбором метрик,
-// настраиваемыми механизмами retry и интеграцией с OpenTelemetry.
+// Package httpclient provides an HTTP client with automatic metrics collection,
+// configurable retry mechanisms, and OpenTelemetry integration.
 package httpclient
 
 import (
@@ -10,7 +10,7 @@ import (
 	"strings"
 )
 
-// Client представляет HTTP клиент с автоматическими метриками и retry механизмом.
+// Client represents an HTTP client with automatic metrics and retry mechanism.
 type Client struct {
 	httpClient *http.Client
 	config     Config
@@ -19,25 +19,25 @@ type Client struct {
 	name       string
 }
 
-// New создаёт новый HTTP клиент с указанной конфигурацией.
+// New creates a new HTTP client with the specified configuration.
 func New(config Config, meterName string) *Client {
-	// Применяем значения по умолчанию
+	// Apply default values
 	config = config.withDefaults()
 
-	// Устанавливаем имя метера по умолчанию если не задано
+	// Set default meter name if not provided
 	if meterName == "" {
 		meterName = "http-client"
 	}
 
-	// Инициализируем метрики
+	// Initialize metrics
 	var metrics *Metrics
 	if config.MetricsEnabled == nil || *config.MetricsEnabled {
-		// Выбираем провайдера метрик на основе конфигурации
+		// Select metrics provider based on configuration
 		var provider MetricsProvider
 		switch config.MetricsBackend {
 		case MetricsBackendOpenTelemetry:
 			provider = NewOpenTelemetryMetricsProvider(meterName, config.OTelMeterProvider)
-		default: // Prometheus по умолчанию
+		default: // Prometheus by default
 			provider = NewPrometheusMetricsProvider(meterName, config.PrometheusRegisterer)
 		}
 		metrics = NewMetricsWithProvider(meterName, provider)
@@ -45,23 +45,23 @@ func New(config Config, meterName string) *Client {
 		metrics = NewMetricsWithProvider(meterName, NewNoopMetricsProvider())
 	}
 
-	// Инициализируем трассировку (опционально)
+	// Initialize tracing (optional)
 	var tracer *Tracer
 	if config.TracingEnabled {
 		tracer = NewTracer()
 	}
 
-	// Строим цепочку RoundTripper снизу вверх
+	// Build RoundTripper chain from bottom to top
 	transport := config.Transport
 
-	// Добавляем Rate Limiter если включен
+	// Add Rate Limiter if enabled
 	if config.RateLimiterEnabled {
 		transport = NewRateLimiterRoundTripper(transport, config.RateLimiterConfig)
 	}
 
-	// Circuit Breaker интегрируется в RoundTripper.doTransport(), не нужно модифицировать transport
+	// Circuit Breaker is integrated in RoundTripper.doTransport(), no need to modify transport
 
-	// Создаём кастомный RoundTripper (retry + metrics + tracing)
+	// Create custom RoundTripper (retry + metrics + tracing)
 	rt := &RoundTripper{
 		base:    transport,
 		config:  config,
@@ -69,7 +69,7 @@ func New(config Config, meterName string) *Client {
 		tracer:  tracer,
 	}
 
-	// Создаём HTTP клиент
+	// Create HTTP client
 	httpClient := &http.Client{
 		Transport: rt,
 		Timeout:   config.Timeout,
@@ -84,7 +84,7 @@ func New(config Config, meterName string) *Client {
 	}
 }
 
-// Get выполняет GET запрос.
+// Get executes a GET request.
 func (c *Client) Get(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
 	if err != nil {
@@ -94,7 +94,7 @@ func (c *Client) Get(ctx context.Context, url string, opts ...RequestOption) (*h
 	return c.httpClient.Do(req)
 }
 
-// Post выполняет POST запрос.
+// Post executes a POST request.
 func (c *Client) Post(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, url, body)
 	if err != nil {
@@ -104,7 +104,7 @@ func (c *Client) Post(ctx context.Context, url string, body io.Reader, opts ...R
 	return c.httpClient.Do(req)
 }
 
-// Put выполняет PUT запрос.
+// Put executes a PUT request.
 func (c *Client) Put(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPut, url, body)
 	if err != nil {
@@ -114,7 +114,7 @@ func (c *Client) Put(ctx context.Context, url string, body io.Reader, opts ...Re
 	return c.httpClient.Do(req)
 }
 
-// Delete выполняет DELETE запрос.
+// Delete executes a DELETE request.
 func (c *Client) Delete(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)
 	if err != nil {
@@ -124,7 +124,7 @@ func (c *Client) Delete(ctx context.Context, url string, opts ...RequestOption) 
 	return c.httpClient.Do(req)
 }
 
-// Head выполняет HEAD запрос.
+// Head executes a HEAD request.
 func (c *Client) Head(ctx context.Context, url string, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
@@ -134,7 +134,7 @@ func (c *Client) Head(ctx context.Context, url string, opts ...RequestOption) (*
 	return c.httpClient.Do(req)
 }
 
-// Patch выполняет PATCH запрос.
+// Patch executes a PATCH request.
 func (c *Client) Patch(ctx context.Context, url string, body io.Reader, opts ...RequestOption) (*http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodPatch, url, body)
 	if err != nil {
@@ -144,22 +144,22 @@ func (c *Client) Patch(ctx context.Context, url string, body io.Reader, opts ...
 	return c.httpClient.Do(req)
 }
 
-// Do выполняет HTTP запрос.
+// Do executes an HTTP request.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
 	return c.httpClient.Do(req)
 }
 
-// PostForm выполняет POST запрос с form data.
+// PostForm executes a POST request with form data.
 func (c *Client) PostForm(ctx context.Context, url string, data url.Values) (*http.Response, error) {
 	return c.Post(ctx, url, strings.NewReader(data.Encode()), WithContentType("application/x-www-form-urlencoded"))
 }
 
-// GetConfig возвращает конфигурацию клиента.
+// GetConfig returns the client configuration.
 func (c *Client) GetConfig() Config {
 	return c.config
 }
 
-// Close освобождает ресурсы клиента.
+// Close releases client resources.
 func (c *Client) Close() error {
 	if c.metrics != nil {
 		return c.metrics.Close()
@@ -167,36 +167,36 @@ func (c *Client) Close() error {
 	return nil
 }
 
-// GetWithHeaders выполняет GET запрос с заголовками.
+// GetWithHeaders executes a GET request with headers.
 func (c *Client) GetWithHeaders(ctx context.Context, url string, headers map[string]string) (*http.Response, error) {
 	return c.Get(ctx, url, WithHeaders(headers))
 }
 
-// PostWithHeaders выполняет POST запрос с заголовками.
+// PostWithHeaders executes a POST request with headers.
 func (c *Client) PostWithHeaders(
 	ctx context.Context, url string, body io.Reader, headers map[string]string,
 ) (*http.Response, error) {
 	return c.Post(ctx, url, body, WithHeaders(headers))
 }
 
-// PutWithHeaders выполняет PUT запрос с заголовками.
+// PutWithHeaders executes a PUT request with headers.
 func (c *Client) PutWithHeaders(
 	ctx context.Context, url string, body io.Reader, headers map[string]string,
 ) (*http.Response, error) {
 	return c.Put(ctx, url, body, WithHeaders(headers))
 }
 
-// DeleteWithHeaders выполняет DELETE запрос с заголовками.
+// DeleteWithHeaders executes a DELETE request with headers.
 func (c *Client) DeleteWithHeaders(ctx context.Context, url string, headers map[string]string) (*http.Response, error) {
 	return c.Delete(ctx, url, WithHeaders(headers))
 }
 
-// HeadWithHeaders выполняет HEAD запрос с заголовками.
+// HeadWithHeaders executes a HEAD request with headers.
 func (c *Client) HeadWithHeaders(ctx context.Context, url string, headers map[string]string) (*http.Response, error) {
 	return c.Head(ctx, url, WithHeaders(headers))
 }
 
-// PatchWithHeaders выполняет PATCH запрос с заголовками.
+// PatchWithHeaders executes a PATCH request with headers.
 func (c *Client) PatchWithHeaders(
 	ctx context.Context, url string, body io.Reader, headers map[string]string,
 ) (*http.Response, error) {

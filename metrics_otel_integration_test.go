@@ -13,10 +13,10 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata"
 )
 
-// TestOpenTelemetryMetrics_IntegrationWithRealRequests делает реальные HTTP запросы
-// и проверяет что метрики OpenTelemetry корректно собираются
+// TestOpenTelemetryMetrics_IntegrationWithRealRequests makes real HTTP requests
+// and verifies that OpenTelemetry metrics are correctly collected
 func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
-	// Создаём тестовый HTTP сервер
+	// Create test HTTP server
 	requestCount := 0
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		requestCount++
@@ -28,11 +28,11 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("server error"))
 		case "/slow":
-			time.Sleep(50 * time.Millisecond) // Небольшая задержка для проверки duration метрик
+			time.Sleep(50 * time.Millisecond) // Small delay to check duration metrics
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("slow response"))
 		case "/large-response":
-			largeBody := strings.Repeat("A", 5000) // 5KB ответ
+			largeBody := strings.Repeat("A", 5000) // 5KB response
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte(largeBody))
 		default:
@@ -42,12 +42,12 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 	}))
 	defer testServer.Close()
 
-	// Создаём OpenTelemetry MeterProvider с ManualReader для сбора метрик
+	// Create OpenTelemetry MeterProvider with ManualReader for metrics collection
 	reader := metric.NewManualReader()
 	meterProvider := metric.NewMeterProvider(metric.WithReader(reader))
 	defer meterProvider.Shutdown(context.Background())
 
-	// Создаём HTTP клиент с OpenTelemetry метриками
+	// Create HTTP client with OpenTelemetry metrics
 	client := New(Config{
 		MetricsBackend:    MetricsBackendOpenTelemetry,
 		OTelMeterProvider: meterProvider,
@@ -65,16 +65,16 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Выполняем различные запросы для генерации метрик
+	// Execute various requests to generate metrics
 	
-	// 1. Успешный GET запрос
+	// 1. Successful GET request
 	resp1, err := client.Get(ctx, testServer.URL+"/success")
 	if err != nil {
 		t.Fatalf("GET /success failed: %v", err)
 	}
 	resp1.Body.Close()
 
-	// 2. POST запрос с телом
+	// 2. POST request with body
 	postBody := strings.NewReader("test post body")
 	resp2, err := client.Post(ctx, testServer.URL+"/success", postBody)
 	if err != nil {
@@ -82,7 +82,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 	}
 	resp2.Body.Close()
 
-	// 3. Запрос с ошибкой сервера (вызовет retry)
+	// 3. Request with server error (will trigger retry)
 	resp3, err := client.Get(ctx, testServer.URL+"/server-error")
 	if err != nil {
 		t.Logf("Expected server error: %v", err)
@@ -91,19 +91,19 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 		resp3.Body.Close()
 	}
 
-	// 4. Медленный запрос для проверки duration метрик
+	// 4. Slow request to check duration metrics
 	resp4, err := client.Get(ctx, testServer.URL+"/slow")
 	if err != nil {
 		t.Fatalf("GET /slow failed: %v", err)
 	}
 	resp4.Body.Close()
 
-	// 5. Запрос с большим ответом для проверки response size метрик
+	// 5. Request with large response to check response size metrics
 	resp5, err := client.Get(ctx, testServer.URL+"/large-response")
 	if err != nil {
 		t.Fatalf("GET /large-response failed: %v", err)
 	}
-	// Читаем body, чтобы убедиться что его размер корректно определяется
+	// Read body to ensure its size is correctly determined
 	large, err := io.ReadAll(resp5.Body)
 	if err != nil {
 		t.Logf("Failed to read large response body: %v", err)
@@ -112,17 +112,17 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 	}
 	resp5.Body.Close()
 
-	// Небольшая пауза для завершения всех операций
+	// Small pause to complete all operations
 	time.Sleep(100 * time.Millisecond)
 
-	// Собираем метрики
+	// Collect metrics
 	resourceMetrics := metricdata.ResourceMetrics{}
 	err = reader.Collect(ctx, &resourceMetrics)
 	if err != nil {
 		t.Fatalf("Failed to collect metrics: %v", err)
 	}
 
-	// Проверяем, что метрики собрались
+	// Check that metrics were collected
 	if len(resourceMetrics.ScopeMetrics) == 0 {
 		t.Fatal("No scope metrics collected")
 	}
@@ -132,13 +132,13 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 		t.Fatal("No metrics collected")
 	}
 
-	// Анализируем собранные метрики
+	// Analyze collected metrics
 	metricsMap := make(map[string]metricdata.Metrics)
 	for _, m := range scopeMetrics.Metrics {
 		metricsMap[m.Name] = m
 	}
 
-	// Проверяем что все ожидаемые метрики присутствуют
+	// Check that all expected metrics are present
 	expectedMetrics := []string{
 		MetricRequestsTotal,
 		MetricRequestDuration,
@@ -153,7 +153,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 		}
 	}
 
-	// Детальная проверка метрик requests_total
+	// Detailed check of requests_total metrics
 	if requestsMetric, exists := metricsMap[MetricRequestsTotal]; exists {
 		sum, ok := requestsMetric.Data.(metricdata.Sum[int64])
 		if !ok {
@@ -166,7 +166,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 			for _, dataPoint := range sum.DataPoints {
 				totalRequests += dataPoint.Value
 
-				// Анализируем атрибуты
+				// Analyze attributes
 				clientName := ""
 				method := ""
 				status := ""
@@ -185,12 +185,12 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 					}
 				}
 
-				// Проверяем что client_name корректный
+				// Check that client_name is correct
 				if clientName != "integration-test-client" {
 					t.Errorf("Unexpected client_name: %s", clientName)
 				}
 
-				// Считаем успешные и ошибочные запросы
+				// Count successful and error requests
 				if hasError {
 					errorRequests += dataPoint.Value
 				} else if strings.HasPrefix(status, "2") {
@@ -201,12 +201,12 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 					clientName, method, status, hasError, dataPoint.Value)
 			}
 
-			// Проверяем что метрики соответствуют ожиданиям
-			if totalRequests < 5 { // минимум 5 запросов сделали
+			// Check that metrics match expectations
+			if totalRequests < 5 { // minimum 5 requests made
 				t.Errorf("Expected at least 5 total requests, got %d", totalRequests)
 			}
 
-			if successfulRequests < 3 { // минимум 3 успешных запроса
+			if successfulRequests < 3 { // minimum 3 successful requests
 				t.Errorf("Expected at least 3 successful requests, got %d", successfulRequests)
 			}
 
@@ -215,20 +215,20 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 		}
 	}
 
-	// Детальная проверка метрик request_duration
+	// Detailed check of request_duration metrics
 	if durationMetric, exists := metricsMap[MetricRequestDuration]; exists {
 		histogram, ok := durationMetric.Data.(metricdata.Histogram[float64])
 		if !ok {
 			t.Errorf("request_duration metric is not a Histogram[float64], got %T", durationMetric.Data)
 		} else {
 			totalDurationCount := uint64(0)
-			minDuration := float64(1000) // начинаем с большого значения
+			minDuration := float64(1000) // start with large value
 			maxDuration := float64(0)
 
 			for _, dataPoint := range histogram.DataPoints {
 				totalDurationCount += dataPoint.Count
 				
-				// Проверяем что есть duration data
+				// Check that there is duration data
 				if dataPoint.Sum > maxDuration {
 					maxDuration = dataPoint.Sum
 				}
@@ -236,7 +236,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 					minDuration = dataPoint.Sum
 				}
 
-				// Логируем атрибуты для отладки
+				// Log attributes for debugging
 				for _, attr := range dataPoint.Attributes.ToSlice() {
 					if attr.Key == "method" || attr.Key == "status" {
 						t.Logf("Duration metric: %s=%v, count=%d, sum=%f",
@@ -249,8 +249,8 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 				t.Error("No duration measurements recorded")
 			}
 
-			// Проверяем что медленный запрос действительно занял больше времени
-			if maxDuration < 0.01 { // минимум 10ms должен был занять медленный запрос
+			// Check that slow request actually took more time
+			if maxDuration < 0.01 { // minimum 10ms should have been taken by slow request
 				t.Errorf("Expected max duration > 0.01s for slow request, got %f", maxDuration)
 			}
 
@@ -259,7 +259,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 		}
 	}
 
-	// Проверяем метрики размера ответа
+	// Check response size metrics
 	if responseSizeMetric, exists := metricsMap[MetricResponseSizeBytes]; exists {
 		histogram, ok := responseSizeMetric.Data.(metricdata.Histogram[float64])
 		if !ok {
@@ -268,16 +268,16 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 			foundLargeResponse := false
 			
 			for _, dataPoint := range histogram.DataPoints {
-				// Логируем все размеры ответов для диагностики
+				// Log all response sizes for diagnostics
 				t.Logf("Response size datapoint: count=%d, sum=%f", dataPoint.Count, dataPoint.Sum)
 				
-				// Ищем большой ответ (5KB) - проверяем и отдельные значения
-				if dataPoint.Sum > 4000 { // больше 4KB
+				// Look for large response (5KB) - check individual values
+				if dataPoint.Sum > 4000 { // more than 4KB
 					foundLargeResponse = true
 					t.Logf("Found large response: %f bytes", dataPoint.Sum)
 				}
 
-				// Логируем атрибуты для отладки
+				// Log attributes for debugging
 				for _, attr := range dataPoint.Attributes.ToSlice() {
 					if attr.Key == "status" {
 						t.Logf("Response size metric: status=%v, count=%d, sum=%f",
@@ -285,7 +285,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 					}
 				}
 				
-				// Проверяем buckets для histogram
+				// Check buckets for histogram
 				for i, bucketCount := range dataPoint.BucketCounts {
 					if bucketCount > 0 {
 						t.Logf("Bucket %d: count=%d", i, bucketCount)
@@ -293,7 +293,7 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 				}
 			}
 
-			// Делаем проверку менее строгой - проверяем что есть хоть какие-то response size метрики
+			// Make check less strict - verify that there are at least some response size metrics
 			if len(histogram.DataPoints) == 0 {
 				t.Error("No response size metrics found")
 			} else {
@@ -305,8 +305,8 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 		}
 	}
 
-	// Проверяем inflight requests метрики
-	// В OpenTelemetry UpDownCounter может собираться как Sum, а не Gauge
+	// Check inflight requests metrics
+	// In OpenTelemetry UpDownCounter may be collected as Sum, not Gauge
 	if inflightMetric, exists := metricsMap[MetricInflightRequests]; exists {
 		switch data := inflightMetric.Data.(type) {
 		case metricdata.Gauge[int64]:
@@ -314,11 +314,11 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 				t.Logf("Inflight requests (gauge): %d", dataPoint.Value)
 			}
 		case metricdata.Sum[int64]:
-			// UpDownCounter может собираться как Sum в ManualReader
+			// UpDownCounter may be collected as Sum in ManualReader
 			for _, dataPoint := range data.DataPoints {
 				t.Logf("Inflight requests (sum): %d", dataPoint.Value)
-				// После завершения всех запросов значение должно быть близким к 0
-				// (но может быть не точно 0 из-за асинхронности)
+				// After all requests complete, value should be close to 0
+				// (but may not be exactly 0 due to asynchrony)
 			}
 		default:
 			t.Logf("Inflight requests metric type: %T", inflightMetric.Data)
@@ -330,28 +330,28 @@ func TestOpenTelemetryMetrics_IntegrationWithRealRequests(t *testing.T) {
 	t.Logf("Integration test completed successfully. Server handled %d requests total.", requestCount)
 }
 
-// TestOpenTelemetryMetrics_RetryBehavior специально тестирует retry метрики
+// TestOpenTelemetryMetrics_RetryBehavior specifically tests retry metrics
 func TestOpenTelemetryMetrics_RetryBehavior(t *testing.T) {
-	// Создаём тестовый сервер, который сначала возвращает ошибки, потом успех
+	// Create test server that first returns errors, then success
 	attempts := 0
 	testServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		attempts++
-		if attempts <= 2 { // первые 2 попытки - ошибка
+		if attempts <= 2 { // first 2 attempts - error
 			w.WriteHeader(http.StatusInternalServerError)
 			w.Write([]byte("server error"))
-		} else { // 3-я попытка - успех
+		} else { // 3rd attempt - success
 			w.WriteHeader(http.StatusOK)
 			w.Write([]byte("success after retries"))
 		}
 	}))
 	defer testServer.Close()
 
-	// Создаём OpenTelemetry setup
+	// Create OpenTelemetry setup
 	reader := metric.NewManualReader()
 	meterProvider := metric.NewMeterProvider(metric.WithReader(reader))
 	defer meterProvider.Shutdown(context.Background())
 
-	// Клиент с retry
+	// Client with retry
 	client := New(Config{
 		MetricsBackend:    MetricsBackendOpenTelemetry,
 		OTelMeterProvider: meterProvider,
@@ -368,20 +368,20 @@ func TestOpenTelemetryMetrics_RetryBehavior(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Выполняем запрос, который вызовет retry
+	// Execute request that will trigger retry
 	resp, err := client.Get(ctx, testServer.URL+"/test")
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
 	}
 	defer resp.Body.Close()
 
-	// Проверяем что получили успех после retry
+	// Check that we got success after retry
 	if resp.StatusCode != http.StatusOK {
 		t.Errorf("Expected status 200, got %d", resp.StatusCode)
 	}
 
-	// Собираем метрики
-	time.Sleep(50 * time.Millisecond) // ждём завершения всех операций
+	// Collect metrics
+	time.Sleep(50 * time.Millisecond) // wait for all operations to complete
 
 	resourceMetrics := metricdata.ResourceMetrics{}
 	err = reader.Collect(ctx, &resourceMetrics)
@@ -389,13 +389,13 @@ func TestOpenTelemetryMetrics_RetryBehavior(t *testing.T) {
 		t.Fatalf("Failed to collect metrics: %v", err)
 	}
 
-	// Анализируем retry метрики
+	// Analyze retry metrics
 	metricsMap := make(map[string]metricdata.Metrics)
 	for _, m := range resourceMetrics.ScopeMetrics[0].Metrics {
 		metricsMap[m.Name] = m
 	}
 
-	// Проверяем retry метрики
+	// Check retry metrics
 	if retriesMetric, exists := metricsMap[MetricRetriesTotal]; exists {
 		sum, ok := retriesMetric.Data.(metricdata.Sum[int64])
 		if !ok {
@@ -406,7 +406,7 @@ func TestOpenTelemetryMetrics_RetryBehavior(t *testing.T) {
 				totalRetries += dataPoint.Value
 			}
 
-			// Должно быть минимум 2 retry (попытки 2 и 3)
+			// Should be at least 2 retries (attempts 2 and 3)
 			if totalRetries < 2 {
 				t.Errorf("Expected at least 2 retries, got %d", totalRetries)
 			}
@@ -417,7 +417,7 @@ func TestOpenTelemetryMetrics_RetryBehavior(t *testing.T) {
 		t.Error("retries_total metric not found")
 	}
 
-	// Проверяем что requests_total показывает все попытки
+	// Check that requests_total shows all attempts
 	if requestsMetric, exists := metricsMap[MetricRequestsTotal]; exists {
 		sum, ok := requestsMetric.Data.(metricdata.Sum[int64])
 		if !ok {
@@ -428,7 +428,7 @@ func TestOpenTelemetryMetrics_RetryBehavior(t *testing.T) {
 				totalRequests += dataPoint.Value
 			}
 
-			// Должно быть минимум 3 запроса (первоначальный + 2 retry)
+			// Should be at least 3 requests (initial + 2 retries)
 			if totalRequests < 3 {
 				t.Errorf("Expected at least 3 total requests, got %d", totalRequests)
 			}

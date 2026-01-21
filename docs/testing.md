@@ -1,13 +1,13 @@
-# Тестирование
+# Testing
 
-HTTP клиент пакет предоставляет мощные утилиты для тестирования, включая mock серверы, mock транспорты и helpers для различных сценариев тестирования.
+The HTTP client package provides powerful testing utilities, including mock servers, mock transports, and helpers for various testing scenarios.
 
-## Тестовые утилиты
+## Test Utilities
 
-### TestServer - Mock HTTP сервер
+### TestServer - Mock HTTP Server
 ```go
 func TestBasicHTTPRequests(t *testing.T) {
-    // Создание тестового сервера с предопределенными ответами
+    // Create test server with predefined responses
     server := httpclient.NewTestServer(
         httpclient.TestResponse{
             StatusCode: 200,
@@ -25,17 +25,17 @@ func TestBasicHTTPRequests(t *testing.T) {
     assert.Equal(t, 200, resp.StatusCode)
     _ = resp.Body.Close()
     
-    // Проверка количества запросов
+    // Check request count
     assert.Equal(t, 1, server.GetRequestCount())
 }
 ```
 
-### MockRoundTripper - Unit тесты
+### MockRoundTripper - Unit Tests
 ```go
 func TestClientWithMockTransport(t *testing.T) {
     mock := httpclient.NewMockRoundTripper()
     
-    // Предопределенные ответы
+    // Predefined responses
     mock.AddResponse(&http.Response{
         StatusCode: 200,
         Body:       io.NopCloser(strings.NewReader(`{"data": "test"}`)),
@@ -51,7 +51,7 @@ func TestClientWithMockTransport(t *testing.T) {
     assert.Equal(t, 200, resp.StatusCode)
     _ = resp.Body.Close()
     
-    // Проверка что запрос был сделан
+    // Check that request was made
     assert.Equal(t, 1, mock.GetCallCount())
     
     requests := mock.GetRequests()
@@ -60,14 +60,14 @@ func TestClientWithMockTransport(t *testing.T) {
 }
 ```
 
-## Тестирование retry логики
+## Testing Retry Logic
 
-### Тест успешного retry
+### Successful Retry Test
 ```go
 func TestRetrySuccess(t *testing.T) {
     server := httpclient.NewTestServer()
     
-    // Первые два запроса неудачные, третий успешный
+    // First two requests fail, third succeeds
     server.AddResponse(httpclient.TestResponse{StatusCode: 500})
     server.AddResponse(httpclient.TestResponse{StatusCode: 502})
     server.AddResponse(httpclient.TestResponse{
@@ -95,20 +95,20 @@ func TestRetrySuccess(t *testing.T) {
     assert.Equal(t, 200, resp.StatusCode)
     _ = resp.Body.Close()
     
-    // Проверяем что было 3 попытки
+    // Check that there were 3 attempts
     assert.Equal(t, 3, server.GetRequestCount())
     
-    // Проверяем что были задержки между попытками
+    // Check that there were delays between attempts
     assert.Greater(t, duration, 20*time.Millisecond)
 }
 ```
 
-### Тест исчерпания retry попыток
+### Retry Exhaustion Test
 ```go
 func TestRetryExhaustion(t *testing.T) {
     server := httpclient.NewTestServer()
     
-    // Все запросы неудачные
+    // All requests fail
     for i := 0; i < 5; i++ {
         server.AddResponse(httpclient.TestResponse{StatusCode: 500})
     }
@@ -126,7 +126,7 @@ func TestRetryExhaustion(t *testing.T) {
     
     resp, err := client.Get(context.Background(), server.URL)
     
-    // Должна быть ошибка RetryableError
+    // Should be RetryableError
     assert.Error(t, err)
     assert.Nil(t, resp)
     
@@ -134,17 +134,17 @@ func TestRetryExhaustion(t *testing.T) {
     assert.True(t, errors.As(err, &retryableErr))
     assert.Equal(t, 3, retryableErr.Attempts)
     
-    // Проверяем количество попыток
+    // Check attempt count
     assert.Equal(t, 3, server.GetRequestCount())
 }
 ```
 
-### Тест идемпотентности
+### Idempotency Test
 ```go
 func TestIdempotentRetry(t *testing.T) {
     mock := httpclient.NewMockRoundTripper()
     
-    // Первый запрос неудачный, второй успешный
+    // First request fails, second succeeds
     mock.AddError(errors.New("network error"))
     mock.AddResponse(&http.Response{
         StatusCode: 201,
@@ -162,7 +162,7 @@ func TestIdempotentRetry(t *testing.T) {
     client := httpclient.New(config, "idempotent-test")
     defer client.Close()
     
-    // POST с Idempotency-Key
+    // POST with Idempotency-Key
     req, _ := http.NewRequestWithContext(
         context.Background(),
         "POST",
@@ -177,10 +177,10 @@ func TestIdempotentRetry(t *testing.T) {
     assert.Equal(t, 201, resp.StatusCode)
     _ = resp.Body.Close()
     
-    // Проверяем что было 2 попытки
+    // Check that there were 2 attempts
     assert.Equal(t, 2, mock.GetCallCount())
     
-    // Проверяем что Idempotency-Key передавался в обеих попытках
+    // Check that Idempotency-Key was passed in both attempts
     requests := mock.GetRequests()
     for _, req := range requests {
         assert.Equal(t, "payment-12345", req.Header.Get("Idempotency-Key"))
@@ -188,15 +188,15 @@ func TestIdempotentRetry(t *testing.T) {
 }
 ```
 
-## Тестирование метрик
+## Testing Metrics
 
-### Проверка сбора метрик
+### Metrics Collection Check
 ```go
 func TestMetricsCollection(t *testing.T) {
-    // Настройка тестового Prometheus registry
+    // Setup test Prometheus registry
     registry := prometheus.NewRegistry()
     
-    // Создание клиента (метрики будут собираться автоматически)
+    // Create client (metrics will be collected automatically)
     client := httpclient.New(httpclient.Config{}, "metrics-test")
     defer client.Close()
     
@@ -205,20 +205,20 @@ func TestMetricsCollection(t *testing.T) {
     )
     defer server.Close()
     
-    // Выполнение запросов
+    // Execute requests
     for i := 0; i < 5; i++ {
         resp, err := client.Get(context.Background(), server.URL)
         assert.NoError(t, err)
         _ = resp.Body.Close()
     }
     
-    // Проверка что метрики собраны
-    // (реальная проверка зависит от настройки OpenTelemetry в тестах)
+    // Check that metrics were collected
+    // (actual check depends on OpenTelemetry setup in tests)
     assert.Equal(t, 5, server.GetRequestCount())
 }
 ```
 
-### Helper для проверки метрик
+### Helper for Metrics Checking
 ```go
 type MetricsCollector struct {
     metrics map[string]interface{}
@@ -246,7 +246,7 @@ func (mc *MetricsCollector) Get(name string) interface{} {
 func TestMetricsWithCollector(t *testing.T) {
     collector := NewMetricsCollector()
     
-    // Имитация сбора метрик
+    // Simulate metrics collection
     collector.Record("requests_total", 10)
     collector.Record("error_rate", 0.05)
     
@@ -255,22 +255,22 @@ func TestMetricsWithCollector(t *testing.T) {
 }
 ```
 
-## Тестирование таймаутов
+## Testing Timeouts
 
-### Тест общего таймаута
+### Overall Timeout Test
 ```go
 func TestOverallTimeout(t *testing.T) {
     server := httpclient.NewTestServer(
         httpclient.TestResponse{
             StatusCode: 200,
             Body:       "OK",
-            Delay:      2 * time.Second, // Сервер отвечает медленно
+            Delay:      2 * time.Second, // Server responds slowly
         },
     )
     defer server.Close()
     
     config := httpclient.Config{
-        Timeout: 1 * time.Second, // Таймаут меньше задержки сервера
+        Timeout: 1 * time.Second, // Timeout less than server delay
     }
     
     client := httpclient.New(config, "timeout-test")
@@ -282,19 +282,19 @@ func TestOverallTimeout(t *testing.T) {
     
     assert.Error(t, err)
     assert.Nil(t, resp)
-    assert.Less(t, duration, 1500*time.Millisecond) // Завершилось по таймауту
+    assert.Less(t, duration, 1500*time.Millisecond) // Completed due to timeout
     
-    // Проверяем что это именно timeout ошибка
+    // Check that this is a timeout error
     assert.Contains(t, err.Error(), "timeout")
 }
 ```
 
-### Тест таймаута попытки
+### Per-Try Timeout Test
 ```go
 func TestPerTryTimeout(t *testing.T) {
     server := httpclient.NewTestServer()
     
-    // Медленные ответы для всех попыток
+    // Slow responses for all attempts
     for i := 0; i < 3; i++ {
         server.AddResponse(httpclient.TestResponse{
             StatusCode: 200,

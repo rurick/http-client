@@ -6,25 +6,25 @@ import (
 	"time"
 )
 
-// RateLimiter определяет интерфейс для ограничения частоты запросов.
+// RateLimiter defines the interface for rate limiting requests.
 type RateLimiter interface {
-	// Allow проверяет, можно ли выполнить запрос немедленно
+	// Allow checks if a request can be executed immediately
 	Allow() bool
 
-	// Wait блокирует выполнение до получения разрешения на запрос
+	// Wait blocks execution until permission for a request is received
 	Wait(ctx context.Context) error
 }
 
-// TokenBucketLimiter реализует алгоритм token bucket для ограничения частоты запросов.
+// TokenBucketLimiter implements the token bucket algorithm for rate limiting requests.
 type TokenBucketLimiter struct {
-	rate     float64    // токенов в секунду
-	capacity int        // максимальная емкость корзины
-	tokens   float64    // текущее количество токенов
-	lastTime time.Time  // время последнего обновления
-	mu       sync.Mutex // защита от конкурентного доступа
+	rate     float64    // tokens per second
+	capacity int        // maximum bucket capacity
+	tokens   float64    // current number of tokens
+	lastTime time.Time  // last update time
+	mu       sync.Mutex // concurrent access protection
 }
 
-// NewTokenBucketLimiter создает новый rate limiter с указанными параметрами.
+// NewTokenBucketLimiter creates a new rate limiter with the specified parameters.
 func NewTokenBucketLimiter(rate float64, capacity int) *TokenBucketLimiter {
 	if rate <= 0 {
 		panic("rate must be positive")
@@ -36,12 +36,12 @@ func NewTokenBucketLimiter(rate float64, capacity int) *TokenBucketLimiter {
 	return &TokenBucketLimiter{
 		rate:     rate,
 		capacity: capacity,
-		tokens:   float64(capacity), // начинаем с полной корзины
+		tokens:   float64(capacity), // start with full bucket
 		lastTime: time.Now(),
 	}
 }
 
-// Allow проверяет доступность токена без блокировки.
+// Allow checks token availability without blocking.
 func (tb *TokenBucketLimiter) Allow() bool {
 	tb.mu.Lock()
 	defer tb.mu.Unlock()
@@ -56,10 +56,10 @@ func (tb *TokenBucketLimiter) Allow() bool {
 	return false
 }
 
-// Wait ожидает доступности токена с учетом контекста.
+// Wait waits for token availability with context consideration.
 func (tb *TokenBucketLimiter) Wait(ctx context.Context) error {
 	for {
-		// Проверяем доступность токена
+		// Check token availability
 		tb.mu.Lock()
 		tb.refill()
 		if tb.tokens >= 1.0 {
@@ -68,17 +68,17 @@ func (tb *TokenBucketLimiter) Wait(ctx context.Context) error {
 			return nil
 		}
 
-		// Вычисляем время ожидания для получения следующего токена
+		// Calculate wait time to get next token
 		deficit := 1.0 - tb.tokens
 		waitTime := time.Duration(deficit/tb.rate) * time.Second
 		tb.mu.Unlock()
 
-		// Ждем либо до появления токена, либо до отмены контекста
+		// Wait either until token appears or context is cancelled
 		timer := time.NewTimer(waitTime)
 		select {
 		case <-timer.C:
 			timer.Stop()
-			// Повторяем проверку (возвращаемся к началу цикла)
+			// Repeat check (return to start of loop)
 			continue
 		case <-ctx.Done():
 			timer.Stop()
@@ -87,19 +87,19 @@ func (tb *TokenBucketLimiter) Wait(ctx context.Context) error {
 	}
 }
 
-// refill пополняет корзину токенами на основе прошедшего времени.
-// должен вызываться под блокировкой мьютекса.
+// refill refills the bucket with tokens based on elapsed time.
+// must be called under mutex lock.
 func (tb *TokenBucketLimiter) refill() {
 	now := time.Now()
 	elapsed := now.Sub(tb.lastTime).Seconds()
 	tb.lastTime = now
 
-	// Добавляем токены пропорционально прошедшему времени
+	// Add tokens proportional to elapsed time
 	tokensToAdd := elapsed * tb.rate
 	tb.tokens = minFloat64(tb.tokens+tokensToAdd, float64(tb.capacity))
 }
 
-// minFloat64 возвращает минимальное из двух значений float64.
+// minFloat64 returns the minimum of two float64 values.
 func minFloat64(a, b float64) float64 {
 	if a < b {
 		return a
