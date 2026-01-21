@@ -1,53 +1,53 @@
-# Документация HTTP Client Package
+# HTTP Client Package Documentation
 
-Добро пожаловать в документацию HTTP клиент пакета - комплексного решения для HTTP запросов с автоматическими retry механизмами, встроенными Prometheus метриками и политиками идемпотентности.
+Welcome to the HTTP client package documentation - a comprehensive solution for HTTP requests with automatic retry mechanisms, built-in Prometheus metrics, and idempotency policies.
 
-## Содержание
+## Contents
 
-- [Быстрый старт](quick-start.md) - Примеры использования и первые шаги
-- [Конфигурация](configuration.md) - Полная документация по настройке
-- [Circuit Breaker](circuit-breaker.md) - Автоматический выключатель и защита от каскадных сбоев
-- [Rate Limiter](rate-limiter.md) - Управление частотой запросов с Token Bucket алгоритмом
-- [Метрики](metrics.md) - Описание метрик и PromQL запросы
-- [OpenTelemetry метрики](opentelemetry-metrics.md) - Интеграция с OpenTelemetry
-- [Тестирование](testing.md) - Утилиты и примеры тестов
-- [API справочник](api-reference.md) - Полное описание всех функций
-- [Лучшие практики](best-practices.md) - Рекомендации по использованию
-- [Troubleshooting](troubleshooting.md) - Решение частых проблем
-- [Примеры](examples.md) - Готовые code snippets
+- [Quick Start](quick-start.md) - Usage examples and first steps
+- [Configuration](configuration.md) - Complete configuration documentation
+- [Circuit Breaker](circuit-breaker.md) - Automatic circuit breaker and protection against cascading failures
+- [Rate Limiter](rate-limiter.md) - Request rate management with Token Bucket algorithm
+- [Metrics](metrics.md) - Metrics description and PromQL queries
+- [OpenTelemetry Metrics](opentelemetry-metrics.md) - OpenTelemetry integration
+- [Testing](testing.md) - Utilities and test examples
+- [API Reference](api-reference.md) - Complete description of all functions
+- [Best Practices](best-practices.md) - Usage recommendations
+- [Troubleshooting](troubleshooting.md) - Common problem solving
+- [Examples](examples.md) - Ready code snippets
 
-## Основные особенности
+## Key Features
 
-### 🔄 Умные Retry Механизмы
-- Экспоненциальный backoff с jitter
-- Автоматическое определение идемпотентных методов
-- Поддержка Idempotency-Key для POST/PATCH запросов
-- Настраиваемые таймауты и количество попыток
+### 🔄 Smart Retry Mechanisms
+- Exponential backoff with jitter
+- Automatic detection of idempotent methods
+- Idempotency-Key support for POST/PATCH requests
+- Configurable timeouts and number of attempts
 
-### 📊 Автоматические Метрики
-- Поддержка Prometheus (prometheus/client_golang v1.22.0) и OpenTelemetry
-- 6 типов метрик: запросы, длительности, retry, размеры, inflight
-- Настраиваемые провайдеры метрик (Prometheus/OpenTelemetry/Noop)
-- Готовые PromQL запросы и алерты
+### 📊 Automatic Metrics
+- Support for Prometheus (prometheus/client_golang v1.22.0) and OpenTelemetry
+- 6 metric types: requests, durations, retries, sizes, inflight
+- Configurable metrics providers (Prometheus/OpenTelemetry/Noop)
+- Ready PromQL queries and alerts
 
 ### 🔍 Observability
 ### 🛡️ Circuit Breaker
-- Встроенная поддержка автоматического выключателя
-- Настраиваемые пороги ошибок и таймаут восстановления
-- Возвращает последнюю неуспешную реакцию при открытом состоянии
-- Открытый Circuit Breaker не инициирует retry
-- Полная интеграция с OpenTelemetry tracing
-- Автоматическое создание спанов для каждого запроса
-- Передача контекста между сервисами
-- Детальное логирование ошибок
+- Built-in support for automatic circuit breaker
+- Configurable error thresholds and recovery timeout
+- Returns last unsuccessful response when open
+- Open Circuit Breaker does not initiate retry
+- Full integration with OpenTelemetry tracing
+- Automatic span creation for each request
+- Context propagation between services
+- Detailed error logging
 
 ### 🧪 Testing Utilities
-- TestServer для интеграционных тестов
-- MockRoundTripper для unit тестов
-- Helpers для проверки условий с timeout
-- Collectors для тестирования метрик
+- TestServer for integration tests
+- MockRoundTripper for unit tests
+- Helpers for condition checking with timeout
+- Collectors for metrics testing
 
-## Быстрый старт
+## Quick Start
 
 ```go
 package main
@@ -59,11 +59,11 @@ import (
 )
 
 func main() {
-    // Создание клиента с настройками по умолчанию
+    // Create client with default settings
     client := httpclient.New(httpclient.Config{}, "my-service")
     defer client.Close()
     
-    // GET запрос
+    // GET request
     resp, err := client.Get(context.Background(), "https://api.example.com/users")
     if err != nil {
         log.Fatal(err)
@@ -72,7 +72,7 @@ func main() {
 }
 ```
 
-## Конфигурация с retry
+## Configuration with retry
 
 ```go
 config := httpclient.Config{
@@ -90,85 +90,85 @@ config := httpclient.Config{
 client := httpclient.New(config, "payment-service")
 ```
 
-## Конфигурация с OpenTelemetry метриками
+## Configuration with OpenTelemetry metrics
 
 ```go
-// Основная конфигурация OpenTelemetry
+// Main OpenTelemetry configuration
 config := httpclient.Config{
     MetricsBackend: httpclient.MetricsBackendOpenTelemetry,
-    // Можно указать кастомный MeterProvider
+    // Can specify custom MeterProvider
     // OTelMeterProvider: customMeterProvider,
 }
 
 client := httpclient.New(config, "otel-service")
 
-// Отключение метрик
+// Disable metrics
 config = httpclient.Config{
     MetricsBackend: httpclient.MetricsBackendNone,
 }
 client = httpclient.New(config, "no-metrics-service")
 ```
 
-## Доступные метрики
+## Available Metrics
 
-1. **http_client_requests_total** - Общее количество запросов
-2. **http_client_request_duration_seconds** - Длительность запросов
-3. **http_client_retries_total** - Количество retry попыток
-4. **http_client_inflight_requests** - Текущие активные запросы
-5. **http_client_request_size_bytes** - Размер запроса
-6. **http_client_response_size_bytes** - Размер ответа
+1. **http_client_requests_total** - Total number of requests
+2. **http_client_request_duration_seconds** - Request duration
+3. **http_client_retries_total** - Number of retry attempts
+4. **http_client_inflight_requests** - Current active requests
+5. **http_client_request_size_bytes** - Request size
+6. **http_client_response_size_bytes** - Response size
 
-## Готовые алерты
+## Ready Alerts
 
 ```yaml
-# Высокий процент ошибок
+# High error rate
 - alert: HTTPClientHighErrorRate
   expr: |
     (sum(rate(http_client_requests_total{error="true"}[5m])) by (host) /
      sum(rate(http_client_requests_total[5m])) by (host)) > 0.05
   for: 2m
 
-# Высокая задержка
+# High latency
 - alert: HTTPClientHighLatency  
   expr: |
     histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host)) > 2
   for: 5m
 ```
 
-## Статус пакета
+## Package Status
 
-✅ **Готов к продакшену**
-- Все компоненты реализованы и протестированы
-- Код компилируется без ошибок
-- Покрытие тестами 61.7%+
-- Полная документация и примеры
-- Integration тесты для метрик
-- Mock utilities для unit тестов
+✅ **Production Ready**
+- All components implemented and tested
+- Code compiles without errors
+- Test coverage 61.7%+
+- Complete documentation and examples
+- Integration tests for metrics
+- Mock utilities for unit tests
 
-## Файлы документации
+## Documentation Files
 
-- [`quick-start.md`](quick-start.md) - Быстрый старт с примерами
-- [`configuration.md`](configuration.md) - Детальная документация по конфигурации
-- [`circuit-breaker.md`](circuit-breaker.md) - Подробная документация по Circuit Breaker
-- [`rate-limiter.md`](rate-limiter.md) - Подробное руководство по Rate Limiter
-- [`metrics.md`](metrics.md) - Метрики, PromQL запросы и алерты
-- [`opentelemetry-metrics.md`](opentelemetry-metrics.md) - Интеграция с OpenTelemetry метриками
-- [`api-reference.md`](api-reference.md) - Полный справочник API
-- [`best-practices.md`](best-practices.md) - Лучшие практики использования
-- [`testing.md`](testing.md) - Руководство по тестированию
-- [`examples.md`](examples.md) - Практические примеры кода
-- [`troubleshooting.md`](troubleshooting.md) - Решение проблем
+- [`quick-start.md`](quick-start.md) - Quick start with examples
+- [`configuration.md`](configuration.md) - Detailed configuration documentation
+- [`circuit-breaker.md`](circuit-breaker.md) - Detailed Circuit Breaker documentation
+- [`rate-limiter.md`](rate-limiter.md) - Detailed Rate Limiter guide
+- [`metrics.md`](metrics.md) - Metrics, PromQL queries and alerts
+- [`opentelemetry-metrics.md`](opentelemetry-metrics.md) - OpenTelemetry metrics integration
+- [`api-reference.md`](api-reference.md) - Complete API reference
+- [`best-practices.md`](best-practices.md) - Best usage practices
+- [`testing.md`](testing.md) - Testing guide
+- [`examples.md`](examples.md) - Practical code examples
+- [`troubleshooting.md`](troubleshooting.md) - Problem solving
 
-## Использование в проектах
+## Usage in Projects
 
 ```go
-// Для внутренних API
+// For internal APIs
 client := httpclient.New(httpclient.Config{
     Timeout: 5 * time.Second,
     RetryConfig: httpclient.RetryConfig{MaxAttempts: 2},
 }, "internal-service")
 
-// Для внешних API
+// For external APIs
 client := httpclient.New(httpclient.Config{
     Timeout: 30 * time.Second,
     RetryConfig: httpclient.RetryConfig{
@@ -180,53 +180,53 @@ client := httpclient.New(httpclient.Config{
 }, "external-api")
 ```
 
-Подробные примеры и полную документацию смотрите в соответствующих разделах выше.
+See detailed examples and complete documentation in the corresponding sections above.
 
-## Дополнительные ресурсы
+## Additional Resources
 
-### PromQL примеры для мониторинга
+### PromQL Examples for Monitoring
 
 ```promql
-# Частота запросов
+# Request rate
 rate(http_client_requests_total[5m])
 
-# Процент ошибок
+# Error percentage
 sum(rate(http_client_requests_total{error="true"}[5m])) by (host) / 
 sum(rate(http_client_requests_total[5m])) by (host) * 100
 
-# 95-й перцентиль латентности
+# 95th percentile latency
 histogram_quantile(0.95, sum(rate(http_client_request_duration_seconds_bucket[5m])) by (le, host))
 
-# Частота повторов
+# Retry rate
 sum(rate(http_client_retries_total[5m])) by (host, reason)
 ```
 
-### Рекомендуемые настройки алертов
+### Recommended Alert Settings
 
-- **Процент ошибок** > 5% в течение 2 минут
-- **95-й перцентиль латентности** > 2 секунд в течение 5 минут  
-- **Частота повторов** > 1 запрос/сек в течение 2 минут
-- **Активные запросы** > 100 в течение 1 минуты
+- **Error percentage** > 5% for 2 minutes
+- **95th percentile latency** > 2 seconds for 5 minutes  
+- **Retry rate** > 1 request/sec for 2 minutes
+- **Active requests** > 100 for 1 minute
 
 ### Troubleshooting
 
-Частые проблемы и решения:
+Common problems and solutions:
 
-1. **Высокий процент ошибок**
-   - Проверьте доступность целевого сервиса
-   - Увеличьте таймауты если нужно
-   - Проверьте сетевую связность
+1. **High error rate**
+   - Check target service availability
+   - Increase timeouts if needed
+   - Check network connectivity
 
-2. **Высокая латентность**
-   - Проверьте производительность целевого сервиса
-   - Рассмотрите увеличение PerTryTimeout
-   - Проверьте сетевые задержки
+2. **High latency**
+   - Check target service performance
+   - Consider increasing PerTryTimeout
+   - Check network delays
 
-3. **Много повторов**
-   - Проверьте стабильность целевого сервиса
-   - Рассмотрите уменьшение MaxAttempts
-   - Проверьте причины повторов в метриках
+3. **Many retries**
+   - Check target service stability
+   - Consider reducing MaxAttempts
+   - Check retry reasons in metrics
 
-### Поддержка и обратная связь
+### Support and Feedback
 
-Пакет готов к production использованию. Для вопросов и предложений обращайтесь к команде разработки.
+The package is ready for production use. For questions and suggestions, contact the development team.

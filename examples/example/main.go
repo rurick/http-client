@@ -1,4 +1,4 @@
-// Package main демонстрирует использование HTTP клиента
+// Package main demonstrates HTTP client usage
 package main
 
 import (
@@ -12,7 +12,7 @@ import (
 )
 
 func main() {
-	// Создание клиента с кастомной конфигурацией
+	// Create client with custom configuration
 	config := httpclient.Config{
 		Timeout: 10 * time.Second,
 		RetryConfig: httpclient.RetryConfig{
@@ -20,7 +20,7 @@ func main() {
 			BaseDelay:   100 * time.Millisecond,
 			MaxDelay:    5 * time.Second,
 		},
-		TracingEnabled: false, // отключим для простоты примера
+		TracingEnabled: false, // disable for simplicity of example
 		Transport:      http.DefaultTransport,
 	}
 
@@ -29,28 +29,28 @@ func main() {
 
 	ctx := context.Background()
 
-	// Пример GET запроса
-	fmt.Println("Выполняем GET запрос...")
+	// Example GET request
+	fmt.Println("Executing GET request...")
 	resp, err := client.Get(ctx, "https://httpbin.org/get")
 	if err != nil {
-		log.Printf("Ошибка GET запроса: %v", err)
+		log.Printf("GET request error: %v", err)
 	} else {
-		fmt.Printf("GET ответ: %s\n", resp.Status)
+		fmt.Printf("GET response: %s\n", resp.Status)
 		_ = resp.Body.Close()
 	}
 
-	// Пример POST запроса с повтором в случае ошибки
-	fmt.Println("Выполняем POST запрос с Idempotency-Key...")
+	// Example POST request with retry on error
+	fmt.Println("Executing POST request with Idempotency-Key...")
 	req, _ := http.NewRequestWithContext(ctx, "POST", "https://httpbin.org/status/503", nil)
 	req.Header.Set("Idempotency-Key", "test-key-123")
 
 	resp, err = client.Do(req)
 	if err != nil {
-		log.Printf("Ошибка POST запроса (ожидается из-за 503): %v", err)
+		log.Printf("POST request error (expected due to 503): %v", err)
 	} else {
-		fmt.Printf("POST ответ: %s\n", resp.Status)
+		fmt.Printf("POST response: %s\n", resp.Status)
 		_ = resp.Body.Close()
 	}
 
-	fmt.Println("Пример завершён!")
+	fmt.Println("Example completed!")
 }

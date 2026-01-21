@@ -12,7 +12,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Хелпер для создания клиентского объекта
+// Helper for creating client object
 func newTestClient(t *testing.T, config Config, name string) *Client {
 	client := New(config, name)
 	t.Cleanup(func() {
@@ -21,7 +21,7 @@ func newTestClient(t *testing.T, config Config, name string) *Client {
 	return client
 }
 
-// Хелпер для выполнения HTTP-запроса и проверки базовых условий
+// Helper for executing HTTP request and checking basic conditions
 func executeRequestAndCheckStatus(
 	t *testing.T,
 	client *Client,
@@ -40,7 +40,7 @@ func executeRequestAndCheckStatus(
 	return resp
 }
 
-// Хелпер для вызова методов HTTP-клиента
+// Helper for calling HTTP client methods
 func callHTTPMethod(client *Client, method, url string, headers map[string]string, body io.Reader) (*http.Response, error) {
 	switch method {
 	case "HEAD":
@@ -58,13 +58,13 @@ func callHTTPMethod(client *Client, method, url string, headers map[string]strin
 	}
 }
 
-// Хелпер для проверки содержимого тела ответа
+// Helper for checking response body content
 func assertResponseBody(t *testing.T, resp *http.Response, expected string) {
 	body, _ := io.ReadAll(resp.Body)
 	assert.Equal(t, expected, string(body), "Response body mismatch")
 }
 
-// Основные тесты
+// Main tests
 
 func TestClientPost(t *testing.T) {
 	server := NewTestServer(
@@ -203,7 +203,7 @@ func TestClientWithMaxResponseBytes(t *testing.T) {
 	assert.Equal(t, 200, resp.StatusCode, "Expected status code 200")
 	assertResponseBody(t, resp, "this is a short response")
 
-	// Проверяем, что тело ответа не превышает максимальный размер в 10 байт
+	// Check that response body does not exceed maximum size of 10 bytes
 	body, err := io.ReadAll(resp.Body)
 	assert.NoError(t, err, "Failed to read response body")
 	assert.LessOrEqual(t, int64(len(body)), maxBytes, "Response body should not exceed max bytes limit")

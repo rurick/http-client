@@ -2,14 +2,14 @@ package httpclient
 
 import "context"
 
-// Metrics содержит конфигурацию метрик для конкретного HTTP клиента.
+// Metrics contains metrics configuration for a specific HTTP client.
 type Metrics struct {
 	clientName string
 	enabled    bool
 	provider   MetricsProvider
 }
 
-// NewMetrics создаёт новый экземпляр метрик с Prometheus провайдером по умолчанию.
+// NewMetrics creates a new metrics instance with Prometheus provider by default.
 func NewMetrics(meterName string) *Metrics {
 	provider := NewPrometheusMetricsProvider(meterName, nil)
 	return &Metrics{
@@ -19,7 +19,7 @@ func NewMetrics(meterName string) *Metrics {
 	}
 }
 
-// NewDisabledMetrics создаёт экземпляр метрик с выключенным сбором.
+// NewDisabledMetrics creates a metrics instance with collection disabled.
 func NewDisabledMetrics(meterName string) *Metrics {
 	return &Metrics{
 		clientName: meterName,
@@ -28,10 +28,10 @@ func NewDisabledMetrics(meterName string) *Metrics {
 	}
 }
 
-// NewMetricsWithProvider создаёт экземпляр метрик с указанным провайдером.
-// Используется внутренне клиентом для выбора провайдера.
+// NewMetricsWithProvider creates a metrics instance with the specified provider.
+// Used internally by the client to select a provider.
 func NewMetricsWithProvider(meterName string, provider MetricsProvider) *Metrics {
-	// Метрики считаются включенными, если провайдер не noop
+	// Metrics are considered enabled if provider is not noop
 	enabled := provider != nil
 	if noop, ok := provider.(*NoopMetricsProvider); ok && noop != nil {
 		enabled = false
@@ -43,7 +43,7 @@ func NewMetricsWithProvider(meterName string, provider MetricsProvider) *Metrics
 	}
 }
 
-// RecordRequest записывает метрики для запроса.
+// RecordRequest records metrics for a request.
 func (m *Metrics) RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -51,7 +51,7 @@ func (m *Metrics) RecordRequest(ctx context.Context, method, host, status string
 	m.provider.RecordRequest(ctx, method, host, status, retry, hasError)
 }
 
-// RecordDuration записывает длительность запроса.
+// RecordDuration records request duration.
 func (m *Metrics) RecordDuration(ctx context.Context, duration float64, method, host, status string, attempt int) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -59,7 +59,7 @@ func (m *Metrics) RecordDuration(ctx context.Context, duration float64, method, 
 	m.provider.RecordDuration(ctx, duration, method, host, status, attempt)
 }
 
-// RecordRetry записывает метрику retry.
+// RecordRetry records a retry metric.
 func (m *Metrics) RecordRetry(ctx context.Context, reason, method, host string) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -67,7 +67,7 @@ func (m *Metrics) RecordRetry(ctx context.Context, reason, method, host string) 
 	m.provider.RecordRetry(ctx, reason, method, host)
 }
 
-// RecordRequestSize записывает размер запроса.
+// RecordRequestSize records request size.
 func (m *Metrics) RecordRequestSize(ctx context.Context, size int64, method, host string) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -75,7 +75,7 @@ func (m *Metrics) RecordRequestSize(ctx context.Context, size int64, method, hos
 	m.provider.RecordRequestSize(ctx, size, method, host)
 }
 
-// RecordResponseSize записывает размер ответа.
+// RecordResponseSize records response size.
 func (m *Metrics) RecordResponseSize(ctx context.Context, size int64, method, host, status string) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -83,7 +83,7 @@ func (m *Metrics) RecordResponseSize(ctx context.Context, size int64, method, ho
 	m.provider.RecordResponseSize(ctx, size, method, host, status)
 }
 
-// IncrementInflight увеличивает счётчик активных запросов.
+// IncrementInflight increments the active requests counter.
 func (m *Metrics) IncrementInflight(ctx context.Context, method, host string) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -91,7 +91,7 @@ func (m *Metrics) IncrementInflight(ctx context.Context, method, host string) {
 	m.provider.InflightInc(ctx, method, host)
 }
 
-// DecrementInflight уменьшает счётчик активных запросов.
+// DecrementInflight decrements the active requests counter.
 func (m *Metrics) DecrementInflight(ctx context.Context, method, host string) {
 	if !m.enabled || m.provider == nil {
 		return
@@ -99,7 +99,7 @@ func (m *Metrics) DecrementInflight(ctx context.Context, method, host string) {
 	m.provider.InflightDec(ctx, method, host)
 }
 
-// Close освобождает ресурсы метрик.
+// Close releases metrics resources.
 func (m *Metrics) Close() error {
 	if m.provider != nil {
 		return m.provider.Close()

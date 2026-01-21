@@ -11,7 +11,7 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// otelInstruments содержит набор инструментов OpenTelemetry.
+// otelInstruments contains a set of OpenTelemetry instruments.
 type otelInstruments struct {
 	requests  metric.Int64Counter
 	retries   metric.Int64Counter
@@ -21,29 +21,29 @@ type otelInstruments struct {
 	inflight  metric.Int64UpDownCounter
 }
 
-// globalOtelInstruments кеширует инструменты по MeterProvider.
+// globalOtelInstruments caches instruments by MeterProvider.
 var globalOtelInstruments sync.Map // map[string]*otelInstruments
 
-// OpenTelemetryMetricsProvider - провайдер для сбора метрик через OpenTelemetry.
+// OpenTelemetryMetricsProvider is a provider for collecting metrics via OpenTelemetry.
 type OpenTelemetryMetricsProvider struct {
 	clientName string
 	inst       *otelInstruments
 }
 
-// NewOpenTelemetryMetricsProvider создает новый провайдер метрик OpenTelemetry.
+// NewOpenTelemetryMetricsProvider creates a new OpenTelemetry metrics provider.
 func NewOpenTelemetryMetricsProvider(clientName string, mp metric.MeterProvider) *OpenTelemetryMetricsProvider {
 	if mp == nil {
 		mp = otel.GetMeterProvider()
 	}
 
-	// Используем адрес MeterProvider как ключ кеша
+	// Use MeterProvider address as cache key
 	providerKey := fmt.Sprintf("%p", mp)
 
 	inst, exists := globalOtelInstruments.Load(providerKey)
 	if !exists {
 		meter := mp.Meter("github.com/rurick/http-client")
 
-		// Создаем инструменты
+		// Create instruments
 		requests, _ := meter.Int64Counter(
 			MetricRequestsTotal,
 			metric.WithDescription("Total number of HTTP client requests"),
@@ -89,7 +89,7 @@ func NewOpenTelemetryMetricsProvider(clientName string, mp metric.MeterProvider)
 			inflight: inflight,
 		}
 
-		// Сохраняем в кеше
+		// Store in cache
 		globalOtelInstruments.Store(providerKey, newInst)
 		inst = newInst
 	}
@@ -100,7 +100,7 @@ func NewOpenTelemetryMetricsProvider(clientName string, mp metric.MeterProvider)
 	}
 }
 
-// RecordRequest записывает метрику запроса.
+// RecordRequest records a request metric.
 func (o *OpenTelemetryMetricsProvider) RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -113,7 +113,7 @@ func (o *OpenTelemetryMetricsProvider) RecordRequest(ctx context.Context, method
 	o.inst.requests.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
-// RecordDuration записывает длительность запроса.
+// RecordDuration records request duration.
 func (o *OpenTelemetryMetricsProvider) RecordDuration(ctx context.Context, seconds float64, method, host, status string, attempt int) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -125,7 +125,7 @@ func (o *OpenTelemetryMetricsProvider) RecordDuration(ctx context.Context, secon
 	o.inst.duration.Record(ctx, seconds, metric.WithAttributes(attrs...))
 }
 
-// RecordRetry записывает метрику повторной попытки.
+// RecordRetry records a retry attempt metric.
 func (o *OpenTelemetryMetricsProvider) RecordRetry(ctx context.Context, reason, method, host string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -136,7 +136,7 @@ func (o *OpenTelemetryMetricsProvider) RecordRetry(ctx context.Context, reason, 
 	o.inst.retries.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
-// RecordRequestSize записывает размер запроса.
+// RecordRequestSize records request size.
 func (o *OpenTelemetryMetricsProvider) RecordRequestSize(ctx context.Context, bytes int64, method, host string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -146,7 +146,7 @@ func (o *OpenTelemetryMetricsProvider) RecordRequestSize(ctx context.Context, by
 	o.inst.reqSize.Record(ctx, float64(bytes), metric.WithAttributes(attrs...))
 }
 
-// RecordResponseSize записывает размер ответа.
+// RecordResponseSize records response size.
 func (o *OpenTelemetryMetricsProvider) RecordResponseSize(ctx context.Context, bytes int64, method, host, status string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -157,7 +157,7 @@ func (o *OpenTelemetryMetricsProvider) RecordResponseSize(ctx context.Context, b
 	o.inst.respSize.Record(ctx, float64(bytes), metric.WithAttributes(attrs...))
 }
 
-// InflightInc увеличивает счетчик активных запросов.
+// InflightInc increments the active requests counter.
 func (o *OpenTelemetryMetricsProvider) InflightInc(ctx context.Context, method, host string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -167,7 +167,7 @@ func (o *OpenTelemetryMetricsProvider) InflightInc(ctx context.Context, method, 
 	o.inst.inflight.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
-// InflightDec уменьшает счетчик активных запросов.
+// InflightDec decrements the active requests counter.
 func (o *OpenTelemetryMetricsProvider) InflightDec(ctx context.Context, method, host string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
@@ -177,7 +177,7 @@ func (o *OpenTelemetryMetricsProvider) InflightDec(ctx context.Context, method, 
 	o.inst.inflight.Add(ctx, -1, metric.WithAttributes(attrs...))
 }
 
-// Close освобождает ресурсы.
+// Close releases resources.
 func (o *OpenTelemetryMetricsProvider) Close() error {
 	return nil
 }

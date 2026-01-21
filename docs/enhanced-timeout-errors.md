@@ -1,131 +1,131 @@
-# Детализированные ошибки тайм-аута
+# Enhanced Timeout Errors
 
-## Обзор
+## Overview
 
-Мы добавили улучшенную обработку ошибок тайм-аута в HTTP клиент. Теперь вместо стандартной ошибки `context deadline exceeded` с минимальной информацией, клиент предоставляет детализированные сообщения об ошибках с контекстом и практическими рекомендациями.
+We've added enhanced timeout error handling to the HTTP client. Now instead of a standard `context deadline exceeded` error with minimal information, the client provides detailed error messages with context and practical recommendations.
 
-## Проблема
+## Problem
 
-### До улучшения
+### Before Enhancement
 ```
 "level": "ERROR",
 "message": "request failed", 
 "error": "Post \"https://openapi.nalog.ru:8090/open-api/AuthService/0.1\": context deadline exceeded"
 ```
 
-Из этой ошибки невозможно понять:
-- Какие тайм-ауты были настроены
-- На какой попытке произошёл сбой
-- Включён ли retry
-- Что именно нужно исправить
+From this error it's impossible to understand:
+- What timeouts were configured
+- On which attempt the failure occurred
+- Whether retry is enabled
+- What exactly needs to be fixed
 
-### После улучшения
+### After Enhancement
 ```
 "level": "ERROR",
 "message": "request failed",
-"error": "timeout error: POST https://openapi.nalog.ru:8090/open-api/AuthService/0.1 (host: openapi.nalog.ru) failed after 5s on attempt 1/1. Timeout config: overall=5s, per-try=2s, retry=false. Type: overall. Предложения: [увеличьте общий тайм-аут (текущий: 5s) включите retry для устойчивости к временным сбоям]"
+"error": "timeout error: POST https://openapi.nalog.ru:8090/open-api/AuthService/0.1 (host: openapi.nalog.ru) failed after 5s on attempt 1/1. Timeout config: overall=5s, per-try=2s, retry=false. Type: overall. Suggestions: [increase overall timeout (current: 5s) enable retry for resilience to temporary failures]"
 ```
 
-## Реализация
+## Implementation
 
-### Новый тип ошибки `TimeoutError`
+### New `TimeoutError` Type
 
 ```go
 type TimeoutError struct {
-    // Основная информация о запросе
+    // Basic request information
     Method   string
     URL      string  
     Host     string
     
-    // Информация о тайм-аутах
-    Timeout       time.Duration // Общий тайм-аут
-    PerTryTimeout time.Duration // Тайм-аут на попытку
-    Elapsed       time.Duration // Время выполнения до ошибки
+    // Timeout information
+    Timeout       time.Duration // Overall timeout
+    PerTryTimeout time.Duration // Per-attempt timeout
+    Elapsed       time.Duration // Execution time until error
     
-    // Контекст retry
-    Attempt     int  // Номер попытки на которой произошёл тайм-аут
-    MaxAttempts int  // Максимальное количество попыток  
-    RetryEnabled bool // Был ли включён retry
+    // Retry context
+    Attempt     int  // Attempt number on which timeout occurred
+    MaxAttempts int  // Maximum number of attempts  
+    RetryEnabled bool // Whether retry was enabled
     
-    // Дополнительный контекст
-    TimeoutType string // Тип тайм-аута: "overall", "per-try", "context"
-    OriginalErr error  // Оригинальная ошибка
+    // Additional context
+    TimeoutType string // Timeout type: "overall", "per-try", "context"
+    OriginalErr error  // Original error
     
-    // Предложения по решению
+    // Solution suggestions
     Suggestions []string
 }
 ```
 
-### Типы тайм-аутов
+### Timeout Types
 
-1. **"overall"** - превышен общий тайм-аут (`Config.Timeout`)
-2. **"per-try"** - превышен тайм-аут на попытку (`Config.PerTryTimeout`) 
-3. **"context"** - тайм-аут был задан во внешнем контексте
-4. **"network"** - сетевой тайм-аут (не связанный с настройками клиента)
+1. **"overall"** - overall timeout exceeded (`Config.Timeout`)
+2. **"per-try"** - per-attempt timeout exceeded (`Config.PerTryTimeout`) 
+3. **"context"** - timeout was set in external context
+4. **"network"** - network timeout (not related to client settings)
 
-### Автоматические предложения
+### Automatic Suggestions
 
-Система анализирует конфигурацию и условия ошибки, генерируя практические рекомендации:
+The system analyzes configuration and error conditions, generating practical recommendations:
 
-- **Для overall timeout**: "увеличьте общий тайм-аут (текущий: 5s)"
-- **Для per-try timeout**: "увеличьте per-try тайм-аут (текущий: 2s)" 
-- **Для исчерпанных попыток**: "увеличьте количество попыток (текущий: 3)"
-- **Если retry отключён**: "включите retry для устойчивости к временным сбоям"
-- **Для медленных сервисов**: "проверьте доступность и производительность удалённого сервиса"
+- **For overall timeout**: "increase overall timeout (current: 5s)"
+- **For per-try timeout**: "increase per-try timeout (current: 2s)" 
+- **For exhausted attempts**: "increase number of attempts (current: 3)"
+- **If retry disabled**: "enable retry for resilience to temporary failures"
+- **For slow services**: "check availability and performance of remote service"
 
-## Использование
+## Usage
 
-### Программная обработка
+### Programmatic Handling
 
 ```go
 resp, err := client.Post(ctx, url, body)
 if err != nil {
-    // Проверяем, является ли это детализированной ошибкой тайм-аута
+    // Check if this is a detailed timeout error
     var timeoutErr *httpclient.TimeoutError
     if errors.As(err, &timeoutErr) {
-        log.Printf("Тайм-аут при %s:", operation)
+        log.Printf("Timeout during %s:", operation)
         log.Printf("  URL: %s", timeoutErr.URL)
-        log.Printf("  Попытка: %d/%d", timeoutErr.Attempt, timeoutErr.MaxAttempts)
-        log.Printf("  Время выполнения: %v", timeoutErr.Elapsed)
-        log.Printf("  Тип: %s", timeoutErr.TimeoutType)
+        log.Printf("  Attempt: %d/%d", timeoutErr.Attempt, timeoutErr.MaxAttempts)
+        log.Printf("  Execution time: %v", timeoutErr.Elapsed)
+        log.Printf("  Type: %s", timeoutErr.TimeoutType)
         
-        // Программно обрабатываем разные типы тайм-аутов
+        // Programmatically handle different timeout types
         switch timeoutErr.TimeoutType {
         case "overall":
-            log.Printf("  → Рекомендация: увеличьте общий тайм-аут с %v", timeoutErr.Timeout)
+            log.Printf("  → Recommendation: increase overall timeout from %v", timeoutErr.Timeout)
         case "per-try":
-            log.Printf("  → Рекомендация: увеличьте per-try тайм-аут с %v", timeoutErr.PerTryTimeout)
+            log.Printf("  → Recommendation: increase per-try timeout from %v", timeoutErr.PerTryTimeout)
         case "context":
-            log.Printf("  → Рекомендация: проверьте настройки контекста вызывающего кода")
+            log.Printf("  → Recommendation: check context settings in calling code")
         }
         return
     }
     
-    // Обрабатываем другие типы ошибок как обычно
-    log.Printf("Ошибка: %v", err)
+    // Handle other error types as usual
+    log.Printf("Error: %v", err)
 }
 ```
 
-### Рекомендуемая конфигурация для медленных API
+### Recommended Configuration for Slow APIs
 
-Для работы с медленными внешними API (например, API ФНС) рекомендуется:
+For working with slow external APIs (e.g., FNS API) it's recommended:
 
 ```go
 config := httpclient.Config{
-    // Увеличенные тайм-ауты
-    Timeout:       60 * time.Second, // 1 минута общий
-    PerTryTimeout: 20 * time.Second, // 20 секунд на попытку
+    // Increased timeouts
+    Timeout:       60 * time.Second, // 1 minute overall
+    PerTryTimeout: 20 * time.Second, // 20 seconds per attempt
     
-    // Агрессивный retry для стабильности
+    // Aggressive retry for stability
     RetryEnabled: true,
     RetryConfig: httpclient.RetryConfig{
-        MaxAttempts:       4,    // 4 попытки
+        MaxAttempts:       4,    // 4 attempts
         BaseDelay:        500 * time.Millisecond,
         MaxDelay:         15 * time.Second,
         Jitter:           0.3,   // 30% jitter
         RespectRetryAfter: true,
         
-        // Дополнительные статусы для retry
+        // Additional statuses for retry
         RetryStatusCodes: []int{408, 429, 500, 502, 503, 504, 520, 521, 522, 524},
     },
     
@@ -135,35 +135,35 @@ config := httpclient.Config{
 client := httpclient.New(config, "external-api-client")
 ```
 
-## Важные особенности
+## Important Features
 
-### Обратная совместимость
+### Backward Compatibility
 
-- Не-тайм-аут ошибки остаются неизменными
-- Существующий код продолжает работать без изменений
-- Новая функциональность доступна только при явной проверке типа ошибки
+- Non-timeout errors remain unchanged
+- Existing code continues to work without changes
+- New functionality is only available when explicitly checking error type
 
-### Тестирование
+### Testing
 
-Добавлены comprehensive тесты, покрывающие:
+Comprehensive tests added, covering:
 
-- ✅ Детализированные сообщения об ошибках
-- ✅ Автоматические предложения по исправлению
-- ✅ Различные типы тайм-аутов
-- ✅ Обработка не-тайм-аут ошибок (остаются неизменными)
-- ✅ Реальные сценарии использования с API ФНС
-- ✅ Интеграционные тесты с RoundTripper
+- ✅ Detailed error messages
+- ✅ Automatic fix suggestions
+- ✅ Various timeout types
+- ✅ Handling of non-timeout errors (remain unchanged)
+- ✅ Real usage scenarios with FNS API
+- ✅ Integration tests with RoundTripper
 
-### Производительность
+### Performance
 
-- Минимальное влияние на производительность
-- Детализированные ошибки создаются только при тайм-аутах
-- Никакого дополнительного overhead для успешных запросов
+- Minimal performance impact
+- Detailed errors are only created on timeouts
+- No additional overhead for successful requests
 
-## Примеры использования
+## Usage Examples
 
-См. файл `examples/enhanced_timeout_errors/main.go` для полных примеров демонстрации новой функциональности.
+See `examples/enhanced_timeout_errors/main.go` for complete examples demonstrating the new functionality.
 
-## Заключение
+## Conclusion
 
-Данная реализация значительно улучшает диагностику проблем с тайм-аутами, предоставляя разработчикам всю необходимую информацию для быстрого решения проблем и оптимизации настроек HTTP клиента.
+This implementation significantly improves timeout problem diagnostics, providing developers with all necessary information for quickly solving problems and optimizing HTTP client settings.

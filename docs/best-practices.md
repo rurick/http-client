@@ -1,25 +1,25 @@
-# Лучшие практики
+# Best Practices
 
-Рекомендации по эффективному и безопасному использованию HTTP клиент пакета в продакшене.
+Recommendations for efficient and secure use of the HTTP client package in production.
 
-## Именование и организация
+## Naming and Organization
 
-### Имена клиентов
-Используйте описательные имена, которые помогают идентифицировать сервис в метриках:
+### Client Names
+Use descriptive names that help identify the service in metrics:
 
 ```go
-// ✅ Хорошо - ясно идентифицирует сервис
+// ✅ Good - clearly identifies the service
 client := httpclient.New(config, "user-service-v2")
 client := httpclient.New(config, "payment-processor")
 client := httpclient.New(config, "external-analytics-api")
 
-// ❌ Плохо - слишком общие или неинформативные
+// ❌ Bad - too generic or uninformative
 client := httpclient.New(config, "client")
 client := httpclient.New(config, "api")
 client := httpclient.New(config, "service")
 ```
 
-### Организация клиентов в коде
+### Client Organization in Code
 ```go
 type ServiceClients struct {
     Users    *httpclient.Client
@@ -48,58 +48,58 @@ func (sc *ServiceClients) Close() error {
     }
     
     if len(errs) > 0 {
-        return fmt.Errorf("ошибки при закрытии клиентов: %v", errs)
+        return fmt.Errorf("errors closing clients: %v", errs)
     }
     return nil
 }
 ```
 
-## Конфигурация таймаутов
+## Timeout Configuration
 
-### По типу сервиса
+### By Service Type
 
-#### Внутренние микросервисы
+#### Internal Microservices
 ```go
 func internalServiceConfig() httpclient.Config {
     return httpclient.Config{
-        Timeout:       5 * time.Second,   // Быстрая внутренняя сеть
-        PerTryTimeout: 1 * time.Second,   // Короткие попытки
+        Timeout:       5 * time.Second,   // Fast internal network
+        PerTryTimeout: 1 * time.Second,   // Short attempts
         RetryConfig: httpclient.RetryConfig{
-            MaxAttempts: 2,               // Минимальные повторы
+            MaxAttempts: 2,               // Minimal retries
             BaseDelay:   50 * time.Millisecond,
             MaxDelay:    500 * time.Millisecond,
             Jitter:      0.1,
         },
-        TracingEnabled: true,             // Всегда включать для микросервисов
+        TracingEnabled: true,             // Always enable for microservices
     }
 }
 ```
 
-#### Внешние API
+#### External APIs
 ```go
 func externalAPIConfig() httpclient.Config {
     return httpclient.Config{
-        Timeout:       30 * time.Second,  // Учитываем сетевые задержки
-        PerTryTimeout: 10 * time.Second,  // Более длинные попытки
+        Timeout:       30 * time.Second,  // Account for network delays
+        PerTryTimeout: 10 * time.Second,  // Longer attempts
         RetryConfig: httpclient.RetryConfig{
-            MaxAttempts: 5,               // Агрессивные повторы
+            MaxAttempts: 5,               // Aggressive retries
             BaseDelay:   200 * time.Millisecond,
             MaxDelay:    10 * time.Second,
-            Jitter:      0.3,             // Высокий джиттер
+            Jitter:      0.3,             // High jitter
         },
         TracingEnabled: true,
     }
 }
 ```
 
-#### Критичные операции (платежи, заказы)
+#### Critical Operations (Payments, Orders)
 ```go
 func criticalServiceConfig() httpclient.Config {
     return httpclient.Config{
-        Timeout:       60 * time.Second,  // Достаточно времени
-        PerTryTimeout: 15 * time.Second,  // Терпеливые попытки
+        Timeout:       60 * time.Second,  // Enough time
+        PerTryTimeout: 15 * time.Second,  // Patient attempts
         RetryConfig: httpclient.RetryConfig{
-            MaxAttempts: 7,               // Максимальная надежность
+            MaxAttempts: 7,               // Maximum reliability
             BaseDelay:   500 * time.Millisecond,
             MaxDelay:    30 * time.Second,
             Jitter:      0.25,
@@ -109,66 +109,66 @@ func criticalServiceConfig() httpclient.Config {
 }
 ```
 
-### По SLA требованиям
+### By SLA Requirements
 
-| SLA | Timeout | PerTryTimeout | MaxAttempts | BaseDelay | Описание |
-|-----|---------|---------------|-------------|-----------|----------|
-| 99% | 3s | 1s | 2 | 25ms | Быстро, но не надежно |
-| 99.9% | 10s | 3s | 3 | 100ms | Баланс скорости и надежности |
-| 99.95% | 20s | 5s | 5 | 200ms | Высокая надежность |
-| 99.99% | 60s | 15s | 7 | 500ms | Максимальная надежность |
+| SLA | Timeout | PerTryTimeout | MaxAttempts | BaseDelay | Description |
+|-----|---------|---------------|-------------|-----------|-------------|
+| 99% | 3s | 1s | 2 | 25ms | Fast, but not reliable |
+| 99.9% | 10s | 3s | 3 | 100ms | Balance of speed and reliability |
+| 99.95% | 20s | 5s | 5 | 200ms | High reliability |
+| 99.99% | 60s | 15s | 7 | 500ms | Maximum reliability |
 
-## Стратегии повторов
+## Retry Strategies
 
-### Выбор стратегии по сценарию
+### Strategy Selection by Scenario
 
-#### Быстрые внутренние вызовы
+#### Fast Internal Calls
 ```go
 RetryConfig{
-    MaxAttempts: 2,                    // Быстро отказываться
-    BaseDelay:   25 * time.Millisecond, // Минимальная задержка
+    MaxAttempts: 2,                    // Fail fast
+    BaseDelay:   25 * time.Millisecond, // Minimal delay
     MaxDelay:    200 * time.Millisecond,
-    Jitter:      0.1,                  // Низкий джиттер
+    Jitter:      0.1,                  // Low jitter
 }
 ```
 
-#### Идемпотентные операции
+#### Idempotent Operations
 ```go
 RetryConfig{
-    MaxAttempts: 5,                    // Можно агрессивно повторять
+    MaxAttempts: 5,                    // Can retry aggressively
     BaseDelay:   100 * time.Millisecond,
     MaxDelay:    5 * time.Second,
     Jitter:      0.2,
 }
 ```
 
-#### Неидемпотентные операции
+#### Non-Idempotent Operations
 ```go
-// Полагаемся на Idempotency-Key
+// Rely on Idempotency-Key
 req.Header.Set("Idempotency-Key", generateIdempotencyKey())
 
 RetryConfig{
-    MaxAttempts: 3,                    // Осторожные повторы
+    MaxAttempts: 3,                    // Cautious retries
     BaseDelay:   200 * time.Millisecond,
     MaxDelay:    2 * time.Second,
     Jitter:      0.2,
 }
 ```
 
-### Адаптивные стратегии
+### Adaptive Strategies
 
 ```go
 func adaptiveRetryConfig(errorRate float64) httpclient.RetryConfig {
-    if errorRate > 0.1 { // Высокий процент ошибок
+    if errorRate > 0.1 { // High error rate
         return httpclient.RetryConfig{
-            MaxAttempts: 2,               // Меньше попыток
-            BaseDelay:   500 * time.Millisecond, // Больше задержка
+            MaxAttempts: 2,               // Fewer attempts
+            BaseDelay:   500 * time.Millisecond, // Longer delay
             MaxDelay:    10 * time.Second,
-            Jitter:      0.5,             // Высокий джиттер
+            Jitter:      0.5,             // High jitter
         }
     }
     
-    // Обычные условия
+    // Normal conditions
     return httpclient.RetryConfig{
         MaxAttempts: 3,
         BaseDelay:   100 * time.Millisecond,
@@ -178,30 +178,30 @@ func adaptiveRetryConfig(errorRate float64) httpclient.RetryConfig {
 }
 ```
 
-## Обработка ошибок
+## Error Handling
 
-### Комплексная обработка
+### Comprehensive Handling
 ```go
 func handleHTTPRequest(client *httpclient.Client, url string) error {
     resp, err := client.Get(context.Background(), url)
     if err != nil {
-        // Логирование с контекстом
+        // Logging with context
         switch e := err.(type) {
         case *httpclient.RetryableError:
             log.WithFields(log.Fields{
                 "url":      url,
                 "attempts": e.Attempts,
                 "error":    e.Err.Error(),
-            }).Error("Запрос не удался после всех попыток")
+            }).Error("Request failed after all attempts")
             
-            // Метрики бизнес-логики
+            // Business logic metrics
             metrics.HTTPRequestsFailed.WithLabelValues("retries_exhausted").Inc()
             
         case *httpclient.NonRetryableError:
             log.WithFields(log.Fields{
                 "url":   url,
                 "error": e.Err.Error(),
-            }).Error("Неповторяемая ошибка запроса")
+            }).Error("Non-retryable request error")
             
             metrics.HTTPRequestsFailed.WithLabelValues("non_retryable").Inc()
             
@@ -209,7 +209,7 @@ func handleHTTPRequest(client *httpclient.Client, url string) error {
             log.WithFields(log.Fields{
                 "url":   url,
                 "error": err.Error(),
-            }).Error("Неожиданная ошибка запроса")
+            }).Error("Unexpected request error")
             
             metrics.HTTPRequestsFailed.WithLabelValues("unexpected").Inc()
         }
@@ -218,14 +218,14 @@ func handleHTTPRequest(client *httpclient.Client, url string) error {
     }
     defer resp.Body.Close()
     
-    // Проверка статус кода
+    // Check status code
     if resp.StatusCode >= 400 {
         body, _ := io.ReadAll(resp.Body)
         log.WithFields(log.Fields{
             "url":         url,
             "status_code": resp.StatusCode,
             "response":    string(body),
-        }).Error("HTTP ошибка")
+        }).Error("HTTP error")
         
         return fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body))
     }
@@ -234,10 +234,10 @@ func handleHTTPRequest(client *httpclient.Client, url string) error {
 }
 ```
 
-### Graceful degradation
+### Graceful Degradation
 ```go
 func getDataWithFallback(client *httpclient.Client) (*Data, error) {
-    // Попытка получить данные
+    // Attempt to get data
     resp, err := client.Get(context.Background(), "https://api.primary.com/data")
     if err == nil {
         defer resp.Body.Close()
@@ -249,30 +249,30 @@ func getDataWithFallback(client *httpclient.Client) (*Data, error) {
         }
     }
     
-    // Fallback к кешу
+    // Fallback to cache
     if cachedData := getCachedData(); cachedData != nil {
-        log.Info("Используем кешированные данные из-за ошибки API")
+        log.Info("Using cached data due to API error")
         return cachedData, nil
     }
     
-    // Fallback к резервному API
+    // Fallback to backup API
     resp, err = client.Get(context.Background(), "https://api.backup.com/data")
     if err == nil {
         defer resp.Body.Close()
         var data Data
         if json.NewDecoder(resp.Body).Decode(&data) == nil {
-            log.Info("Используем данные из резервного API")
+            log.Info("Using data from backup API")
             return &data, nil
         }
     }
     
-    return nil, fmt.Errorf("все источники данных недоступны")
+    return nil, fmt.Errorf("all data sources unavailable")
 }
 ```
 
-## Управление ресурсами
+## Resource Management
 
-### Lifecycle management
+### Lifecycle Management
 ```go
 type APIClient struct {
     client *httpclient.Client
@@ -291,7 +291,7 @@ func (ac *APIClient) Get(ctx context.Context, url string) (*http.Response, error
     defer ac.mu.Unlock()
     
     if ac.closed {
-        return nil, fmt.Errorf("клиент закрыт")
+        return nil, fmt.Errorf("client closed")
     }
     
     return ac.client.Get(ctx, url)
@@ -310,7 +310,7 @@ func (ac *APIClient) Close() error {
 }
 ```
 
-### Пулы клиентов
+### Client Pools
 ```go
 type ClientPool struct {
     clients chan *httpclient.Client
@@ -325,7 +325,7 @@ func NewClientPool(size int, config httpclient.Config, name string) *ClientPool 
         name:    name,
     }
     
-    // Предварительное создание клиентов
+    // Pre-create clients
     for i := 0; i < size; i++ {
         pool.clients <- httpclient.New(config, fmt.Sprintf("%s-%d", name, i))
     }
@@ -341,7 +341,7 @@ func (cp *ClientPool) Put(client *httpclient.Client) {
     select {
     case cp.clients <- client:
     default:
-        // Пул переполнен, закрываем клиент
+        // Pool full, close client
         client.Close()
     }
 }

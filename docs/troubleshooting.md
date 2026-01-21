@@ -1,102 +1,102 @@
 # Troubleshooting
 
-Руководство по решению частых проблем и диагностике работы HTTP клиента.
+Guide to solving common problems and diagnosing HTTP client operation.
 
-## Общие проблемы
+## Common Problems
 
-### Клиент не выполняет запросы
-**Симптомы:** Вызовы методов клиента не работают или падают сразу.
+### Client Not Executing Requests
+**Symptoms:** Client method calls don't work or fail immediately.
 
-**Возможные причины:**
-1. Клиент не был создан корректно
-2. Конфигурация содержит ошибки
-3. Клиент был закрыт
+**Possible Causes:**
+1. Client was not created correctly
+2. Configuration contains errors
+3. Client was closed
 
-**Решение:**
+**Solution:**
 ```go
-// ✅ Правильное создание
+// ✅ Correct creation
 client := httpclient.New(httpclient.Config{}, "service-name")
-defer client.Close() // Важно закрывать
+defer client.Close() // Important to close
 
-// ❌ Неправильно - клиент уже закрыт
+// ❌ Incorrect - client already closed
 client.Close()
-resp, err := client.Get(ctx, url) // Ошибка!
+resp, err := client.Get(ctx, url) // Error!
 ```
 
-### Таймауты происходят слишком быстро
-**Симптомы:** Все запросы завершаются с timeout ошибками.
+### Timeouts Occur Too Quickly
+**Symptoms:** All requests complete with timeout errors.
 
-**Диагностика:**
+**Diagnostics:**
 ```go
-// Проверьте текущую конфигурацию
+// Check current configuration
 config := client.GetConfig()
 fmt.Printf("Timeout: %v\n", config.Timeout)
 fmt.Printf("PerTryTimeout: %v\n", config.PerTryTimeout)
 ```
 
-**Решение:**
+**Solution:**
 ```go
 config := httpclient.Config{
-    Timeout:       30 * time.Second,  // Увеличьте общий таймаут
-    PerTryTimeout: 10 * time.Second,  // Увеличьте таймаут попытки
+    Timeout:       30 * time.Second,  // Increase overall timeout
+    PerTryTimeout: 10 * time.Second,  // Increase attempt timeout
 }
 ```
 
-### Слишком много retry попыток
-**Симптомы:** Запросы выполняются очень долго из-за множественных повторов.
+### Too Many Retry Attempts
+**Symptoms:** Requests take very long due to multiple retries.
 
-**Диагностика:**
+**Diagnostics:**
 ```go
-// Проверьте метрики повторов
+// Check retry metrics
 # PromQL
 sum(rate(http_client_retries_total[5m])) by (host, reason)
 ```
 
-**Решение:**
+**Solution:**
 ```go
 config := httpclient.Config{
     RetryConfig: httpclient.RetryConfig{
-        MaxAttempts: 2,               // Уменьшите количество попыток
+        MaxAttempts: 2,               // Reduce number of attempts
         BaseDelay:   100 * time.Millisecond,
-        MaxDelay:    1 * time.Second, // Уменьшите максимальную задержку
+        MaxDelay:    1 * time.Second, // Reduce maximum delay
     },
 }
 ```
 
-## Проблемы с retry
+## Retry Problems
 
-### Retry не работают для POST запросов
-**Симптомы:** GET запросы повторяются, а POST - нет.
+### Retry Not Working for POST Requests
+**Symptoms:** GET requests are retried, but POST are not.
 
-**Причина:** POST требует Idempotency-Key для безопасных повторов.
+**Cause:** POST requires Idempotency-Key for safe retries.
 
-**Решение:**
+**Solution:**
 ```go
 req, _ := http.NewRequestWithContext(ctx, "POST", url, body)
-req.Header.Set("Idempotency-Key", "unique-operation-id") // Обязательно!
+req.Header.Set("Idempotency-Key", "unique-operation-id") // Required!
 req.Header.Set("Content-Type", "application/json")
 
 resp, err := client.Do(req)
 ```
 
-### Неподходящие ошибки повторяются
-**Симптомы:** 4xx ошибки повторяются бесконечно.
+### Inappropriate Errors Are Retried
+**Symptoms:** 4xx errors are retried indefinitely.
 
-**Диагностика:**
+**Diagnostics:**
 ```go
-// Проверьте классификацию ошибок
+// Check error classification
 classification := httpclient.ClassifyError(err)
 isRetryable := httpclient.IsRetryableError(err)
-fmt.Printf("Ошибка: %s, Повторяемая: %t\n", classification, isRetryable)
+fmt.Printf("Error: %s, Retryable: %t\n", classification, isRetryable)
 ```
 
-**Объяснение:** Только определенные ошибки повторяются:
-- 5xx статус коды
+**Explanation:** Only certain errors are retried:
+- 5xx status codes
 - 429 Too Many Requests
-- Сетевые ошибки
-- Таймауты
+- Network errors
+- Timeouts
 
-4xx ошибки (кроме 429) НЕ повторяются.
+4xx errors (except 429) are NOT retried.
 
 ### Очень медленные retry
 **Симптомы:** Между попытками слишком большие паузы.

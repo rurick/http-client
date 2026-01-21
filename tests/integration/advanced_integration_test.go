@@ -1,7 +1,7 @@
 //go:build integration
 
-// Package integration содержит продвинутые интеграционные тесты для HTTP клиент библиотеки.
-// Эти тесты покрывают сложные сценарии взаимодействия, граничные случаи и проблемы конкурентности.
+// Package integration contains advanced integration tests for the HTTP client library.
+// These tests cover complex interaction scenarios, edge cases, and concurrency issues.
 package integration
 
 import (
@@ -25,7 +25,7 @@ import (
 	httpclient "github.com/rurick/http-client"
 )
 
-// errorReader симулирует io.Reader, который падает после первого чтения.
+// errorReader simulates an io.Reader that fails after the first read.
 type errorReader struct {
 	data      []byte
 	readCount int32
@@ -44,7 +44,7 @@ func (er *errorReader) Close() error {
 	return nil
 }
 
-// brokenPipe симулирует соединение, которое обрывается во время чтения ответа.
+// brokenPipe simulates a connection that breaks during response reading.
 type brokenPipe struct {
 	content []byte
 	broken  bool
@@ -78,19 +78,19 @@ func (bp *brokenPipe) Close() error {
 	return nil
 }
 
-// TestRetryWithOpenCircuitBreaker тестирует взаимодействие между логикой retry и circuit breaker.
-// Когда circuit breaker открывается посреди retry, последующие попытки должны быть остановлены.
+// TestRetryWithOpenCircuitBreaker tests interaction between retry logic and circuit breaker.
+// When the circuit breaker opens during retry, subsequent attempts should be stopped.
 func TestRetryWithOpenCircuitBreaker(t *testing.T) {
 	t.Parallel()
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&serverCallCount, 1)
-		w.WriteHeader(http.StatusInternalServerError) // Всегда ошибка
+		w.WriteHeader(http.StatusInternalServerError) // Always error
 	}))
 	defer server.Close()
 
-	// Настраиваем circuit breaker на открытие после 2 ошибок
+	// Configure circuit breaker to open after 2 errors
 	cbConfig := httpclient.CircuitBreakerConfig{
 		FailureThreshold: 2,
 		SuccessThreshold: 1,
@@ -100,7 +100,7 @@ func TestRetryWithOpenCircuitBreaker(t *testing.T) {
 	config := httpclient.Config{
 		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts:      5, // Попыток больше, чем порог CB
+			MaxAttempts:      5, // More attempts than CB threshold
 			BaseDelay:        10 * time.Millisecond,
 			RetryStatusCodes: []int{http.StatusInternalServerError},
 		},
@@ -114,19 +114,19 @@ func TestRetryWithOpenCircuitBreaker(t *testing.T) {
 	ctx := context.Background()
 	_, err := client.Get(ctx, server.URL)
 
-	// Должны получить ошибку circuit breaker
+	// Should get circuit breaker error
 	assert.Error(t, err)
 
-	// Сервер не должен быть вызван 5 раз из-за открытия circuit breaker
+	// Server should not be called 5 times due to circuit breaker opening
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Less(t, int(callCount), 5, "Circuit breaker должен ограничивать вызовы")
-	assert.GreaterOrEqual(t, int(callCount), 2, "Должно попытаться минимум threshold раз")
+	assert.Less(t, int(callCount), 5, "Circuit breaker should limit calls")
+	assert.GreaterOrEqual(t, int(callCount), 2, "Should attempt at least threshold times")
 }
 
-// TestCircuitBreakerResetsAfterSuccessfulRetry проверяет, что circuit breaker переключается корректно,
-// когда сервис восстанавливается во время попыток retry.
+// TestCircuitBreakerResetsAfterSuccessfulRetry verifies that circuit breaker switches correctly
+// when the service recovers during retry attempts.
 func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
-	// Не параллельно из-за чувствительности ко времени
+	// Not parallel due to time sensitivity
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -135,7 +135,7 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
 		}
-		w.WriteHeader(http.StatusOK) // Сервис восстанавливается
+		w.WriteHeader(http.StatusOK) // Service recovers
 	}))
 	defer server.Close()
 
@@ -149,7 +149,7 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 	config := httpclient.Config{
 		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts:      1, // Никаких retry, тестим только CB
+			MaxAttempts:      1, // No retries, testing only CB
 			RetryStatusCodes: []int{http.StatusInternalServerError},
 		},
 		CircuitBreakerEnable: true,
@@ -161,24 +161,24 @@ func TestCircuitBreakerResetsAfterSuccessfulRetry(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Первые два вызова должны открыть circuit breaker
+	// First two calls should open circuit breaker
 	client.Get(ctx, server.URL)
 	client.Get(ctx, server.URL)
 
 	assert.Equal(t, httpclient.CircuitBreakerOpen, cb.State())
 
-	// Ждем таймаут circuit breaker
+	// Wait for circuit breaker timeout
 	time.Sleep(150 * time.Millisecond)
 
-	// Следующий вызов должен успех и закрыть цепь
+	// Next call should succeed and close the circuit
 	resp, err := client.Get(ctx, server.URL)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, httpclient.CircuitBreakerClosed, cb.State())
 }
 
-// TestBackoffWithJitter проверяет, что задержки retry включают детерминированный jitter
-// и отличаются для разных попыток в ожидаемом диапазоне.
+// TestBackoffWithJitter verifies that retry delays include deterministic jitter
+// and differ for different attempts within the expected range.
 func TestBackoffWithJitter(t *testing.T) {
 	t.Parallel()
 
@@ -186,21 +186,21 @@ func TestBackoffWithJitter(t *testing.T) {
 	jitter := 0.5 // 50% jitter
 	maxDelay := 10 * time.Second
 
-	// Тестим множество попыток, чтобы проверить jitter между попытками
+	// Test multiple attempts to verify jitter between attempts
 	attempts := []int{1, 2, 3, 4, 5}
 	delays := make([]time.Duration, len(attempts))
 
-	// Собираем задержки для разных попыток
+	// Collect delays for different attempts
 	for i, attempt := range attempts {
 		delays[i] = httpclient.CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
 	}
 
-	// Проверяем задержки для каждой попытки
+	// Check delays for each attempt
 	for i, attempt := range attempts {
-		// Ожидаемая базовая задержка: 0 для attempt <= 1, baseDelay * 2^(attempt-2) для attempt >= 2
+		// Expected base delay: 0 for attempt <= 1, baseDelay * 2^(attempt-2) for attempt >= 2
 		var expectedBase time.Duration
 		if attempt <= 1 {
-			expectedBase = 0 // Первая попытка без задержки
+			expectedBase = 0 // First attempt without delay
 		} else {
 			expectedBase = time.Duration(float64(baseDelay) * math.Pow(2, float64(attempt-2)))
 		}
@@ -211,20 +211,20 @@ func TestBackoffWithJitter(t *testing.T) {
 			maxJitterDelay = maxDelay
 		}
 
-		// Проверяем, что задержка в пределах jitter
-		assert.GreaterOrEqual(t, delays[i], minDelay, "Задержка для попытки %d ниже минимума: %v < %v", attempt, delays[i], minDelay)
-		assert.LessOrEqual(t, delays[i], maxJitterDelay, "Задержка для попытки %d выше максимума: %v > %v", attempt, delays[i], maxJitterDelay)
+		// Check that delay is within jitter range
+		assert.GreaterOrEqual(t, delays[i], minDelay, "Delay for attempt %d below minimum: %v < %v", attempt, delays[i], minDelay)
+		assert.LessOrEqual(t, delays[i], maxJitterDelay, "Delay for attempt %d above maximum: %v > %v", attempt, delays[i], maxJitterDelay)
 	}
 
-	// Проверяем, что jitter создает детерминированные, но разные значения для разных попыток
-	// Поскольку jitter детерминирован по номеру попытки, одинаковые попытки должны давать одинаковые результаты
+	// Check that jitter creates deterministic but different values for different attempts
+	// Since jitter is deterministic by attempt number, same attempts should give same results
 	for _, attempt := range attempts {
 		delay1 := httpclient.CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
 		delay2 := httpclient.CalculateBackoffDelay(attempt, baseDelay, maxDelay, jitter)
-		assert.Equal(t, delay1, delay2, "Jitter должен быть детерминирован для одной попытки %d", attempt)
+		assert.Equal(t, delay1, delay2, "Jitter should be deterministic for the same attempt %d", attempt)
 	}
 
-	// Проверяем, что разные попытки создают разные задержки (детерминированный jitter)
+	// Check that different attempts create different delays (deterministic jitter)
 	atLeastOneDifferent := false
 	for i := 1; i < len(delays); i++ {
 		if delays[i] != delays[0] {
@@ -232,11 +232,11 @@ func TestBackoffWithJitter(t *testing.T) {
 			break
 		}
 	}
-	assert.True(t, atLeastOneDifferent, "Jitter должен создавать разные задержки для разных попыток")
+	assert.True(t, atLeastOneDifferent, "Jitter should create different delays for different attempts")
 }
 
-// TestIdempotentRetryWithUnreadableBody проверяет, что библиотека буферизует тела запросов
-// и позволяет retry даже для POST запросов с Idempotency-Key.
+// TestIdempotentRetryWithUnreadableBody verifies that the library buffers request bodies
+// and allows retry even for POST requests with Idempotency-Key.
 func TestIdempotentRetryWithUnreadableBody(t *testing.T) {
 	t.Parallel()
 
@@ -244,14 +244,14 @@ func TestIdempotentRetryWithUnreadableBody(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&serverCallCount, 1)
 		if count < 3 {
-			w.WriteHeader(http.StatusInternalServerError) // Ошибка в первые 2 попытки
+			w.WriteHeader(http.StatusInternalServerError) // Error on first 2 attempts
 			return
 		}
-		w.WriteHeader(http.StatusOK) // Успех на 3-й попытке
+		w.WriteHeader(http.StatusOK) // Success on 3rd attempt
 	}))
 	defer server.Close()
 
-	// Используем обычный reader - библиотека будет буферизовать его
+	// Use a regular reader - the library will buffer it
 	body := strings.NewReader("test-data")
 
 	config := httpclient.Config{
@@ -270,16 +270,16 @@ func TestIdempotentRetryWithUnreadableBody(t *testing.T) {
 
 	resp, err := client.Do(req)
 
-	// Должен успеть после retry, поскольку библиотека буферизует body
+	// Should succeed after retry, since the library buffers the body
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Сервер должен быть вызван 3 раза (библиотека повторяет идемпотентные POST)
+	// Server should be called 3 times (library retries idempotent POST)
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Equal(t, int32(3), callCount, "Ожидаем 3 попытки для идемпотентного POST с повторяемым статусом")
+	assert.Equal(t, int32(3), callCount, "Expected 3 attempts for idempotent POST with retryable status")
 }
 
-// TestIdempotentRetryWithBodyReadErrorOnSecondAttempt проверяет, что ошибки чтения body предотвращают запрос.
+// TestIdempotentRetryWithBodyReadErrorOnSecondAttempt verifies that body read errors prevent the request.
 func TestIdempotentRetryWithBodyReadErrorOnSecondAttempt(t *testing.T) {
 	t.Parallel()
 
@@ -290,7 +290,7 @@ func TestIdempotentRetryWithBodyReadErrorOnSecondAttempt(t *testing.T) {
 	}))
 	defer server.Close()
 
-	// Используем errorReader, который падает после первого чтения
+	// Use errorReader that fails after first read
 	errorBody := &errorReader{data: []byte("test-data")}
 
 	config := httpclient.Config{
@@ -307,35 +307,35 @@ func TestIdempotentRetryWithBodyReadErrorOnSecondAttempt(t *testing.T) {
 	req, _ := http.NewRequest("POST", server.URL, errorBody)
 	req.Header.Set("Idempotency-Key", "test-key-456")
 
-	// Должны получить ошибку от первоначального чтения body
+	// Should get error from initial body read
 	_, err := client.Do(req)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to read request body")
 
-	// Никаких вызовов сервера из-за ошибки чтения body
+	// No server calls due to body read error
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Equal(t, int32(0), callCount, "Не должно быть вызовов из-за ошибки чтения body")
+	assert.Equal(t, int32(0), callCount, "Should be no calls due to body read error")
 }
 
-// TestOverallTimeoutDuringRetry проверяет, что общий таймаут клиента
-// истекает во время последовательности retry в пределах MaxAttempts.
+// TestOverallTimeoutDuringRetry verifies that the client's overall timeout
+// expires during the retry sequence within MaxAttempts.
 func TestOverallTimeoutDuringRetry(t *testing.T) {
 	t.Parallel()
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&serverCallCount, 1)
-		time.Sleep(50 * time.Millisecond) // Каждый запрос занимает 50ms
+		time.Sleep(50 * time.Millisecond) // Each request takes 50ms
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
 	defer server.Close()
 
 	config := httpclient.Config{
-		Timeout:       120 * time.Millisecond, // Общий таймаут
-		PerTryTimeout: 100 * time.Millisecond, // Таймаут на попытку
+		Timeout:       120 * time.Millisecond, // Overall timeout
+		PerTryTimeout: 100 * time.Millisecond, // Per-attempt timeout
 		RetryEnabled:  true,
 		RetryConfig: httpclient.RetryConfig{
-			MaxAttempts:      5, // Попыток больше, чем позволяет время
+			MaxAttempts:      5, // More attempts than time allows
 			BaseDelay:        20 * time.Millisecond,
 			RetryStatusCodes: []int{http.StatusInternalServerError},
 		},
@@ -348,31 +348,31 @@ func TestOverallTimeoutDuringRetry(t *testing.T) {
 	resp, err := client.Get(ctx, server.URL)
 	elapsed := time.Since(start)
 
-	// Либо ошибка таймаута, либо последний неудачный ответ
+	// Either timeout error or last failed response
 	if err != nil {
-		// Произошел таймаут - проверяем разные сообщения об ошибках
+		// Timeout occurred - check different error messages
 		errorMsg := err.Error()
 		assert.True(t, strings.Contains(errorMsg, "deadline exceeded") ||
 			strings.Contains(errorMsg, "context deadline exceeded") ||
 			strings.Contains(errorMsg, "Client.Timeout exceeded") ||
 			strings.Contains(errorMsg, "timeout exceeded"),
-			"Ожидали ошибку таймаута, получили: %v", err)
+			"Expected timeout error, got: %v", err)
 	} else if resp != nil {
-		// Получили последний ответ от неудачных попыток
+		// Got last response from failed attempts
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		_ = resp.Body.Close()
 	}
 
-	// Должен соблюдать общий таймаут (с небольшим запасом на обработку)
-	assert.Less(t, elapsed, 200*time.Millisecond, "Запрос слишком долгий: %v", elapsed)
+	// Should respect overall timeout (with small margin for processing)
+	assert.Less(t, elapsed, 200*time.Millisecond, "Request too long: %v", elapsed)
 
-	// Не должен сделать все 5 retry из-за таймаута
+	// Should not complete all 5 retries due to timeout
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Less(t, int(callCount), 5, "Не должен завершить все retry из-за таймаута")
+	assert.Less(t, int(callCount), 5, "Should not complete all retries due to timeout")
 }
 
-// TestPerTryTimeoutAndRetry проверяет, что таймауты на попытку работают корректно
-// с мультипльными попытками retry.
+// TestPerTryTimeoutAndRetry verifies that per-attempt timeouts work correctly
+// with multiple retry attempts.
 func TestPerTryTimeoutAndRetry(t *testing.T) {
 	t.Parallel()
 
@@ -380,17 +380,17 @@ func TestPerTryTimeoutAndRetry(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&serverCallCount, 1)
 		if count < 3 {
-			time.Sleep(150 * time.Millisecond) // Дольше, чем таймаут на попытку
+			time.Sleep(150 * time.Millisecond) // Longer than per-attempt timeout
 			w.WriteHeader(http.StatusOK)
 			return
 		}
-		w.WriteHeader(http.StatusOK) // Быстрый ответ на 3-й попытке
+		w.WriteHeader(http.StatusOK) // Fast response on 3rd attempt
 	}))
 	defer server.Close()
 
 	config := httpclient.Config{
-		Timeout:       2 * time.Second,        // Длинный общий таймаут
-		PerTryTimeout: 100 * time.Millisecond, // Короткий таймаут на попытку
+		Timeout:       2 * time.Second,        // Long overall timeout
+		PerTryTimeout: 100 * time.Millisecond, // Short per-attempt timeout
 		RetryEnabled:  true,
 		RetryConfig: httpclient.RetryConfig{
 			MaxAttempts:  3,
@@ -407,20 +407,20 @@ func TestPerTryTimeoutAndRetry(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Должен попытаться 3 раза (первые 2 таймаут, 3-я успех)
+	// Should attempt 3 times (first 2 timeout, 3rd succeeds)
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Equal(t, int32(3), callCount, "Ожидаем ровно 3 попытки")
+	assert.Equal(t, int32(3), callCount, "Expected exactly 3 attempts")
 }
 
-// TestConcurrentClientUsageWithSharedConfig тестирует thread safety
-// при одновременном использовании клиента в множестве goroutines.
+// TestConcurrentClientUsageWithSharedConfig tests thread safety
+// when using the client concurrently in multiple goroutines.
 func TestConcurrentClientUsageWithSharedConfig(t *testing.T) {
 	t.Parallel()
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&serverCallCount, 1)
-		time.Sleep(10 * time.Millisecond) // Небольшая задержка
+		time.Sleep(10 * time.Millisecond) // Small delay
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer server.Close()
@@ -468,15 +468,15 @@ func TestConcurrentClientUsageWithSharedConfig(t *testing.T) {
 		errorList = append(errorList, err)
 	}
 
-	assert.Empty(t, errorList, "Одновременные запросы сорвались: %v", errorList)
+	assert.Empty(t, errorList, "Concurrent requests failed: %v", errorList)
 
-	// Проверяем, что все запросы обработаны
+	// Check that all requests are processed
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.Equal(t, int32(concurrency), callCount, "Не все одновременные запросы обработаны")
+	assert.Equal(t, int32(concurrency), callCount, "Not all concurrent requests processed")
 }
 
-// TestConcurrentCircuitBreakerStateChanges тестирует thread safety circuit breaker
-// при высокой конкурентности.
+// TestConcurrentCircuitBreakerStateChanges tests circuit breaker thread safety
+// under high concurrency.
 func TestConcurrentCircuitBreakerStateChanges(t *testing.T) {
 	t.Parallel()
 
@@ -485,7 +485,7 @@ func TestConcurrentCircuitBreakerStateChanges(t *testing.T) {
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&serverCallCount, 1)
-		// Первые 10 запросов падают, потом успех
+		// First 10 requests fail, then success
 		if count <= 10 {
 			atomic.AddInt32(&failureCount, 1)
 			w.WriteHeader(http.StatusInternalServerError)
@@ -505,7 +505,7 @@ func TestConcurrentCircuitBreakerStateChanges(t *testing.T) {
 	config := httpclient.Config{
 		CircuitBreakerEnable: true,
 		CircuitBreaker:       cb,
-		RetryEnabled:         false, // Фокус на CB поведении
+		RetryEnabled:         false, // Focus on CB behavior
 	}
 
 	client := httpclient.New(config, "test-client")
@@ -533,31 +533,31 @@ func TestConcurrentCircuitBreakerStateChanges(t *testing.T) {
 
 	wg.Wait()
 
-	// Проверяем, что CB справился с конкурентным доступом без паник
+	// Check that CB handled concurrent access without panics
 	totalRequests := atomic.LoadInt32(&requestCount)
 	totalServerCalls := atomic.LoadInt32(&serverCallCount)
 
-	assert.Equal(t, int32(concurrency), totalRequests, "Не все goroutines завершились")
-	// Вызовов сервера должно быть меньше из-за CB
-	assert.LessOrEqual(t, int(totalServerCalls), concurrency, "Вызовов сервера не должно превышать запросы")
+	assert.Equal(t, int32(concurrency), totalRequests, "Not all goroutines completed")
+	// Server calls should be less due to CB
+	assert.LessOrEqual(t, int(totalServerCalls), concurrency, "Server calls should not exceed requests")
 
-	// CB должен был открыться и предотвратить некоторые запросы
+	// CB should have opened and prevented some requests
 	finalState := cb.State()
 	assert.True(t, finalState == httpclient.CircuitBreakerOpen ||
 		finalState == httpclient.CircuitBreakerHalfOpen ||
 		finalState == httpclient.CircuitBreakerClosed,
-		"Circuit breaker должен быть в валидном состоянии")
+		"Circuit breaker should be in valid state")
 }
 
-// TestMetricsOnRetryWithContextCancellation проверяет корректность метрик
-// при отмене context во время retry backoff.
+// TestMetricsOnRetryWithContextCancellation verifies metrics correctness
+// when context is cancelled during retry backoff.
 func TestMetricsOnRetryWithContextCancellation(t *testing.T) {
 	t.Parallel()
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		atomic.AddInt32(&serverCallCount, 1)
-		w.WriteHeader(http.StatusInternalServerError) // Всегда ошибка
+		w.WriteHeader(http.StatusInternalServerError) // Always error
 	}))
 	defer server.Close()
 
@@ -565,40 +565,40 @@ func TestMetricsOnRetryWithContextCancellation(t *testing.T) {
 		RetryEnabled: true,
 		RetryConfig: httpclient.RetryConfig{
 			MaxAttempts:      5,
-			BaseDelay:        200 * time.Millisecond, // Достаточно для отмены во время backoff
+			BaseDelay:        200 * time.Millisecond, // Enough for cancellation during backoff
 			RetryStatusCodes: []int{http.StatusInternalServerError},
 		},
 	}
 	client := httpclient.New(config, "test-client")
 	defer client.Close()
 
-	// Отменяем context после первого retry
+	// Cancel context after first retry
 	ctx, cancel := context.WithTimeout(context.Background(), 300*time.Millisecond)
 	defer cancel()
 
 	_, err := client.Get(ctx, server.URL)
 
-	// Ожидаем ошибку (HTTP или context)
+	// Expect error (HTTP or context)
 	if err != nil {
-		// Проверяем, что это один из ожидаемых типов
+		// Check that it's one of the expected types
 		assert.True(t, strings.Contains(err.Error(), "deadline exceeded") ||
 			strings.Contains(err.Error(), "context canceled") ||
 			strings.Contains(err.Error(), "500"),
-			"Ожидали context или HTTP ошибку, получили: %v", err)
+			"Expected context or HTTP error, got: %v", err)
 	}
 
-	// Должен сделать минимум один запрос
+	// Should make at least one request
 	callCount := atomic.LoadInt32(&serverCallCount)
-	assert.GreaterOrEqual(t, int(callCount), 1, "Должен сделать минимум одну попытку")
-	assert.LessOrEqual(t, int(callCount), 5, "Не должен превысить макс попыток")
+	assert.GreaterOrEqual(t, int(callCount), 1, "Should make at least one attempt")
+	assert.LessOrEqual(t, int(callCount), 5, "Should not exceed max attempts")
 }
 
-// TestMetricsLabelsForDifferentHosts проверяет host labels в метриках
-// при запросах к разным доменам.
+// TestMetricsLabelsForDifferentHosts verifies host labels in metrics
+// when making requests to different domains.
 func TestMetricsLabelsForDifferentHosts(t *testing.T) {
 	t.Parallel()
 
-	// Создаем несколько тестовых серверов
+	// Create multiple test servers
 	server1 := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	}))
@@ -614,7 +614,7 @@ func TestMetricsLabelsForDifferentHosts(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Делаем запросы к разным hosts
+	// Make requests to different hosts
 	resp1, err1 := client.Get(ctx, server1.URL)
 	require.NoError(t, err1)
 	assert.Equal(t, http.StatusOK, resp1.StatusCode)
@@ -625,31 +625,31 @@ func TestMetricsLabelsForDifferentHosts(t *testing.T) {
 	assert.Equal(t, http.StatusAccepted, resp2.StatusCode)
 	resp2.Body.Close()
 
-	// Главное - никаких паник при обработке разных hosts
-	// В реальном сценарии бы проверяли metrics registry
-	// Для интеграционного теста проверяем базовую работу
-	assert.True(t, true, "Успешно выполнили запросы к разным hosts")
+	// Main thing - no panics when processing different hosts
+	// In a real scenario we would check metrics registry
+	// For integration test we check basic operation
+	assert.True(t, true, "Successfully executed requests to different hosts")
 }
 
-// TestClientHandlesResponseBodyReadError тестирует обработку ошибок
-// когда response body становится нечитаемым.
+// TestClientHandlesResponseBodyReadError tests error handling
+// when response body becomes unreadable.
 func TestClientHandlesResponseBodyReadError(t *testing.T) {
 	t.Parallel()
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
-		w.Header().Set("Content-Length", "100") // Заявляем содержимое
+		w.Header().Set("Content-Length", "100") // Claim content
 
-		// Пишем часть, потом соединение "ломается"
+		// Write part, then connection "breaks"
 		flusher := w.(http.Flusher)
 		w.Write([]byte("partial"))
 		flusher.Flush()
 
-		// Симулируем обрыв соединения
+		// Simulate connection break
 		hijacker := w.(http.Hijacker)
 		conn, _, err := hijacker.Hijack()
 		if err == nil {
-			conn.Close() // Обрываем соединение резко
+			conn.Close() // Abruptly break connection
 		}
 	}))
 	defer server.Close()
@@ -660,31 +660,31 @@ func TestClientHandlesResponseBodyReadError(t *testing.T) {
 	ctx := context.Background()
 	resp, err := client.Get(ctx, server.URL)
 
-	// Запрос должен сначала успеть (200 OK статус получен)
+	// Request should first succeed (200 OK status received)
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	// Но чтение body должно сорваться из-за закрытого соединения
+	// But reading body should fail due to closed connection
 	_, readErr := io.ReadAll(resp.Body)
 	_ = resp.Body.Close()
 
-	// Должны получить сетевую ошибку
-	assert.Error(t, readErr, "Ожидали ошибку при чтении поломанного body")
+	// Should get network error
+	assert.Error(t, readErr, "Expected error reading broken body")
 	assert.True(t, strings.Contains(readErr.Error(), "broken pipe") ||
 		strings.Contains(readErr.Error(), "connection reset") ||
 		strings.Contains(readErr.Error(), "EOF"),
-		"Ожидали сетевую ошибку, получили: %v", readErr)
+		"Expected network error, got: %v", readErr)
 }
 
-// TestRetryWithCircuitBreakerRecovery тестирует сложный сценарий -
-// CB открывается, потом сервис восстанавливается.
+// TestRetryWithCircuitBreakerRecovery tests a complex scenario -
+// CB opens, then service recovers.
 func TestRetryWithCircuitBreakerRecovery(t *testing.T) {
-	// Не параллельно из-за чувствительности ко времени
+	// Not parallel due to time sensitivity
 
 	serverCallCount := int32(0)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		count := atomic.AddInt32(&serverCallCount, 1)
-		// Первые 2 вызова падают для открытия CB, потом сервис восстанавливается
+		// First 2 calls fail to open CB, then service recovers
 		if count <= 2 {
 			w.WriteHeader(http.StatusInternalServerError)
 			return
@@ -694,14 +694,14 @@ func TestRetryWithCircuitBreakerRecovery(t *testing.T) {
 	defer server.Close()
 
 	cbConfig := httpclient.CircuitBreakerConfig{
-		FailureThreshold: 2, // Открываем после 2 ошибок
-		SuccessThreshold: 1, // Закрываем после 1 успеха в half-open
+		FailureThreshold: 2, // Open after 2 errors
+		SuccessThreshold: 1, // Close after 1 success in half-open
 		Timeout:          100 * time.Millisecond,
 	}
 
 	cb := httpclient.NewCircuitBreakerWithConfig(cbConfig)
 	config := httpclient.Config{
-		RetryEnabled:         false, // Отключаем retry для фокуса на CB
+		RetryEnabled:         false, // Disable retry to focus on CB
 		CircuitBreakerEnable: true,
 		CircuitBreaker:       cb,
 	}
@@ -711,42 +711,42 @@ func TestRetryWithCircuitBreakerRecovery(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Делаем начальные неудачные запросы для открытия CB
-	resp1, _ := client.Get(ctx, server.URL) // count=1, падает, CB еще закрыт
+	// Make initial failed requests to open CB
+	resp1, _ := client.Get(ctx, server.URL) // count=1, fails, CB still closed
 	if resp1 != nil {
 		resp1.Body.Close()
 	}
-	resp2, _ := client.Get(ctx, server.URL) // count=2, падает, CB открывается
+	resp2, _ := client.Get(ctx, server.URL) // count=2, fails, CB opens
 	if resp2 != nil {
 		resp2.Body.Close()
 	}
 
-	// CB должен быть открыт сейчас
+	// CB should be open now
 	assert.Equal(t, httpclient.CircuitBreakerOpen, cb.State())
 
-	// Запрос при открытом CB должен вернуть последний неудачный ответ
+	// Request with open CB should return last failed response
 	resp3, err3 := client.Get(ctx, server.URL)
 	assert.Error(t, err3)
 	assert.Contains(t, err3.Error(), "circuit breaker is open")
-	// CB возвращает последний неудачный ответ когда открыт
+	// CB returns last failed response when open
 	if resp3 != nil {
 		assert.Equal(t, http.StatusInternalServerError, resp3.StatusCode)
 		resp3.Body.Close()
 	}
 
-	// Ждем таймаут CB для перехода в half-open
+	// Wait for CB timeout to transition to half-open
 	time.Sleep(150 * time.Millisecond)
 
-	// Следующий запрос должен успеть (сервис восстановился, CB half-open -> closed)
-	resp4, err4 := client.Get(ctx, server.URL) // count=3, должен успеть
-	require.NoError(t, err4, "Ожидали успешный запрос после восстановления")
+	// Next request should succeed (service recovered, CB half-open -> closed)
+	resp4, err4 := client.Get(ctx, server.URL) // count=3, should succeed
+	require.NoError(t, err4, "Expected successful request after recovery")
 	assert.Equal(t, http.StatusOK, resp4.StatusCode)
 	resp4.Body.Close()
 
-	// CB должен снова закрыться после успешного запроса
+	// CB should close again after successful request
 	assert.Equal(t, httpclient.CircuitBreakerClosed, cb.State())
 
-	// Проверяем, что восстановление сработало
+	// Verify that recovery worked
 	resp5, err5 := client.Get(ctx, server.URL)
 	require.NoError(t, err5)
 	assert.Equal(t, http.StatusOK, resp5.StatusCode)

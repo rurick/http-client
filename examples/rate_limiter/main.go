@@ -1,4 +1,4 @@
-// Пример использования Rate Limiter
+// Example of using Rate Limiter
 package main
 
 import (
@@ -14,12 +14,12 @@ func main() {
 	fmt.Println("Rate Limiter Example")
 	fmt.Println("===================")
 
-	// Конфигурация с rate limiter
+	// Configuration with rate limiter
 	config := httpclient.Config{
 		RateLimiterEnabled: true,
 		RateLimiterConfig: httpclient.RateLimiterConfig{
-			RequestsPerSecond: 2.0, // 2 запроса в секунду
-			BurstCapacity:     3,   // до 3 запросов сразу
+			RequestsPerSecond: 2.0, // 2 requests per second
+			BurstCapacity:     3,   // up to 3 requests at once
 		},
 		Timeout: 30 * time.Second,
 	}
@@ -29,43 +29,43 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Printf("Конфигурация: %.1f RPS, burst %d\n",
+	fmt.Printf("Configuration: %.1f RPS, burst %d\n",
 		config.RateLimiterConfig.RequestsPerSecond,
 		config.RateLimiterConfig.BurstCapacity)
 	fmt.Println()
 
-	// Демонстрация burst capacity
-	fmt.Println("1. Демонстрация burst capacity (3 быстрых запроса):")
+	// Demonstrate burst capacity
+	fmt.Println("1. Demonstrating burst capacity (3 fast requests):")
 	for i := 1; i <= 3; i++ {
 		start := time.Now()
 		resp, err := client.Get(ctx, "https://httpbin.org/delay/0")
 		elapsed := time.Since(start)
 
 		if err != nil {
-			log.Printf("Запрос %d failed: %v", i, err)
+			log.Printf("Request %d failed: %v", i, err)
 			continue
 		}
 		resp.Body.Close()
 
-		fmt.Printf("  Запрос %d: %s (время: %v)\n", i, resp.Status, elapsed.Round(time.Millisecond))
+		fmt.Printf("  Request %d: %s (time: %v)\n", i, resp.Status, elapsed.Round(time.Millisecond))
 	}
 
 	fmt.Println()
-	fmt.Println("2. Демонстрация rate limiting (4-й запрос должен ждать):")
+	fmt.Println("2. Demonstrating rate limiting (4th request should wait):")
 
 	start := time.Now()
 	resp, err := client.Get(ctx, "https://httpbin.org/delay/0")
 	elapsed := time.Since(start)
 
 	if err != nil {
-		log.Printf("Запрос failed: %v", err)
+		log.Printf("Request failed: %v", err)
 	} else {
 		resp.Body.Close()
-		fmt.Printf("  Запрос 4: %s (время ожидания: %v)\n", resp.Status, elapsed.Round(time.Millisecond))
+		fmt.Printf("  Request 4: %s (wait time: %v)\n", resp.Status, elapsed.Round(time.Millisecond))
 	}
 
 	fmt.Println()
-	fmt.Println("3. Демонстрация восстановления (через 1 секунду):")
+	fmt.Println("3. Demonstrating recovery (after 1 second):")
 	time.Sleep(1 * time.Second)
 
 	start = time.Now()
@@ -73,15 +73,15 @@ func main() {
 	elapsed = time.Since(start)
 
 	if err != nil {
-		log.Printf("Запрос failed: %v", err)
+		log.Printf("Request failed: %v", err)
 	} else {
 		resp.Body.Close()
-		fmt.Printf("  Запрос 5: %s (время: %v)\n", resp.Status, elapsed.Round(time.Millisecond))
+		fmt.Printf("  Request 5: %s (time: %v)\n", resp.Status, elapsed.Round(time.Millisecond))
 	}
 
 	fmt.Println()
-	fmt.Println("Rate Limiter работает корректно!")
-	fmt.Println("- Burst запросы прошли быстро")
-	fmt.Println("- 4-й запрос ожидал появления токена")
-	fmt.Println("- После паузы токен восстановился")
+	fmt.Println("Rate Limiter works correctly!")
+	fmt.Println("- Burst requests passed quickly")
+	fmt.Println("- 4th request waited for token to appear")
+	fmt.Println("- After pause token was restored")
 }

@@ -1,19 +1,19 @@
 # HTTP Client Package
 
-Комплексный Go HTTP клиент с автоматическими retry механизмами, метриками через OpenTelemetry и distributed tracing.
+Comprehensive Go HTTP client with automatic retry mechanisms, OpenTelemetry metrics, and distributed tracing.
 
-## Основные возможности
+## Key Features
 
-- **Умные повторы** с экспоненциальным backoff и джиттером
-- **Встроенные метрики через OpenTelemetry** (с поддержкой Prometheus)
-- **Distributed tracing** через OpenTelemetry
-- **Circuit Breaker** для защиты от каскадных сбоев
-- **Встроенный Rate Limiter** с Token Bucket алгоритмом
-- **Политики идемпотентности** для безопасных повторов POST/PATCH
-- **Настраиваемые таймауты** и стратегии backoff
-- **Testing utilities** для unit и integration тестов
+- **Smart retries** with exponential backoff and jitter
+- **Built-in OpenTelemetry metrics** (with Prometheus support)
+- **Distributed tracing** via OpenTelemetry
+- **Circuit Breaker** for protection against cascading failures
+- **Built-in Rate Limiter** with Token Bucket algorithm
+- **Idempotency policies** for safe POST/PATCH retries
+- **Configurable timeouts** and backoff strategies
+- **Testing utilities** for unit and integration tests
 
-## Быстрый старт
+## Quick Start
 
 ```go
 package main
@@ -27,14 +27,14 @@ func main() {
     client := httpclient.New(httpclient.Config{}, "my-service")
     defer client.Close()
     
-    // Простой GET запрос
+    // Simple GET request
     resp, err := client.Get(context.Background(), "https://api.example.com/data")
     if err != nil {
-        // обработка ошибки
+        // handle error
     }
     defer resp.Body.Close()
     
-    // GET с заголовками через новые опции
+    // GET with headers via new options
     resp, err = client.Get(context.Background(), "https://api.example.com/users",
         httpclient.WithHeaders(map[string]string{
             "Authorization": "Bearer your-token",
@@ -45,7 +45,7 @@ func main() {
     }
     defer resp.Body.Close()
     
-    // POST с JSON телом
+    // POST with JSON body
     user := map[string]interface{}{
         "name": "John Doe",
         "email": "john@example.com",
@@ -58,7 +58,7 @@ func main() {
     }
     defer resp.Body.Close()
 
-    // POST с JSON телом как строка
+    // POST with JSON body as string
 	userString := `{"name": "John Doe","email": "john@example.com"}`
 	resp, err = client.Post(context.Background(), "https://api.example.com/users", nil,
 		httpclient.WithJSONBody(userString),
@@ -68,29 +68,29 @@ func main() {
 	}
 	defer resp.Body.Close()
 
-	// Использование Rate Limiter
+	// Using Rate Limiter
 	clientWithRateLimit := httpclient.New(httpclient.Config{
 		RateLimiterEnabled: true,
 		RateLimiterConfig: httpclient.RateLimiterConfig{
-			RequestsPerSecond: 5.0, // 5 запросов в секунду
-			BurstCapacity:     10,  // до 10 запросов сразу
+			RequestsPerSecond: 5.0, // 5 requests per second
+			BurstCapacity:     10,  // up to 10 requests at once
 		},
 	}, "rate-limited-service")
 	defer clientWithRateLimit.Close()
 }
 ```
 
-## Документация
+## Documentation
 
-**Полная документация:** [docs/index.md](docs/index.md)
+**Full documentation:** [docs/index.md](docs/index.md)
 
-**Основные разделы:**
-- [Быстрый старт](docs/quick-start.md) - Примеры использования  
-- [Конфигурация](docs/configuration.md) - Настройки клиента
-- [Метрики](docs/metrics.md) - Мониторинг и алерты
-- [API справочник](docs/api-reference.md) - Полное описание функций
-- [Лучшие практики](docs/best-practices.md) - Рекомендации
-- [Тестирование](docs/testing.md) - Утилиты и примеры
-- [Troubleshooting](docs/troubleshooting.md) - Решение проблем
-- [Примеры](docs/examples.md) - Готовые code snippets
+**Main sections:**
+- [Quick Start](docs/quick-start.md) - Usage examples  
+- [Configuration](docs/configuration.md) - Client settings
+- [Metrics](docs/metrics.md) - Monitoring and alerts
+- [API Reference](docs/api-reference.md) - Complete function descriptions
+- [Best Practices](docs/best-practices.md) - Recommendations
+- [Testing](docs/testing.md) - Utilities and examples
+- [Troubleshooting](docs/troubleshooting.md) - Problem solving
+- [Examples](docs/examples.md) - Ready code snippets
 

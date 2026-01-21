@@ -1,156 +1,156 @@
 # Rate Limiter
 
-Комплексный гид по использованию встроенного Rate Limiter для управления частотой HTTP запросов.
+Comprehensive guide to using the built-in Rate Limiter for managing HTTP request frequency.
 
-## Обзор
+## Overview
 
-Rate Limiter реализует алгоритм **Token Bucket** для ограничения частоты исходящих HTTP запросов. Основные задачи:
-- Соблюдение лимитов внешних API
-- Защита от перегрузки собственных сервисов
-- Предотвращение превышения квот
-- Плавное распределение нагрузки
+Rate Limiter implements the **Token Bucket** algorithm to limit outgoing HTTP request frequency. Main tasks:
+- Complying with external API limits
+- Protecting own services from overload
+- Preventing quota overruns
+- Smooth load distribution
 
-## Архитектура
+## Architecture
 
-Rate Limiter интегрирован как middleware в цепочке обработки запросов:
+Rate Limiter is integrated as middleware in the request processing chain:
 
 ```
 HTTP Request
     ↓
-Circuit Breaker (опционально)
+Circuit Breaker (optional)
     ↓
-Rate Limiter (опционально) ← КОМПОНЕНТ
+Rate Limiter (optional) ← COMPONENT
     ↓
 RoundTripper (retry + metrics + tracing)
     ↓
 Base HTTP Transport
     ↓
-Сеть / Внешний сервис
+Network / External Service
 ```
 
-**Особенности:**
-- Полностью опциональный (включается через `RateLimiterEnabled: true`)
-- Не влияет на существующую логику retry, metrics, tracing
-- Работает на уровне всего клиента (глобальный лимит)
-- Потокобезопасный (thread-safe)
+**Features:**
+- Fully optional (enabled via `RateLimiterEnabled: true`)
+- Doesn't affect existing retry, metrics, tracing logic
+- Works at the entire client level (global limit)
+- Thread-safe
 
-## Алгоритм Token Bucket
+## Token Bucket Algorithm
 
-### Принцип работы
+### Working Principle
 
-Token Bucket ("Корзина токенов") - классический алгоритм для rate limiting:
+Token Bucket ("Token Bucket") - classic algorithm for rate limiting:
 
-1. **Корзина имеет емкость** (`BurstCapacity`) - максимальное количество токенов
-2. **Токены добавляются с постоянной скоростью** (`RequestsPerSecond`)
-3. **Каждый запрос потребляет 1 токен**
-4. **Если токенов нет - запрос ожидает** их появления
+1. **Bucket has capacity** (`BurstCapacity`) - maximum number of tokens
+2. **Tokens are added at constant rate** (`RequestsPerSecond`)
+3. **Each request consumes 1 token**
+4. **If no tokens available - request waits** for them to appear
 
-### Визуализация
+### Visualization
 
 ```
-Время: 0s        1s        2s        3s
+Time: 0s        1s        2s        3s
        ┌─────────────────────────────┐
-       │ ████████ (8 токенов)       │ BurstCapacity = 10
+       │ ████████ (8 tokens)        │ BurstCapacity = 10
        │                             │ Rate = 5 tokens/sec
        └─────────────────────────────┘
-           ↓ 3 запроса (3 токена)
+           ↓ 3 requests (3 tokens)
        ┌─────────────────────────────┐
-       │ █████ (5 токенов)           │
+       │ █████ (5 tokens)             │
        └─────────────────────────────┘
-           ↓ +5 токенов за 1 секунду
+           ↓ +5 tokens per 1 second
        ┌─────────────────────────────┐
-       │ ██████████ (10 токенов)     │ (достигнут лимит)
+       │ ██████████ (10 tokens)      │ (limit reached)
        └─────────────────────────────┘
 ```
 
-### Преимущества алгоритма
+### Algorithm Advantages
 
-✅ **Burst traffic** - позволяет короткие всплески запросов  
-✅ **Smooth limiting** - плавное ограничение без резких отказов  
-✅ **Predictable** - предсказуемое поведение и латентность  
-✅ **Wait strategy** - автоматическое ожидание вместо отклонения  
-✅ **Simple** - простая и понятная математика  
+✅ **Burst traffic** - allows short bursts of requests  
+✅ **Smooth limiting** - smooth limiting without abrupt rejections  
+✅ **Predictable** - predictable behavior and latency  
+✅ **Wait strategy** - automatic waiting instead of rejection  
+✅ **Simple** - simple and clear mathematics  
 
-## Интерфейс RateLimiter
+## RateLimiter Interface
 
 ```go
 type RateLimiter interface {
-    // Allow проверяет, можно ли выполнить запрос немедленно
+    // Allow checks if a request can be executed immediately
     Allow() bool
 
-    // Wait блокирует выполнение до получения разрешения на запрос
+    // Wait blocks execution until permission for a request is received
     Wait(ctx context.Context) error
 }
 ```
 
-### Методы
+### Methods
 
 #### Allow()
-Неблокирующая проверка доступности токена.
+Non-blocking token availability check.
 
 ```go
 if limiter.Allow() {
-    // Токен доступен, можно сделать запрос
+    // Token available, can make request
     resp, err := client.Get(ctx, url)
 } else {
-    // Токен недоступен, лимит исчерпан
+    // Token unavailable, limit exhausted
 }
 ```
 
-**Возвращает:**
-- `true` - токен доступен, запрос можно выполнить немедленно
-- `false` - токен недоступен, нужно подождать
+**Returns:**
+- `true` - token available, request can be executed immediately
+- `false` - token unavailable, need to wait
 
-**Использование:** когда нужен fail-fast подход без ожидания.
+**Usage:** when fail-fast approach without waiting is needed.
 
 #### Wait(ctx)
-Блокирующее ожидание доступности токена.
+Blocking wait for token availability.
 
 ```go
-// Ожидаем доступности токена
+// Wait for token availability
 err := limiter.Wait(ctx)
 if err != nil {
-    // Контекст отменен или истек таймаут
+    // Context cancelled or timeout expired
     return err
 }
 
-// Токен получен, можно делать запрос
+// Token received, can make request
 resp, err := client.Get(ctx, url)
 ```
 
-**Параметры:**
-- `ctx context.Context` - контекст для отмены ожидания
+**Parameters:**
+- `ctx context.Context` - context for cancellation of wait
 
-**Возвращает:**
-- `nil` - токен получен, можно продолжать
-- `error` - контекст отменен или истек таймаут
+**Returns:**
+- `nil` - token received, can continue
+- `error` - context cancelled or timeout expired
 
-**Использование:** в HTTP клиенте используется автоматически.
+**Usage:** used automatically in HTTP client.
 
-## Реализация TokenBucketLimiter
+## TokenBucketLimiter Implementation
 
-### Структура
+### Structure
 
 ```go
 type TokenBucketLimiter struct {
-    rate     float64    // токенов в секунду (RequestsPerSecond)
-    capacity int        // максимальная емкость корзины (BurstCapacity)
-    tokens   float64    // текущее количество токенов
-    lastTime time.Time  // время последнего обновления
-    mu       sync.Mutex // защита от конкурентного доступа
+    rate     float64    // tokens per second (RequestsPerSecond)
+    capacity int        // maximum bucket capacity (BurstCapacity)
+    tokens   float64    // current number of tokens
+    lastTime time.Time  // last update time
+    mu       sync.Mutex // concurrent access protection
 }
 ```
 
-### Создание
+### Creation
 
 ```go
-// Напрямую через конструктор
+// Directly via constructor
 limiter := httpclient.NewTokenBucketLimiter(
-    5.0,  // rate: 5 запросов в секунду
-    10,   // capacity: корзина на 10 токенов
+    5.0,  // rate: 5 requests per second
+    10,   // capacity: bucket for 10 tokens
 )
 
-// Через конфигурацию клиента (рекомендуется)
+// Via client configuration (recommended)
 config := httpclient.Config{
     RateLimiterEnabled: true,
     RateLimiterConfig: httpclient.RateLimiterConfig{
@@ -161,137 +161,137 @@ config := httpclient.Config{
 client := httpclient.New(config, "my-service")
 ```
 
-### Внутренняя логика
+### Internal Logic
 
-#### Пополнение токенов (refill)
+#### Token Refill
 
 ```go
-// Псевдокод логики пополнения
+// Pseudocode for refill logic
 elapsed := time.Since(lastTime).Seconds()
 tokensToAdd := elapsed * rate
 tokens = min(tokens + tokensToAdd, capacity)
 ```
 
-**Пример:**
+**Example:**
 - Rate = 5 tokens/sec
-- Прошло 2 секунды
-- Добавляется: 2 * 5 = 10 токенов
-- Но не более capacity
+- 2 seconds elapsed
+- Add: 2 * 5 = 10 tokens
+- But not more than capacity
 
-#### Потребление токена
+#### Token Consumption
 
 ```go
-// Псевдокод потребления
-refill() // пополняем перед проверкой
+// Pseudocode for consumption
+refill() // refill before check
 if tokens >= 1.0 {
     tokens -= 1.0
-    return true // токен получен
+    return true // token obtained
 }
-return false // токен недоступен
+return false // token unavailable
 ```
 
-## Конфигурация
+## Configuration
 
 ### RateLimiterConfig
 
 ```go
 type RateLimiterConfig struct {
-    RequestsPerSecond float64 // Максимальное количество запросов в секунду
-    BurstCapacity     int     // Размер корзины для пиковых запросов
+    RequestsPerSecond float64 // Maximum number of requests per second
+    BurstCapacity     int     // Bucket size for peak requests
 }
 ```
 
 ### RequestsPerSecond (RPS)
 
-Максимальная устойчивая скорость запросов.
+Maximum sustainable request rate.
 
-**Значения:**
-- **По умолчанию:** `10.0`
-- **Минимум:** `> 0.0` (положительное число)
-- **Рекомендуемые:**
-  - Консервативно: `1.0 - 5.0`
-  - Умеренно: `10.0 - 50.0`
-  - Агрессивно: `100.0+`
+**Values:**
+- **Default:** `10.0`
+- **Minimum:** `> 0.0` (positive number)
+- **Recommended:**
+  - Conservative: `1.0 - 5.0`
+  - Moderate: `10.0 - 50.0`
+  - Aggressive: `100.0+`
 
-**Примеры:**
+**Examples:**
 ```go
 RateLimiterConfig{
-    RequestsPerSecond: 5.0,   // 5 RPS - строгий лимит
-    RequestsPerSecond: 10.0,  // 10 RPS - умеренный
-    RequestsPerSecond: 100.0, // 100 RPS - высокая нагрузка
+    RequestsPerSecond: 5.0,   // 5 RPS - strict limit
+    RequestsPerSecond: 10.0,  // 10 RPS - moderate
+    RequestsPerSecond: 100.0, // 100 RPS - high load
 }
 ```
 
-**Выбор значения:**
-- Проверьте документацию API (обычно указан лимит)
-- Начните консервативно и увеличивайте постепенно
-- Учитывайте другие потребители того же API
-- Оставляйте запас для burst запросов
+**Value Selection:**
+- Check API documentation (usually limit is specified)
+- Start conservatively and increase gradually
+- Consider other consumers of the same API
+- Leave margin for burst requests
 
 ### BurstCapacity
 
-Максимальный размер корзины токенов.
+Maximum token bucket size.
 
-**Значения:**
-- **По умолчанию:** равен `RequestsPerSecond`
-- **Минимум:** `> 0` (положительное целое)
-- **Рекомендуемые:**
-  - Консервативно: `= RequestsPerSecond` (без burst)
-  - Умеренно: `= RequestsPerSecond * 1.5 - 2`
-  - Агрессивно: `> RequestsPerSecond * 2`
+**Values:**
+- **Default:** equals `RequestsPerSecond`
+- **Minimum:** `> 0` (positive integer)
+- **Recommended:**
+  - Conservative: `= RequestsPerSecond` (no burst)
+  - Moderate: `= RequestsPerSecond * 1.5 - 2`
+  - Aggressive: `> RequestsPerSecond * 2`
 
-**Примеры:**
+**Examples:**
 ```go
 RateLimiterConfig{
     RequestsPerSecond: 10.0,
-    BurstCapacity:     10,   // Без burst запасов
+    BurstCapacity:     10,   // No burst reserves
 }
 
 RateLimiterConfig{
     RequestsPerSecond: 10.0,
-    BurstCapacity:     20,   // Умеренный burst
+    BurstCapacity:     20,   // Moderate burst
 }
 
 RateLimiterConfig{
     RequestsPerSecond: 10.0,
-    BurstCapacity:     50,   // Агрессивный burst
+    BurstCapacity:     50,   // Aggressive burst
 }
 ```
 
-**Выбор значения:**
-- `= RPS`: для строгого ограничения без всплесков
-- `> RPS`: для обработки коротких пиков нагрузки
-- Учитывайте паттерн использования (равномерный vs. пакетный)
+**Value Selection:**
+- `= RPS`: for strict limiting without spikes
+- `> RPS`: for handling short load peaks
+- Consider usage pattern (uniform vs. batch)
 
-## Примеры использования
+## Usage Examples
 
-### Базовое использование
+### Basic Usage
 
 ```go
 config := httpclient.Config{
     RateLimiterEnabled: true,
     RateLimiterConfig: httpclient.RateLimiterConfig{
-        RequestsPerSecond: 5.0,  // 5 запросов в секунду
-        BurstCapacity:     10,   // до 10 запросов сразу
+        RequestsPerSecond: 5.0,  // 5 requests per second
+        BurstCapacity:     10,   // up to 10 requests at once
     },
 }
 
 client := httpclient.New(config, "rate-limited-service")
 defer client.Close()
 
-// Запросы автоматически ограничиваются
+// Requests are automatically limited
 resp, err := client.Get(ctx, "https://api.example.com/data")
 ```
 
-### Внешние API с жесткими лимитами
+### External APIs with Strict Limits
 
 ```go
-// API с лимитом 100 запросов в минуту (≈1.67 RPS)
+// API with limit of 100 requests per minute (≈1.67 RPS)
 config := httpclient.Config{
     RateLimiterEnabled: true,
     RateLimiterConfig: httpclient.RateLimiterConfig{
-        RequestsPerSecond: 1.5,  // Консервативно: 90 запросов/мин
-        BurstCapacity:     3,    // Минимальный burst
+        RequestsPerSecond: 1.5,  // Conservative: 90 requests/min
+        BurstCapacity:     3,    // Minimal burst
     },
     Timeout: 30 * time.Second,
 }
@@ -300,15 +300,15 @@ client := httpclient.New(config, "external-api")
 defer client.Close()
 ```
 
-### Высокопроизводительные сервисы
+### High-Performance Services
 
 ```go
-// Внутренний микросервис с высокой пропускной способностью
+// Internal microservice with high throughput
 config := httpclient.Config{
     RateLimiterEnabled: true,
     RateLimiterConfig: httpclient.RateLimiterConfig{
         RequestsPerSecond: 100.0, // 100 RPS
-        BurstCapacity:     200,   // Двойной burst
+        BurstCapacity:     200,   // Double burst
     },
     RetryEnabled: true,
     RetryConfig: httpclient.RetryConfig{
@@ -320,15 +320,15 @@ client := httpclient.New(config, "high-throughput-service")
 defer client.Close()
 ```
 
-### Строгое ограничение без burst
+### Strict Limiting Without Burst
 
 ```go
-// Критичный сервис с гарантированным лимитом
+// Critical service with guaranteed limit
 config := httpclient.Config{
     RateLimiterEnabled: true,
     RateLimiterConfig: httpclient.RateLimiterConfig{
-        RequestsPerSecond: 1.0,  // 1 запрос в секунду
-        BurstCapacity:     1,    // Без burst
+        RequestsPerSecond: 1.0,  // 1 request per second
+        BurstCapacity:     1,    // No burst
     },
 }
 
@@ -336,15 +336,15 @@ client := httpclient.New(config, "strict-limiter")
 defer client.Close()
 ```
 
-### Пакетная обработка с burst
+### Batch Processing with Burst
 
 ```go
-// Обработка данных пакетами с периодическими всплесками
+// Batch data processing with periodic spikes
 config := httpclient.Config{
     RateLimiterEnabled: true,
     RateLimiterConfig: httpclient.RateLimiterConfig{
-        RequestsPerSecond: 10.0, // Средняя скорость 10 RPS
-        BurstCapacity:     50,   // Пакет до 50 запросов сразу
+        RequestsPerSecond: 10.0, // Average rate 10 RPS
+        BurstCapacity:     50,   // Batch up to 50 requests at once
     },
 }
 

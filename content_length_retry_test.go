@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestContentLengthPreservedOnRetry тестирует основную проблему:
-// проверяет, что ContentLength сохраняется при retry запросах
+// TestContentLengthPreservedOnRetry tests the main issue:
+// verifies that ContentLength is preserved on retry requests
 func TestContentLengthPreservedOnRetry(t *testing.T) {
 	t.Parallel()
 
@@ -29,22 +29,22 @@ func TestContentLengthPreservedOnRetry(t *testing.T) {
 		{
 			name:     "small_body",
 			bodySize: 100,
-			desc:     "небольшое тело запроса",
+			desc:     "small request body",
 		},
 		{
 			name:     "medium_body",
 			bodySize: 10000,
-			desc:     "среднее тело запроса",
+			desc:     "medium request body",
 		},
 		{
 			name:     "large_body",
-			bodySize: 79449, // размер из оригинальной проблемы
-			desc:     "большое тело запроса (как в реальной ошибке)",
+			bodySize: 79449, // size from original issue
+			desc:     "large request body (as in real error)",
 		},
 		{
 			name:     "very_large_body",
 			bodySize: 500000,
-			desc:     "очень большое тело запроса",
+			desc:     "very large request body",
 		},
 	}
 
@@ -127,7 +127,7 @@ func TestContentLengthPreservedOnRetry(t *testing.T) {
 	}
 }
 
-// TestContentLengthZeroBodyRetry проверяет edge-case с пустым телом
+// TestContentLengthZeroBodyRetry tests edge case with empty body
 func TestContentLengthZeroBodyRetry(t *testing.T) {
 	t.Parallel()
 
@@ -172,7 +172,7 @@ func TestContentLengthZeroBodyRetry(t *testing.T) {
 	assert.Equal(t, int32(2), atomic.LoadInt32(&serverCallCount))
 }
 
-// TestContentLengthNegativeValue проверяет поведение с отрицательным ContentLength
+// TestContentLengthNegativeValue tests behavior with negative ContentLength
 func TestContentLengthNegativeValue(t *testing.T) {
 	t.Parallel()
 
@@ -226,7 +226,7 @@ func TestContentLengthNegativeValue(t *testing.T) {
 	}
 }
 
-// TestContentLengthMismatchDetection тестирует детекцию несоответствия ContentLength и размера body
+// TestContentLengthMismatchDetection tests detection of ContentLength and body size mismatch
 func TestContentLengthMismatchDetection(t *testing.T) {
 	t.Parallel()
 
@@ -264,7 +264,7 @@ func TestContentLengthMismatchDetection(t *testing.T) {
 	resp.Body.Close()
 }
 
-// TestContentLengthWithDifferentMethods проверяет ContentLength для разных HTTP методов
+// TestContentLengthWithDifferentMethods tests ContentLength for different HTTP methods
 func TestContentLengthWithDifferentMethods(t *testing.T) {
 	t.Parallel()
 
@@ -324,7 +324,7 @@ func TestContentLengthWithDifferentMethods(t *testing.T) {
 	}
 }
 
-// TestContentLengthConcurrentRetries проверяет ContentLength в условиях параллельных запросов
+// TestContentLengthConcurrentRetries tests ContentLength under concurrent requests
 func TestContentLengthConcurrentRetries(t *testing.T) {
 	t.Parallel()
 
@@ -408,7 +408,7 @@ func TestContentLengthConcurrentRetries(t *testing.T) {
 		"Должно быть больше запросов чем горутин из-за retry")
 }
 
-// BenchmarkContentLengthRetry бенчмарк для проверки производительности с исправлением
+// BenchmarkContentLengthRetry benchmark for performance testing with the fix
 func BenchmarkContentLengthRetry(b *testing.B) {
 	bodySize := 10000
 	testData := make([]byte, bodySize)

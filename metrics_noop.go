@@ -2,37 +2,37 @@ package httpclient
 
 import "context"
 
-// NoopMetricsProvider - провайдер, который ничего не делает.
-// Используется когда метрики отключены в конфигурации.
+// NoopMetricsProvider is a provider that does nothing.
+// Used when metrics are disabled in configuration.
 type NoopMetricsProvider struct{}
 
-// NewNoopMetricsProvider создает новый экземпляр NoopMetricsProvider.
+// NewNoopMetricsProvider creates a new NoopMetricsProvider instance.
 func NewNoopMetricsProvider() *NoopMetricsProvider {
 	return &NoopMetricsProvider{}
 }
 
-// RecordRequest ничего не делает.
+// RecordRequest does nothing.
 func (n *NoopMetricsProvider) RecordRequest(_ context.Context, _, _, _ string, _, _ bool) {}
 
-// RecordDuration ничего не делает.
+// RecordDuration does nothing.
 func (n *NoopMetricsProvider) RecordDuration(_ context.Context, _ float64, _, _, _ string, _ int) {}
 
-// RecordRetry ничего не делает.
+// RecordRetry does nothing.
 func (n *NoopMetricsProvider) RecordRetry(_ context.Context, _, _, _ string) {}
 
-// RecordRequestSize ничего не делает.
+// RecordRequestSize does nothing.
 func (n *NoopMetricsProvider) RecordRequestSize(_ context.Context, _ int64, _, _ string) {}
 
-// RecordResponseSize ничего не делает.
+// RecordResponseSize does nothing.
 func (n *NoopMetricsProvider) RecordResponseSize(_ context.Context, _ int64, _, _, _ string) {}
 
-// InflightInc ничего не делает.
+// InflightInc does nothing.
 func (n *NoopMetricsProvider) InflightInc(_ context.Context, _, _ string) {}
 
-// InflightDec ничего не делает.
+// InflightDec does nothing.
 func (n *NoopMetricsProvider) InflightDec(_ context.Context, _, _ string) {}
 
-// Close возвращает nil.
+// Close returns nil.
 func (n *NoopMetricsProvider) Close() error {
 	return nil
 }

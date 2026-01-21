@@ -14,14 +14,14 @@ import (
 
 var ErrCircuitBreakerOpen = errors.New("circuit breaker is open")
 
-// CircuitBreaker определяет интерфейс автоматического выключателя.
+// CircuitBreaker defines the interface for a circuit breaker.
 type CircuitBreaker interface {
 	Execute(fn func() (*http.Response, error)) (*http.Response, error)
 	State() CircuitBreakerState
 	Reset()
 }
 
-// CircuitBreakerState представляет состояние автоматического выключателя.
+// CircuitBreakerState represents the state of a circuit breaker.
 type CircuitBreakerState int
 
 const (
@@ -43,7 +43,7 @@ func (s CircuitBreakerState) String() string {
 	}
 }
 
-// SimpleCircuitBreaker реализует базовый паттерн автоматического выключателя.
+// SimpleCircuitBreaker implements the basic circuit breaker pattern.
 type SimpleCircuitBreaker struct {
 	mu                    sync.RWMutex
 	state                 CircuitBreakerState
@@ -58,12 +58,12 @@ type SimpleCircuitBreaker struct {
 	onStateChangeCallback func(from, to CircuitBreakerState)
 }
 
-// CircuitBreakerConfig содержит конфигурацию для автоматического выключателя.
+// CircuitBreakerConfig contains configuration for a circuit breaker.
 type CircuitBreakerConfig struct {
-	FailStatusCodes  []int         // Коды статуса, при которых считается ошибкой (по умолчанию 5xx и 429)
-	FailureThreshold int           // Количество ошибок до открытия
-	SuccessThreshold int           // Количество успешных попыток для закрытия из полуустановленного состояния
-	Timeout          time.Duration // Время ожидания перед переходом в полуустановленное состояние
+	FailStatusCodes  []int         // Status codes that are considered errors (default: 5xx and 429)
+	FailureThreshold int           // Number of failures before opening
+	SuccessThreshold int           // Number of successful attempts to close from half-open state
+	Timeout          time.Duration // Wait time before transitioning to half-open state
 	OnStateChange    func(from, to CircuitBreakerState)
 }
 
@@ -94,12 +94,12 @@ func newStrictReadCloser(b []byte) io.ReadCloser {
 	return &strictReadCloser{reader: bytes.NewReader(b)}
 }
 
-// NewSimpleCircuitBreaker создает новый автоматический выключатель с настройками по умолчанию.
+// NewSimpleCircuitBreaker creates a new circuit breaker with default settings.
 func NewSimpleCircuitBreaker() *SimpleCircuitBreaker {
 	return NewCircuitBreakerWithConfig(CircuitBreakerConfig{
 		FailStatusCodes: nil,
 		OnStateChange: func(_, _ CircuitBreakerState) {
-			// Пустой обработчик по умолчанию
+			// Empty handler by default
 		},
 		FailureThreshold: defaultFailureThreshold,
 		SuccessThreshold: defaultSuccessThreshold,
@@ -107,7 +107,7 @@ func NewSimpleCircuitBreaker() *SimpleCircuitBreaker {
 	})
 }
 
-// NewCircuitBreakerWithConfig создает новый автоматический выключатель с пользовательской конфигурацией.
+// NewCircuitBreakerWithConfig creates a new circuit breaker with custom configuration.
 func NewCircuitBreakerWithConfig(config CircuitBreakerConfig) *SimpleCircuitBreaker {
 	return &SimpleCircuitBreaker{
 		state:                 CircuitBreakerClosed,
@@ -119,7 +119,7 @@ func NewCircuitBreakerWithConfig(config CircuitBreakerConfig) *SimpleCircuitBrea
 	}
 }
 
-// Execute выполняет функцию через автоматический выключатель.
+// Execute executes a function through the circuit breaker.
 func (cb *SimpleCircuitBreaker) Execute(fn func() (*http.Response, error)) (*http.Response, error) {
 	// Check if we can execute and get the last fail response atomically
 	canExec, lastFailResp := cb.canExecuteAndGetLastFailResponse()
@@ -165,7 +165,7 @@ func (cb *SimpleCircuitBreaker) cloneHTTPResponse(resp *http.Response) *http.Res
 	if resp.Body != nil {
 		// Try to read the body, but handle the case where it might already be read
 		bodyBytes, err := io.ReadAll(resp.Body)
-		resp.Body.Close() // Всегда закрываем оригинальное body после чтения
+		resp.Body.Close() // Always close original body after reading
 		if err == nil && len(bodyBytes) > 0 {
 			// Restore original body for the caller
 			resp.Body = io.NopCloser(bytes.NewReader(bodyBytes))
@@ -183,14 +183,14 @@ func (cb *SimpleCircuitBreaker) cloneHTTPResponse(resp *http.Response) *http.Res
 	return clone
 }
 
-// State возвращает текущее состояние автоматического выключателя.
+// State returns the current state of the circuit breaker.
 func (cb *SimpleCircuitBreaker) State() CircuitBreakerState {
 	cb.mu.RLock()
 	defer cb.mu.RUnlock()
 	return cb.state
 }
 
-// Reset вручную сбрасывает автоматический выключатель в закрытое состояние.
+// Reset manually resets the circuit breaker to closed state.
 func (cb *SimpleCircuitBreaker) Reset() {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
@@ -221,7 +221,7 @@ func (cb *SimpleCircuitBreaker) canExecuteAndGetLastFailResponse() (bool, *http.
 	case CircuitBreakerClosed:
 		return true, lastFailResp
 	case CircuitBreakerOpen:
-		// Проверяем, следует ли перейти в полуустановленное состояние
+		// Check if we should transition to half-open state
 		if time.Since(cb.lastFailureTime) > cb.timeout {
 			cb.setState(CircuitBreakerHalfOpen)
 			return true, lastFailResp
@@ -234,39 +234,39 @@ func (cb *SimpleCircuitBreaker) canExecuteAndGetLastFailResponse() (bool, *http.
 	}
 }
 
-// recordResult записывает результат выполнения.
+// recordResult records the execution result.
 func (cb *SimpleCircuitBreaker) recordResult(resp *http.Response, err error) {
 	cb.mu.Lock()
 	defer cb.mu.Unlock()
 
 	isSuccess := cb.isSuccess(resp, err)
 
-	// Обрабатываем неуспешный ответ
+	// Handle unsuccessful response
 	if !isSuccess {
 		cb.handleFailedResponse(resp)
 	}
 
-	// Обновляем состояние в зависимости от текущего состояния автоматического выключателя
+	// Update state based on current circuit breaker state
 	cb.updateStateOnResult(isSuccess)
 }
 
-// handleFailedResponse обрабатывает неуспешный ответ, клонируя его для последующего использования.
+// handleFailedResponse handles an unsuccessful response by cloning it for later use.
 func (cb *SimpleCircuitBreaker) handleFailedResponse(resp *http.Response) {
 	if resp == nil {
 		return
 	}
 
-	// Закрываем предыдущий сохранённый ответ чтобы избежать утечки памяти
+	// Close previous saved response to avoid memory leaks
 	cb.closeLastFailResponse()
 
 	// Clone the response before storing it to avoid sharing mutable state
-	// Важно: исходный resp.Body будет закрыт внутри safeCloneResponse
+	// Important: original resp.Body will be closed inside safeCloneResponse
 	clonedResp := cb.safeCloneResponse(resp) //nolint:bodyclose // body is properly closed inside safeCloneResponse
-	// Сохраняем клонированный response независимо от наличия body
+	// Save cloned response regardless of body presence
 	cb.lastFailResponse = clonedResp
 }
 
-// closeLastFailResponse безопасно закрывает предыдущий сохранённый ответ.
+// closeLastFailResponse safely closes the previous saved response.
 func (cb *SimpleCircuitBreaker) closeLastFailResponse() {
 	if cb.lastFailResponse != nil && cb.lastFailResponse.Body != nil {
 		if closeErr := cb.lastFailResponse.Body.Close(); closeErr != nil {
@@ -275,37 +275,37 @@ func (cb *SimpleCircuitBreaker) closeLastFailResponse() {
 	}
 }
 
-// updateStateOnResult обновляет состояние автоматического выключателя на основе результата запроса.
+// updateStateOnResult updates the circuit breaker state based on request result.
 func (cb *SimpleCircuitBreaker) updateStateOnResult(isSuccess bool) {
 	switch cb.state {
 	case CircuitBreakerClosed:
 		cb.handleClosedState(isSuccess)
 	case CircuitBreakerOpen:
-		// В состоянии Open мы не записываем результаты, так как запросы не выполняются
-		// Переход в Half-Open происходит только по таймауту в canExecute()
+		// In Open state we don't record results, as requests are not executed
+		// Transition to Half-Open only happens by timeout in canExecute()
 	case CircuitBreakerHalfOpen:
 		cb.handleHalfOpenState(isSuccess)
 	}
 }
 
-// handleClosedState обрабатывает результат в состоянии Closed.
+// handleClosedState handles the result in Closed state.
 func (cb *SimpleCircuitBreaker) handleClosedState(isSuccess bool) {
 	if isSuccess {
 		cb.failureCount = 0
 		return
 	}
 
-	// Обрабатываем неуспешный результат
+	// Handle unsuccessful result
 	cb.failureCount++
 	cb.lastFailureTime = time.Now()
 
-	// Проверяем, нужно ли открыть автоматический выключатель
+	// Check if we need to open the circuit breaker
 	if cb.shouldOpenCircuit() {
 		cb.setState(CircuitBreakerOpen)
 	}
 }
 
-// handleHalfOpenState обрабатывает результат в состоянии Half-Open.
+// handleHalfOpenState handles the result in Half-Open state.
 func (cb *SimpleCircuitBreaker) handleHalfOpenState(isSuccess bool) {
 	if isSuccess {
 		cb.handleSuccessInHalfOpen()
@@ -314,7 +314,7 @@ func (cb *SimpleCircuitBreaker) handleHalfOpenState(isSuccess bool) {
 	}
 }
 
-// handleSuccessInHalfOpen обрабатывает успешный результат в состоянии Half-Open.
+// handleSuccessInHalfOpen handles a successful result in Half-Open state.
 func (cb *SimpleCircuitBreaker) handleSuccessInHalfOpen() {
 	cb.successCount++
 	if cb.successCount >= cb.successThreshold {
@@ -324,7 +324,7 @@ func (cb *SimpleCircuitBreaker) handleSuccessInHalfOpen() {
 	}
 }
 
-// handleFailureInHalfOpen обрабатывает неуспешный результат в состоянии Half-Open.
+// handleFailureInHalfOpen handles an unsuccessful result in Half-Open state.
 func (cb *SimpleCircuitBreaker) handleFailureInHalfOpen() {
 	cb.setState(CircuitBreakerOpen)
 	cb.failureCount++
@@ -332,7 +332,7 @@ func (cb *SimpleCircuitBreaker) handleFailureInHalfOpen() {
 	cb.lastFailureTime = time.Now()
 }
 
-// shouldOpenCircuit определяет, следует ли открыть автоматический выключатель.
+// shouldOpenCircuit determines if the circuit breaker should be opened.
 func (cb *SimpleCircuitBreaker) shouldOpenCircuit() bool {
 	return cb.failureThreshold > 0 && cb.failureCount >= cb.failureThreshold
 }
@@ -370,9 +370,9 @@ func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Res
 	if resp.Body != nil {
 		// Try to read the body safely
 		bodyBytes, err := io.ReadAll(resp.Body)
-		// Всегда закрываем оригинальное body после чтения для предотвращения утечек
+		// Always close original body after reading to prevent leaks
 		if closeErr := resp.Body.Close(); closeErr != nil {
-			// Логируем ошибку закрытия, но продолжаем работу
+			// Log close error, but continue
 			log.Printf("Failed to close response body: %v", closeErr)
 		}
 		if err == nil && len(bodyBytes) > 0 {
@@ -384,7 +384,7 @@ func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Res
 			// Could not read body or body is empty, create empty body
 			clone.Body = newStrictReadCloser(nil)
 			clone.ContentLength = 0
-			// Восстанавливаем оригинальный body как пустой для consistency
+			// Restore original body as empty for consistency
 			resp.Body = io.NopCloser(strings.NewReader(""))
 		}
 	} else {
@@ -395,7 +395,7 @@ func (cb *SimpleCircuitBreaker) safeCloneResponse(resp *http.Response) *http.Res
 	return clone
 }
 
-// isSuccess определяет, считается ли комбинация ответа/ошибки успешной.
+// isSuccess determines if the response/error combination is considered successful.
 func (cb *SimpleCircuitBreaker) isSuccess(resp *http.Response, err error) bool {
 	if err != nil {
 		return false
@@ -416,7 +416,7 @@ func (cb *SimpleCircuitBreaker) isSuccess(resp *http.Response, err error) bool {
 	return resp.StatusCode < internalServerErrorThreshold
 }
 
-// setState изменяет состояние автоматического выключателя и вызывает callback, если он установлен.
+// setState changes the circuit breaker state and calls callback if set.
 func (cb *SimpleCircuitBreaker) setState(newState CircuitBreakerState) {
 	oldState := cb.state
 	cb.state = newState
@@ -426,19 +426,19 @@ func (cb *SimpleCircuitBreaker) setState(newState CircuitBreakerState) {
 	}
 }
 
-// CircuitBreakerMiddleware оборачивает автоматический выключатель как middleware.
+// CircuitBreakerMiddleware wraps a circuit breaker as middleware.
 type CircuitBreakerMiddleware struct {
 	circuitBreaker CircuitBreaker
 }
 
-// NewCircuitBreakerMiddleware создает новый middleware для автоматического выключателя.
+// NewCircuitBreakerMiddleware creates a new middleware for a circuit breaker.
 func NewCircuitBreakerMiddleware(cb CircuitBreaker) *CircuitBreakerMiddleware {
 	return &CircuitBreakerMiddleware{
 		circuitBreaker: cb,
 	}
 }
 
-// Process реализует интерфейс Middleware.
+// Process implements the Middleware interface.
 func (cbm *CircuitBreakerMiddleware) Process(
 	req *http.Request,
 	next func(*http.Request) (*http.Response, error),

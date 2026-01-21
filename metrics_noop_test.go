@@ -5,7 +5,7 @@ import (
 	"testing"
 )
 
-// TestNoopMetricsProvider тестирует создание и работу NoopMetricsProvider
+// TestNoopMetricsProvider tests creation and operation of NoopMetricsProvider
 func TestNoopMetricsProvider(t *testing.T) {
 	provider := NewNoopMetricsProvider()
 	
@@ -14,12 +14,12 @@ func TestNoopMetricsProvider(t *testing.T) {
 	}
 }
 
-// TestNoopMetricsProvider_AllMethods тестирует что все методы NoopMetricsProvider не вызывают панику
+// TestNoopMetricsProvider_AllMethods tests that all NoopMetricsProvider methods do not panic
 func TestNoopMetricsProvider_AllMethods(t *testing.T) {
 	provider := NewNoopMetricsProvider()
 	ctx := context.Background()
 	
-	// Все методы должны быть no-op и не паниковать
+	// All methods should be no-op and not panic
 	provider.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	provider.RecordRequest(ctx, "POST", "api.example.com", "500", true, true)
 	
@@ -40,10 +40,10 @@ func TestNoopMetricsProvider_AllMethods(t *testing.T) {
 	provider.InflightDec(ctx, "GET", "example.com")
 	provider.InflightDec(ctx, "POST", "api.example.com")
 	
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }
 
-// TestNoopMetricsProvider_Close тестирует закрытие NoopMetricsProvider
+// TestNoopMetricsProvider_Close tests closing NoopMetricsProvider
 func TestNoopMetricsProvider_Close(t *testing.T) {
 	provider := NewNoopMetricsProvider()
 	
@@ -53,12 +53,12 @@ func TestNoopMetricsProvider_Close(t *testing.T) {
 	}
 }
 
-// TestNoopMetricsProvider_EdgeCases тестирует граничные случаи
+// TestNoopMetricsProvider_EdgeCases tests edge cases
 func TestNoopMetricsProvider_EdgeCases(t *testing.T) {
 	provider := NewNoopMetricsProvider()
 	ctx := context.Background()
 	
-	// Тест с пустыми значениями
+	// Test with empty values
 	provider.RecordRequest(ctx, "", "", "", false, false)
 	provider.RecordDuration(ctx, 0, "", "", "", 0)
 	provider.RecordRetry(ctx, "", "", "")
@@ -67,27 +67,27 @@ func TestNoopMetricsProvider_EdgeCases(t *testing.T) {
 	provider.RecordRequestSize(ctx, 0, "", "")
 	provider.RecordResponseSize(ctx, 0, "", "", "")
 	
-	// Тест с очень большими значениями
+	// Test with very large values
 	provider.RecordDuration(ctx, 999999.999, "GET", "example.com", "200", 1)
 	provider.RecordRequestSize(ctx, 1<<60, "POST", "example.com")
 	provider.RecordResponseSize(ctx, 1<<60, "GET", "example.com", "200")
 	
-	// Тест с отрицательными значениями (для inflight)
-	provider.InflightDec(ctx, "GET", "example.com") // декремент без инкремента
+	// Test with negative values (for inflight)
+	provider.InflightDec(ctx, "GET", "example.com") // decrement without increment
 	
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }
 
-// TestMetricsWithDisabledBackend тестирует интеграцию с отключенными метриками
+// TestMetricsWithDisabledBackend tests integration with disabled metrics
 func TestMetricsWithDisabledBackend(t *testing.T) {
-	// Создаём клиент с отключенными метриками
+	// Create a client with disabled metrics
 	enabled := false
 	client := New(Config{
 		MetricsEnabled: &enabled,
 	}, "disabled-metrics-client")
 	defer client.Close()
 	
-	// Проверяем что метрики инициализированы но отключены
+	// Check that metrics are initialized but disabled
 	if client.metrics == nil {
 		t.Fatal("expected metrics to be initialized")
 	}
@@ -100,10 +100,10 @@ func TestMetricsWithDisabledBackend(t *testing.T) {
 		t.Errorf("expected clientName to be 'disabled-metrics-client', got %s", client.metrics.clientName)
 	}
 	
-	// Тестируем что вызовы метрик не паникуют
+	// Test that metric calls do not panic
 	ctx := context.Background()
 	client.metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	client.metrics.RecordDuration(ctx, 0.5, "GET", "example.com", "200", 1)
 	
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }

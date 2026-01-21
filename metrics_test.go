@@ -6,8 +6,8 @@ import (
 )
 
 func TestNewMetrics(t *testing.T) {
-	// Тест работает с уже зарегистрированными метриками
-	// (они могли быть созданы в предыдущих тестах)
+	// Test works with already registered metrics
+	// (they might have been created in previous tests)
 
 	metrics := NewMetrics("testhttpclient")
 
@@ -23,7 +23,7 @@ func TestNewMetrics(t *testing.T) {
 		t.Errorf("expected clientName to be 'testhttpclient', got %s", metrics.clientName)
 	}
 
-	// Метрики теперь инкапсулированы в провайдере
+	// Metrics are now encapsulated in the provider
 	if metrics.provider == nil {
 		t.Error("expected metrics provider to be initialized")
 	}
@@ -49,7 +49,7 @@ func TestMetrics_RecordRequest(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Тест записи метрики запроса - не должно паниковать
+	// Test recording request metric - should not panic
 	metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	metrics.RecordRequest(ctx, "POST", "api.example.com", "500", true, true)
 }
@@ -58,7 +58,7 @@ func TestMetricsDisabled_NoOp(t *testing.T) {
 	metrics := NewDisabledMetrics("disabled")
 	ctx := context.Background()
 
-	// Все операции должны быть no-op и не паниковать
+	// All operations should be no-op and not panic
 	metrics.RecordRequest(ctx, "GET", "example.com", "200", false, false)
 	metrics.RecordDuration(ctx, 0.5, "GET", "example.com", "200", 1)
 	metrics.RecordRetry(ctx, "status", "GET", "example.com")
@@ -77,7 +77,7 @@ func TestMetrics_RecordDuration(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Тест записи метрики длительности - не должно паниковать
+	// Test recording duration metric - should not panic
 	metrics.RecordDuration(ctx, 0.5, "GET", "example.com", "200", 1)
 	metrics.RecordDuration(ctx, 1.2, "POST", "api.example.com", "500", 2)
 }
@@ -86,7 +86,7 @@ func TestMetrics_RecordRetry(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Тест записи метрики retry - не должно паниковать
+	// Test recording retry metric - should not panic
 	metrics.RecordRetry(ctx, "status", "GET", "example.com")
 	metrics.RecordRetry(ctx, "timeout", "POST", "api.example.com")
 }
@@ -95,7 +95,7 @@ func TestMetrics_RecordRequestSize(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Тест записи метрики размера запроса - не должно паниковать
+	// Test recording request size metric - should not panic
 	metrics.RecordRequestSize(ctx, 1024, "POST", "example.com")
 	metrics.RecordRequestSize(ctx, 0, "GET", "api.example.com")
 }
@@ -104,7 +104,7 @@ func TestMetrics_RecordResponseSize(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Тест записи метрики размера ответа - не должно паниковать
+	// Test recording response size metric - should not panic
 	metrics.RecordResponseSize(ctx, 2048, "GET", "example.com", "200")
 	metrics.RecordResponseSize(ctx, 512, "POST", "api.example.com", "500")
 }
@@ -118,44 +118,44 @@ func TestMetrics_Close(t *testing.T) {
 	}
 }
 
-// Интеграционный тест с использованием Prometheus метрик
+// Integration test using Prometheus metrics
 func TestMetrics_Integration(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Симулируем последовательность вызовов метрик как в реальном HTTP запросе
+	// Simulate a sequence of metric calls as in a real HTTP request
 
-	// 1. Увеличиваем счётчик активных запросов
+	// 1. Increment active requests counter
 	metrics.IncrementInflight(ctx, "POST", "example.com")
 
-	// 2. Записываем размер запроса
+	// 2. Record request size
 	metrics.RecordRequestSize(ctx, 1024, "POST", "example.com")
 
-	// 3. Записываем метрику запроса (первая попытка)
+	// 3. Record request metric (first attempt)
 	metrics.RecordRequest(ctx, "POST", "example.com", "500", false, true)
 	metrics.RecordDuration(ctx, 0.5, "POST", "example.com", "500", 1)
 
-	// 4. Записываем retry
+	// 4. Record retry
 	metrics.RecordRetry(ctx, "status", "POST", "example.com")
 
-	// 5. Записываем метрику запроса (retry попытка)
+	// 5. Record request metric (retry attempt)
 	metrics.RecordRequest(ctx, "POST", "example.com", "200", true, false)
 	metrics.RecordDuration(ctx, 0.3, "POST", "example.com", "200", 2)
 
-	// 6. Записываем размер ответа
+	// 6. Record response size
 	metrics.RecordResponseSize(ctx, 512, "POST", "example.com", "200")
 
-	// 7. Уменьшаем счётчик активных запросов
+	// 7. Decrement active requests counter
 	metrics.DecrementInflight(ctx, "POST", "example.com")
 
-	// Если дошли до сюда без паники, тест пройден
+	// If we reached here without panic, the test passed
 }
 
 func TestMetrics_EdgeCases(t *testing.T) {
 	metrics := NewMetrics("testhttpclient")
 	ctx := context.Background()
 
-	// Тест с пустыми значениями
+	// Test with empty values
 	metrics.RecordRequest(ctx, "", "", "", false, false)
 	metrics.RecordDuration(ctx, 0, "", "", "", 0)
 	metrics.RecordRetry(ctx, "", "", "")
@@ -164,19 +164,19 @@ func TestMetrics_EdgeCases(t *testing.T) {
 	metrics.RecordRequestSize(ctx, 0, "", "")
 	metrics.RecordResponseSize(ctx, 0, "", "", "")
 
-	// Тест с очень большими значениями
+	// Test with very large values
 	metrics.RecordDuration(ctx, 999999.999, "GET", "example.com", "200", 1)
 	metrics.RecordRequestSize(ctx, 1<<60, "POST", "example.com")
 	metrics.RecordResponseSize(ctx, 1<<60, "GET", "example.com", "200")
 
-	// Тест работы с inflight метриками
+	// Test inflight metrics
 	metrics.IncrementInflight(ctx, "GET", "example.com")
 	metrics.DecrementInflight(ctx, "GET", "example.com")
 }
 
-// TestPrometheusMetricsMultipleClients проверяет что множественные клиенты с Prometheus работают корректно
+// TestPrometheusMetricsMultipleClients checks that multiple clients with Prometheus work correctly
 func TestPrometheusMetricsMultipleClients(t *testing.T) {
-	// Клиент 1
+	// Client 1
 	metrics1 := NewMetrics("client-1")
 	if metrics1.provider == nil {
 		t.Error("expected metrics provider to be available")

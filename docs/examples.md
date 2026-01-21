@@ -1,28 +1,28 @@
-# Примеры использования
+# Usage Examples
 
-Практические примеры использования HTTP клиент пакета для различных сценариев.
+Practical examples of using the HTTP client package for various scenarios.
 
-## RequestOption - новые возможности
+## RequestOption - New Features
 
-Начиная с новой версии, все HTTP методы поддерживают функциональные опции RequestOption.
+Starting with the new version, all HTTP methods support functional RequestOption options.
 
-### Краткий обзор RequestOption
+### RequestOption Quick Overview
 ```go
-// Основные опции заголовков
+// Main header options
 resp, err := client.Get(ctx, url,
     httpclient.WithBearerToken("token123"),
     httpclient.WithAccept("application/json"),
     httpclient.WithHeader("X-Request-ID", "unique-id"),
 )
 
-// Опции тела запроса
+// Request body options
 resp, err := client.Post(ctx, url, nil,
-    httpclient.WithJSONBody(data),                    // Автоматическая JSON сериализация
-    httpclient.WithIdempotencyKey("operation-123"),  // Безопасные повторы
+    httpclient.WithJSONBody(data),                    // Automatic JSON serialization
+    httpclient.WithIdempotencyKey("operation-123"),  // Safe retries
     httpclient.WithBearerToken("token123"),
 )
 
-// Комбинирование опций
+// Combining options
 resp, err := client.Put(ctx, url, nil,
     httpclient.WithFormBody(formData),
     httpclient.WithHeaders(map[string]string{
@@ -33,9 +33,9 @@ resp, err := client.Put(ctx, url, nil,
 )
 ```
 
-### Полные примеры с RequestOption
+### Complete Examples with RequestOption
 
-#### JSON запросы
+#### JSON Requests
 ```go
 type User struct {
     ID    int    `json:"id"`
@@ -43,7 +43,7 @@ type User struct {
     Email string `json:"email"`
 }
 
-// POST с автоматической JSON сериализацией
+// POST with automatic JSON serialization
 user := User{Name: "John", Email: "john@example.com"}
 resp, err := client.Post(ctx, "/api/users", nil,
     httpclient.WithJSONBody(user),
@@ -51,7 +51,7 @@ resp, err := client.Post(ctx, "/api/users", nil,
     httpclient.WithIdempotencyKey("create-user-123"),
 )
 
-// PATCH для обновления
+// PATCH for updates
 updates := map[string]interface{}{"status": "active"}
 resp, err := client.Patch(ctx, "/api/users/123", nil,
     httpclient.WithJSONBody(updates),
@@ -59,9 +59,9 @@ resp, err := client.Patch(ctx, "/api/users/123", nil,
 )
 ```
 
-#### Form данные
+#### Form Data
 ```go
-// POST с form данными
+// POST with form data
 formData := url.Values{}
 formData.Set("username", "john")
 formData.Set("password", "secret")
@@ -73,7 +73,7 @@ resp, err := client.Post(ctx, "/login", nil,
 )
 ```
 
-#### XML и текст
+#### XML and Text
 ```go
 type Config struct {
     XMLName xml.Name `xml:"config"`
@@ -81,23 +81,23 @@ type Config struct {
     Value   int      `xml:"value"`
 }
 
-// XML запрос
+// XML request
 config := Config{Setting: "timeout", Value: 30}
 resp, err := client.Put(ctx, "/api/config", nil,
     httpclient.WithXMLBody(config),
     httpclient.WithAuthorization("Basic "+basicAuth),
 )
 
-// Простой текст
+// Simple text
 resp, err := client.Post(ctx, "/api/webhook", nil,
     httpclient.WithTextBody("webhook payload data"),
     httpclient.WithContentType("text/plain"),
 )
 ```
 
-#### Полный контроль над телом
+#### Full Control Over Body
 ```go
-// Бинарные данные
+// Binary data
 imageData := []byte{0x89, 0x50, 0x4E, 0x47} // PNG header
 resp, err := client.Post(ctx, "/api/upload", nil,
     httpclient.WithRawBody(bytes.NewReader(imageData)),

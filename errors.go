@@ -7,7 +7,7 @@ import (
 	"time"
 )
 
-// HTTPError представляет HTTP ошибку с дополнительной информацией.
+// HTTPError represents an HTTP error with additional information.
 type HTTPError struct {
 	StatusCode int
 	Status     string
@@ -17,18 +17,18 @@ type HTTPError struct {
 	Headers    http.Header
 }
 
-// Error реализует интерфейс error.
+// Error implements the error interface.
 func (e *HTTPError) Error() string {
 	return fmt.Sprintf("HTTP %d %s: %s %s", e.StatusCode, e.Status, e.Method, e.URL)
 }
 
-// IsHTTPError проверяет, является ли ошибка HTTP ошибкой.
+// IsHTTPError checks if an error is an HTTP error.
 func IsHTTPError(err error) bool {
 	var httpErr *HTTPError
 	return errors.As(err, &httpErr)
 }
 
-// NewHTTPError создаёт новую HTTP ошибку.
+// NewHTTPError creates a new HTTP error.
 func NewHTTPError(resp *http.Response, req *http.Request) *HTTPError {
 	return &HTTPError{
 		StatusCode: resp.StatusCode,
@@ -39,14 +39,14 @@ func NewHTTPError(resp *http.Response, req *http.Request) *HTTPError {
 	}
 }
 
-// MaxAttemptsExceededError представляет ошибку превышения максимального количества попыток.
+// MaxAttemptsExceededError represents an error for exceeding maximum number of attempts.
 type MaxAttemptsExceededError struct {
 	MaxAttempts int
 	LastError   error
 	LastStatus  int
 }
 
-// Error реализует интерфейс error.
+// Error implements the error interface.
 func (e *MaxAttemptsExceededError) Error() string {
 	if e.LastError != nil {
 		return fmt.Sprintf("max attempts (%d) exceeded, last error: %v", e.MaxAttempts, e.LastError)
@@ -54,35 +54,35 @@ func (e *MaxAttemptsExceededError) Error() string {
 	return fmt.Sprintf("max attempts (%d) exceeded, last status: %d", e.MaxAttempts, e.LastStatus)
 }
 
-// Unwrap возвращает последнюю ошибку для поддержки errors.Unwrap.
+// Unwrap returns the last error for errors.Unwrap support.
 func (e *MaxAttemptsExceededError) Unwrap() error {
 	return e.LastError
 }
 
-// TimeoutExceededError представляет ошибку превышения таймаута.
+// TimeoutExceededError represents a timeout exceeded error.
 type TimeoutExceededError struct {
 	Timeout time.Duration
 	Elapsed time.Duration
 }
 
-// Error реализует интерфейс error.
+// Error implements the error interface.
 func (e *TimeoutExceededError) Error() string {
 	return fmt.Sprintf("timeout exceeded: %v elapsed, %v allowed", e.Elapsed, e.Timeout)
 }
 
-// ConfigurationError представляет ошибку конфигурации.
+// ConfigurationError represents a configuration error.
 type ConfigurationError struct {
 	Field   string
 	Value   interface{}
 	Message string
 }
 
-// Error реализует интерфейс error.
+// Error implements the error interface.
 func (e *ConfigurationError) Error() string {
 	return fmt.Sprintf("configuration error in field '%s': %s (value: %v)", e.Field, e.Message, e.Value)
 }
 
-// NewConfigurationError создаёт новую ошибку конфигурации.
+// NewConfigurationError creates a new configuration error.
 func NewConfigurationError(field string, value interface{}, message string) *ConfigurationError {
 	return &ConfigurationError{
 		Field:   field,
@@ -91,32 +91,32 @@ func NewConfigurationError(field string, value interface{}, message string) *Con
 	}
 }
 
-// TimeoutError представляет детализированную ошибку тайм-аута с контекстом.
+// TimeoutError represents a detailed timeout error with context.
 type TimeoutError struct {
-	// Основная информация о запросе
+	// Basic request information
 	Method string
 	URL    string
 	Host   string
-	// Информация о тайм-аутах
-	Timeout       time.Duration // Общий тайм-аут
-	PerTryTimeout time.Duration // Тайм-аут на попытку
-	Elapsed       time.Duration // Время выполнения до ошибки
-	// Контекст retry
-	Attempt      int  // Номер попытки на которой произошёл тайм-аут
-	MaxAttempts  int  // Максимальное количество попыток
-	RetryEnabled bool // Был ли включён retry
-	// Дополнительный контекст
-	TimeoutType string // Тип тайм-аута: "overall", "per-try", "context"
-	OriginalErr error  // Оригинальная ошибка
-	// Предложения по решению
+	// Timeout information
+	Timeout       time.Duration // Overall timeout
+	PerTryTimeout time.Duration // Per-attempt timeout
+	Elapsed       time.Duration // Execution time until error
+	// Retry context
+	Attempt      int  // Attempt number on which timeout occurred
+	MaxAttempts  int  // Maximum number of attempts
+	RetryEnabled bool // Whether retry was enabled
+	// Additional context
+	TimeoutType string // Timeout type: "overall", "per-try", "context"
+	OriginalErr error  // Original error
+	// Solution suggestions
 	Suggestions []string
 }
 
-// Error реализует интерфейс error с детализированным сообщением.
+// Error implements the error interface with detailed message.
 func (e *TimeoutError) Error() string {
 	var suggestions string
 	if len(e.Suggestions) > 0 {
-		suggestions = fmt.Sprintf(" Предложения: %v", e.Suggestions)
+		suggestions = fmt.Sprintf(" Suggestions: %v", e.Suggestions)
 	}
 
 	return fmt.Sprintf(
@@ -127,12 +127,12 @@ func (e *TimeoutError) Error() string {
 	)
 }
 
-// Unwrap возвращает оригинальную ошибку для поддержки errors.Unwrap.
+// Unwrap returns the original error for errors.Unwrap support.
 func (e *TimeoutError) Unwrap() error {
 	return e.OriginalErr
 }
 
-// NewTimeoutError создаёт детализированную ошибку тайм-аута.
+// NewTimeoutError creates a detailed timeout error.
 func NewTimeoutError(
 	req *http.Request,
 	config Config,
@@ -143,7 +143,7 @@ func NewTimeoutError(
 ) *TimeoutError {
 	host := getHost(req.URL)
 
-	// Генерируем предложения по решению проблемы
+	// Generate suggestions for solving the problem
 	suggestions := generateTimeoutSuggestions(config, elapsed, timeoutType, attempt, maxAttempts)
 
 	return &TimeoutError{
@@ -162,7 +162,7 @@ func NewTimeoutError(
 	}
 }
 
-// generateTimeoutSuggestions генерирует предложения по решению проблем с тайм-аутом.
+// generateTimeoutSuggestions generates suggestions for solving timeout problems.
 func generateTimeoutSuggestions(
 	config Config,
 	elapsed time.Duration,
@@ -174,32 +174,32 @@ func generateTimeoutSuggestions(
 	switch timeoutType {
 	case "overall":
 		if elapsed >= config.Timeout {
-			suggestions = append(suggestions, fmt.Sprintf("увеличьте общий тайм-аут (текущий: %v)", config.Timeout))
+			suggestions = append(suggestions, fmt.Sprintf("increase overall timeout (current: %v)", config.Timeout))
 		}
 		if !config.RetryEnabled {
-			suggestions = append(suggestions, "включите retry для устойчивости к временным сбоям")
+			suggestions = append(suggestions, "enable retry for resilience to temporary failures")
 		}
 
 	case "per-try":
 		if elapsed >= config.PerTryTimeout {
-			suggestions = append(suggestions, fmt.Sprintf("увеличьте per-try тайм-аут (текущий: %v)", config.PerTryTimeout))
+			suggestions = append(suggestions, fmt.Sprintf("increase per-try timeout (current: %v)", config.PerTryTimeout))
 		}
 		if attempt < maxAttempts {
-			suggestions = append(suggestions, "попытки retry продолжаются")
+			suggestions = append(suggestions, "retry attempts continue")
 		}
 
 	case "context":
-		suggestions = append(suggestions, "тайм-аут был задан в context.WithTimeout() или context.WithDeadline()")
-		suggestions = append(suggestions, "проверьте настройки контекста вызывающего кода")
+		suggestions = append(suggestions, "timeout was set in context.WithTimeout() or context.WithDeadline()")
+		suggestions = append(suggestions, "check context settings in calling code")
 	}
 
-	// Общие предложения
+	// General suggestions
 	if config.RetryEnabled && attempt >= maxAttempts {
-		suggestions = append(suggestions, fmt.Sprintf("увеличьте количество попыток (текущий: %d)", maxAttempts))
+		suggestions = append(suggestions, fmt.Sprintf("increase number of attempts (current: %d)", maxAttempts))
 	}
 
 	if elapsed > 10*time.Second {
-		suggestions = append(suggestions, "проверьте доступность и производительность удалённого сервиса")
+		suggestions = append(suggestions, "check availability and performance of remote service")
 	}
 
 	return suggestions

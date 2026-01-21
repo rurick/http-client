@@ -1,4 +1,4 @@
-// Пример работы с OpenTelemetry метриками
+// Example of working with OpenTelemetry metrics
 package main
 
 import (
@@ -11,7 +11,7 @@ import (
 )
 
 func main() {
-	// Создаём клиент с OpenTelemetry метриками
+	// Create client with OpenTelemetry metrics
 	client := httpclient.New(httpclient.Config{
 		MetricsBackend: httpclient.MetricsBackendOpenTelemetry,
 		RetryEnabled:   true,
@@ -25,36 +25,36 @@ func main() {
 
 	ctx := context.Background()
 
-	fmt.Println("Выполняем несколько запросов с OpenTelemetry метриками...")
+	fmt.Println("Executing several requests with OpenTelemetry metrics...")
 
-	// Успешные запросы
+	// Successful requests
 	for i := 0; i < 3; i++ {
 		resp, err := client.Get(ctx, "https://httpbin.org/get")
 		if err != nil {
-			log.Printf("Ошибка запроса %d: %v", i, err)
+			log.Printf("Request error %d: %v", i, err)
 			continue
 		}
-		fmt.Printf("Запрос %d: %s\n", i+1, resp.Status)
+		fmt.Printf("Request %d: %s\n", i+1, resp.Status)
 		_ = resp.Body.Close()
 
 		time.Sleep(200 * time.Millisecond)
 	}
 
-	// Запросы с ошибками
-	fmt.Println("Тестируем запросы с ошибками...")
+	// Requests with errors
+	fmt.Println("Testing requests with errors...")
 	for i := 0; i < 2; i++ {
 		resp, err := client.Get(ctx, "https://httpbin.org/status/503")
 		if err != nil {
-			log.Printf("Ошибка (ожидается): %v", err)
+			log.Printf("Error (expected): %v", err)
 		} else {
-			fmt.Printf("Неожиданный успех: %s\n", resp.Status)
+			fmt.Printf("Unexpected success: %s\n", resp.Status)
 			_ = resp.Body.Close()
 		}
 
 		time.Sleep(300 * time.Millisecond)
 	}
 
-	fmt.Println("Метрики успешно записаны в OpenTelemetry!")
-	fmt.Println("Для просмотра метрик настройте OpenTelemetry SDK с подходящим экспортером.")
-	fmt.Println("Бакеты гистограмм задаются автоматически и одинаковы для Prometheus и OpenTelemetry.")
+	fmt.Println("Metrics successfully written to OpenTelemetry!")
+	fmt.Println("To view metrics, configure OpenTelemetry SDK with a suitable exporter.")
+	fmt.Println("Histogram buckets are set automatically and are the same for Prometheus and OpenTelemetry.")
 }

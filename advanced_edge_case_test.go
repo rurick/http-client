@@ -570,7 +570,7 @@ func TestClientCloseResourceCleanup(t *testing.T) {
 }
 
 // TestRequestBodyPreparation tests the request body preparation functionality
-// (заменена с клонирования на подготовку, которая используется в RoundTripper)
+// (replaced cloning with preparation, which is used in RoundTripper)
 func TestRequestBodyPreparation(t *testing.T) {
 	t.Parallel()
 
@@ -613,8 +613,8 @@ func TestNilBodyPreparation(t *testing.T) {
 	assert.Nil(t, preparedBody)
 }
 
-// TestContentLengthPreservationOnRetryAttempts тестирует сохранение ContentLength
-// при повторных попытках для различных сценариев
+// TestContentLengthPreservationOnRetryAttempts tests ContentLength preservation
+// on retry attempts for various scenarios
 func TestContentLengthPreservationOnRetryAttempts(t *testing.T) {
 	t.Parallel()
 

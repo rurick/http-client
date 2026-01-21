@@ -17,8 +17,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSimpleCircuitBreakerDefaultConfig проверяет создание автоматического выключателя с настройками по умолчанию
-// Проверяет что начальное состояние - "закрытое" (пропускает запросы)
+// TestSimpleCircuitBreakerDefaultConfig tests creation of circuit breaker with default settings
+// Verifies that initial state is "closed" (allows requests)
 func TestSimpleCircuitBreakerDefaultConfig(t *testing.T) {
 	t.Parallel()
 
@@ -27,8 +27,8 @@ func TestSimpleCircuitBreakerDefaultConfig(t *testing.T) {
 	assert.Equal(t, CircuitBreakerClosed, cb.State())
 }
 
-// TestSimpleCircuitBreakerWithConfig проверяет создание автоматического выключателя с пользовательской конфигурацией
-// Проверяет что callback функция для отслеживания изменений состояний работает корректно
+// TestSimpleCircuitBreakerWithConfig tests creation of circuit breaker with custom configuration
+// Verifies that callback function for tracking state changes works correctly
 func TestSimpleCircuitBreakerWithConfig(t *testing.T) {
 	t.Parallel()
 
@@ -49,11 +49,11 @@ func TestSimpleCircuitBreakerWithConfig(t *testing.T) {
 	assert.Empty(t, stateChanges)
 }
 
-// TestCircuitBreakerStateTransitions проверяет переходы между состояниями автоматического выключателя
-// Тестирует полный цикл: Закрыт -> Открыт -> Полуоткрыт -> Закрыт
-// Проверяет что callback функции вызываются при каждом переходе состояния
+// TestCircuitBreakerStateTransitions tests state transitions of circuit breaker
+// Tests full cycle: Closed -> Open -> HalfOpen -> Closed
+// Verifies that callback functions are called on each state transition
 func TestCircuitBreakerStateTransitions(t *testing.T) {
-	// НЕ parallel - тест с time.Sleep и state changes
+	// NOT parallel - test with time.Sleep and state changes
 	var stateChanges []string
 
 	config := CircuitBreakerConfig{
@@ -106,9 +106,9 @@ func TestCircuitBreakerStateTransitions(t *testing.T) {
 	assert.Equal(t, expected, stateChanges)
 }
 
-// TestCircuitBreakerFailureRecovery проверяет восстановление после сбоев
-// Тестирует что выключатель требует несколько успешных запросов для перехода в закрытое состояние
-// когда порог успеха больше 1
+// TestCircuitBreakerFailureRecovery tests recovery after failures
+// Tests that breaker requires multiple successful requests to transition to closed state
+// when success threshold is greater than 1
 func TestCircuitBreakerFailureRecovery(t *testing.T) {
 	// НЕ parallel - тест с time.Sleep
 	config := CircuitBreakerConfig{
@@ -144,8 +144,8 @@ func TestCircuitBreakerFailureRecovery(t *testing.T) {
 	assert.Equal(t, CircuitBreakerClosed, cb.State())
 }
 
-// TestCircuitBreakerHalfOpenFailure проверяет поведение при сбое в полуоткрытом состоянии
-// Проверяет что сбой в полуоткрытом состоянии возвращает выключатель в открытое состояние
+// TestCircuitBreakerHalfOpenFailure tests behavior on failure in half-open state
+// Verifies that failure in half-open state returns breaker to open state
 func TestCircuitBreakerHalfOpenFailure(t *testing.T) {
 	// НЕ parallel - тест с time.Sleep
 	config := CircuitBreakerConfig{
@@ -173,8 +173,8 @@ func TestCircuitBreakerHalfOpenFailure(t *testing.T) {
 	assert.Equal(t, CircuitBreakerOpen, cb.State())
 }
 
-// TestCircuitBreakerReset проверяет принудительный сброс выключателя
-// Проверяет что метод Reset() возвращает выключатель в закрытое состояние
+// TestCircuitBreakerReset tests forced reset of circuit breaker
+// Verifies that Reset() method returns breaker to closed state
 func TestCircuitBreakerReset(t *testing.T) {
 	t.Parallel()
 
@@ -200,8 +200,8 @@ func TestCircuitBreakerReset(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
 
-// TestCircuitBreakerIsSuccess проверяет определение успешности ответа
-// Проверяет что 2xx коды считаются успешными, а 5xx и 4xx - нет
+// TestCircuitBreakerIsSuccess tests determination of response success
+// Verifies that 2xx codes are considered successful, while 5xx and 4xx are not
 func TestCircuitBreakerIsSuccess(t *testing.T) {
 	t.Parallel()
 
@@ -514,13 +514,13 @@ func TestCircuitBreakerConfigValidation(t *testing.T) {
 	})
 }
 
-// TestSimpleCircuitBreaker_ReturnsOriginalResponseWhileOpenAndRecovers запускает HTTP-сервер,
-// имитирует последовательность: успехи -> длительные 429 -> успехи, и проверяет что:
-//   - пока выключатель в состоянии Open, Execute возвращает клон оригинального неуспешного ответа (429)
-//     и ошибку ErrCircuitBreakerOpen, при этом реальный запрос к серверу не выполняется;
-//   - после окончания ошибки и по истечении таймаута выключатель переходит в Half-Open/Closed и ответы снова успешные.
+// TestSimpleCircuitBreaker_ReturnsOriginalResponseWhileOpenAndRecovers starts HTTP server,
+// simulates sequence: successes -> long 429 -> successes, and verifies that:
+//   - while breaker is in Open state, Execute returns a clone of original unsuccessful response (429)
+//     and ErrCircuitBreakerOpen error, while actual request to server is not executed;
+//   - after error ends and timeout expires, breaker transitions to Half-Open/Closed and responses are successful again.
 func TestSimpleCircuitBreaker_ReturnsOriginalResponseWhileOpenAndRecovers(t *testing.T) {
-	// НЕ parallel - используется time.Sleep и общий тестовый сервер
+	// NOT parallel - uses time.Sleep and shared test server
 	var (
 		mode atomic.Value // string: "ok" | "fail"
 		hits int64
