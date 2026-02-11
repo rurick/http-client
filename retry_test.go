@@ -270,6 +270,83 @@ func TestClassifyError(t *testing.T) {
 	}
 }
 
+func TestIsPreConnectError(t *testing.T) {
+	t.Parallel()
+	testCases := []struct {
+		name     string
+		err      error
+		expected bool
+	}{
+		{
+			name:     "nil error",
+			err:      nil,
+			expected: false,
+		},
+		{
+			name:     "connection refused",
+			err:      errors.New("dial tcp 127.0.0.1:8080: connection refused"),
+			expected: true,
+		},
+		{
+			name:     "connection reset",
+			err:      errors.New("read tcp 127.0.0.1:8080->127.0.0.1:54321: connection reset by peer"),
+			expected: true,
+		},
+		{
+			name:     "broken pipe",
+			err:      errors.New("write tcp 127.0.0.1:8080->127.0.0.1:54321: broken pipe"),
+			expected: true,
+		},
+		{
+			name:     "no such host",
+			err:      errors.New("dial tcp: lookup nonexistent.example.com: no such host"),
+			expected: true,
+		},
+		{
+			name:     "network is unreachable",
+			err:      errors.New("dial tcp 192.0.2.1:80: network is unreachable"),
+			expected: true,
+		},
+		{
+			name:     "connection timed out",
+			err:      errors.New("dial tcp 192.0.2.1:80: connection timed out"),
+			expected: true,
+		},
+		{
+			name:     "url.Error wrapping connection refused",
+			err:      &url.Error{Op: "Post", URL: "http://example.com", Err: errors.New("connection refused")},
+			expected: true,
+		},
+		{
+			name:     "url.Error wrapping non-preconnect error",
+			err:      &url.Error{Op: "Post", URL: "http://example.com", Err: errors.New("some other error")},
+			expected: false,
+		},
+		{
+			name:     "generic timeout (not pre-connect)",
+			err:      &mockNetError{msg: "i/o timeout", timeout: true},
+			expected: false,
+		},
+		{
+			name:     "generic error (not pre-connect)",
+			err:      errors.New("invalid request"),
+			expected: false,
+		},
+		{
+			name:     "context deadline exceeded (not pre-connect)",
+			err:      errors.New("context deadline exceeded"),
+			expected: false,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tc.expected, isPreConnectError(tc.err), "isPreConnectError returned unexpected result")
+		})
+	}
+}
+
 func TestNewRetryableError(t *testing.T) {
 	t.Parallel()
 	originalErr := errors.New("original error")

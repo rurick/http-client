@@ -9,9 +9,30 @@ import (
 
 // Constants for classifying retry reasons.
 const (
-	RetryReasonTimeout = "timeout"
-	RetryReasonNetwork = "net"
+	RetryReasonTimeout    = "timeout"
+	RetryReasonNetwork    = "net"
+	RetryReasonPreConnect = "pre-connect"
 )
+
+// preConnectErrorStrings contains error substrings indicating TCP-level failures
+// where the connection was never established or failed before any HTTP data
+// could be transmitted. Safe for retry regardless of HTTP method.
+var preConnectErrorStrings = []string{
+	"connection refused",
+	"connection reset",
+	"broken pipe",
+	"no such host",
+	"network is unreachable",
+	"connection timed out",
+}
+
+// timeoutErrorStrings contains error substrings indicating timeout failures.
+var timeoutErrorStrings = []string{
+	"timeout",
+	"deadline exceeded",
+	"context deadline exceeded",
+	"request timeout",
+}
 
 // RetryableError interface for errors that can be retried.
 type RetryableError interface {
@@ -91,17 +112,8 @@ func isNetworkRetryableError(err error) bool {
 
 	// Check specific network errors (replaces deprecated Temporary())
 	errStr := err.Error()
-	retryableErrors := []string{
-		"connection reset",
-		"broken pipe",
-		"connection refused",
-		"no such host",
-		"network is unreachable",
-		"connection timed out",
-	}
-
-	for _, retryableErr := range retryableErrors {
-		if strings.Contains(errStr, retryableErr) {
+	for _, s := range preConnectErrorStrings {
+		if strings.Contains(errStr, s) {
 			return true
 		}
 	}
@@ -130,15 +142,8 @@ func isTimeoutRetryableError(err error) bool {
 	errStr := err.Error()
 
 	// Check timeout-related strings
-	timeoutErrors := []string{
-		"timeout",
-		"deadline exceeded",
-		"context deadline exceeded",
-		"request timeout",
-	}
-
-	for _, timeoutErr := range timeoutErrors {
-		if strings.Contains(errStr, timeoutErr) {
+	for _, s := range timeoutErrorStrings {
+		if strings.Contains(errStr, s) {
 			return true
 		}
 	}
@@ -161,4 +166,28 @@ func ClassifyError(err error) string {
 	}
 
 	return "other"
+}
+
+// isPreConnectError checks if an error occurred before the HTTP request was sent.
+// These are TCP-level errors where the connection was never established or failed
+// before any HTTP data could be transmitted, making retry safe for any HTTP method.
+func isPreConnectError(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	// Unwrap url.Error
+	var urlErr *url.Error
+	if errors.As(err, &urlErr) {
+		return isPreConnectError(urlErr.Err)
+	}
+
+	errStr := err.Error()
+	for _, s := range preConnectErrorStrings {
+		if strings.Contains(errStr, s) {
+			return true
+		}
+	}
+
+	return false
 }

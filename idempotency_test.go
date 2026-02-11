@@ -2,6 +2,7 @@ package httpclient
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"testing"
 	"time"
@@ -191,6 +192,143 @@ func TestIdempotencyKeyValidation(t *testing.T) {
 			if result != tc.expectedRetry {
 				t.Errorf("expected retry=%v for %s (idempKey=%v), got %v",
 					tc.expectedRetry, tc.method, tc.hasIdempKey, result)
+			}
+		})
+	}
+}
+
+func TestShouldRetryAttempt_PreConnectErrors(t *testing.T) {
+	cfg := Config{
+		RetryEnabled: true,
+		RetryConfig: RetryConfig{
+			MaxAttempts:      3,
+			BaseDelay:        1 * time.Millisecond,
+			RetryMethods:     []string{"GET", "PUT", "DELETE"},
+			RetryStatusCodes: []int{500, 502, 503},
+		},
+	}
+
+	testCases := []struct {
+		name          string
+		method        string
+		hasIdempKey   bool
+		err           error
+		status        int
+		expectedRetry bool
+		expectedReason string
+	}{
+		// POST without Idempotency-Key: pre-connect errors should retry
+		{
+			name:          "POST connection refused without key",
+			method:        "POST",
+			err:           errors.New("connection refused"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "POST connection reset without key",
+			method:        "POST",
+			err:           errors.New("connection reset"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "POST broken pipe without key",
+			method:        "POST",
+			err:           errors.New("broken pipe"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "POST no such host without key",
+			method:        "POST",
+			err:           errors.New("no such host"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "POST network is unreachable without key",
+			method:        "POST",
+			err:           errors.New("network is unreachable"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "POST connection timed out without key",
+			method:        "POST",
+			err:           errors.New("connection timed out"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		// POST without Idempotency-Key: HTTP errors should NOT retry
+		{
+			name:          "POST 500 without key",
+			method:        "POST",
+			status:        500,
+			expectedRetry: false,
+		},
+		{
+			name:          "POST 503 without key",
+			method:        "POST",
+			status:        503,
+			expectedRetry: false,
+		},
+		// PATCH without Idempotency-Key: pre-connect errors should retry
+		{
+			name:          "PATCH connection refused without key",
+			method:        "PATCH",
+			err:           errors.New("connection refused"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		// POST with Idempotency-Key: both pre-connect and HTTP errors should retry
+		{
+			name:          "POST connection refused with key",
+			method:        "POST",
+			hasIdempKey:   true,
+			err:           errors.New("connection refused"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "POST 500 with key",
+			method:        "POST",
+			hasIdempKey:   true,
+			status:        500,
+			expectedRetry: true,
+			expectedReason: "status",
+		},
+		// GET: should always retry on retryable errors
+		{
+			name:          "GET connection refused",
+			method:        "GET",
+			err:           errors.New("connection refused"),
+			expectedRetry: true,
+			expectedReason: "pre-connect",
+		},
+		{
+			name:          "GET 500",
+			method:        "GET",
+			status:        500,
+			expectedRetry: true,
+			expectedReason: "status",
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			req, _ := http.NewRequest(tc.method, "https://example.com", nil)
+			if tc.hasIdempKey {
+				req.Header.Set("Idempotency-Key", "test-key")
+			}
+
+			shouldRetry, reason := shouldRetryAttempt(cfg, req, 1, 3, tc.err, tc.status, time.Time{})
+
+			if shouldRetry != tc.expectedRetry {
+				t.Errorf("expected retry=%v, got %v", tc.expectedRetry, shouldRetry)
+			}
+			if tc.expectedRetry && reason != tc.expectedReason {
+				t.Errorf("expected reason=%q, got %q", tc.expectedReason, reason)
 			}
 		})
 	}
