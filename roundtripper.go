@@ -43,6 +43,7 @@ type retryContext struct {
 	originalBody   []byte
 	originalLength int64 // Store original ContentLength
 	host           string
+	path           string // Request path for metrics
 	span           trace.Span
 	startTime      time.Time
 	maxAttempts    int
@@ -64,14 +65,15 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 	}
 	req = req.WithContext(ctx)
 	host := getHost(req.URL)
+	path := getPath(req.URL, rt.config.IncludePathInMetrics)
 
 	// Manage active request metrics
-	rt.metrics.IncrementInflight(ctx, req.Method, host)
-	defer rt.metrics.DecrementInflight(ctx, req.Method, host)
+	rt.metrics.IncrementInflight(ctx, req.Method, host, path)
+	defer rt.metrics.DecrementInflight(ctx, req.Method, host, path)
 
 	// Record request size
 	requestSize := getRequestSize(req)
-	rt.metrics.RecordRequestSize(ctx, requestSize, req.Method, host)
+	rt.metrics.RecordRequestSize(ctx, requestSize, req.Method, host, path)
 
 	// Prepare request body for retry
 	originalBody, err := rt.prepareRequestBody(req)
@@ -86,6 +88,7 @@ func (rt *RoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
 		originalBody:   originalBody,
 		originalLength: req.ContentLength, // Store original ContentLength
 		host:           host,
+		path:           path,
 		span:           span,
 		startTime:      time.Now(),
 		maxAttempts:    rt.getMaxAttempts(),
@@ -204,20 +207,20 @@ func shouldRetryAttempt(
 
 // recordAttemptMetrics logs metrics for a single attempt.
 func (rt *RoundTripper) recordAttemptMetrics(
-	ctx context.Context, method, host string, resp *http.Response, status int, attempt int,
+	ctx context.Context, method, host, path string, resp *http.Response, status int, attempt int,
 	isRetry bool, isError bool, duration time.Duration,
 ) {
-	rt.metrics.RecordRequest(ctx, method, host, strconv.Itoa(status), isRetry, isError)
-	rt.metrics.RecordDuration(ctx, duration.Seconds(), method, host, strconv.Itoa(status), attempt)
+	rt.metrics.RecordRequest(ctx, method, host, path, strconv.Itoa(status), isRetry, isError)
+	rt.metrics.RecordDuration(ctx, duration.Seconds(), method, host, path, strconv.Itoa(status), attempt)
 	if resp != nil {
 		responseSize := getResponseSize(resp)
-		rt.metrics.RecordResponseSize(ctx, responseSize, method, host, strconv.Itoa(status))
+		rt.metrics.RecordResponseSize(ctx, responseSize, method, host, path, strconv.Itoa(status))
 	}
 }
 
 // recordRetry logs a retry metric.
-func (rt *RoundTripper) recordRetry(ctx context.Context, reason, method, host string) {
-	rt.metrics.RecordRetry(ctx, reason, method, host)
+func (rt *RoundTripper) recordRetry(ctx context.Context, reason, method, host, path string) {
+	rt.metrics.RecordRetry(ctx, reason, method, host, path)
 }
 
 // isNetworkError checks if an error is a network error.
@@ -287,6 +290,17 @@ func getHost(u *url.URL) string {
 		return u.Hostname()
 	}
 	return u.Host
+}
+
+// getPath extracts the path from URL for metrics, or returns "-" if disabled in config.
+func getPath(u *url.URL, includeInMetrics bool) string {
+	if !includeInMetrics {
+		return "-"
+	}
+	if u.Path == "" {
+		return "/"
+	}
+	return u.Path
 }
 
 // getRequestSize calculates the request size.
@@ -379,6 +393,18 @@ func (rt *RoundTripper) executeWithRetry(retryCtx *retryContext) (*http.Response
 		}
 	}
 
+	// Wrap error with retry context when we exhausted attempts (so logs show "max attempts (N) exceeded")
+	if retryCtx.maxAttempts > 1 && lastError != nil {
+		lastStatus := 0
+		if lastResponse != nil {
+			lastStatus = lastResponse.StatusCode
+		}
+		return lastResponse, &MaxAttemptsExceededError{
+			MaxAttempts: retryCtx.maxAttempts,
+			LastError:   lastError,
+			LastStatus:  lastStatus,
+		}
+	}
 	return lastResponse, lastError
 }
 
@@ -448,7 +474,7 @@ func (rt *RoundTripper) recordAttemptResults(retryCtx *retryContext, attempt int
 
 	// Record metrics
 	rt.recordAttemptMetrics(
-		retryCtx.ctx, retryCtx.originalReq.Method, retryCtx.host, resp, status, attempt, isRetry, isError, duration,
+		retryCtx.ctx, retryCtx.originalReq.Method, retryCtx.host, retryCtx.path, resp, status, attempt, isRetry, isError, duration,
 	)
 
 	// Update span
@@ -486,7 +512,7 @@ func (rt *RoundTripper) shouldRetryResponse(retryCtx *retryContext, attempt int,
 	)
 
 	if shouldRetry {
-		rt.recordRetry(retryCtx.ctx, retryReason, retryCtx.originalReq.Method, retryCtx.host)
+		rt.recordRetry(retryCtx.ctx, retryReason, retryCtx.originalReq.Method, retryCtx.host, retryCtx.path)
 	}
 
 	return shouldRetry

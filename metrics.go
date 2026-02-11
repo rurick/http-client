@@ -44,59 +44,59 @@ func NewMetricsWithProvider(meterName string, provider MetricsProvider) *Metrics
 }
 
 // RecordRequest records metrics for a request.
-func (m *Metrics) RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool) {
+func (m *Metrics) RecordRequest(ctx context.Context, method, host, path, status string, retry, hasError bool) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.RecordRequest(ctx, method, host, status, retry, hasError)
+	m.provider.RecordRequest(ctx, method, host, path, status, retry, hasError)
 }
 
 // RecordDuration records request duration.
-func (m *Metrics) RecordDuration(ctx context.Context, duration float64, method, host, status string, attempt int) {
+func (m *Metrics) RecordDuration(ctx context.Context, duration float64, method, host, path, status string, attempt int) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.RecordDuration(ctx, duration, method, host, status, attempt)
+	m.provider.RecordDuration(ctx, duration, method, host, path, status, attempt)
 }
 
 // RecordRetry records a retry metric.
-func (m *Metrics) RecordRetry(ctx context.Context, reason, method, host string) {
+func (m *Metrics) RecordRetry(ctx context.Context, reason, method, host, path string) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.RecordRetry(ctx, reason, method, host)
+	m.provider.RecordRetry(ctx, reason, method, host, path)
 }
 
 // RecordRequestSize records request size.
-func (m *Metrics) RecordRequestSize(ctx context.Context, size int64, method, host string) {
+func (m *Metrics) RecordRequestSize(ctx context.Context, size int64, method, host, path string) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.RecordRequestSize(ctx, size, method, host)
+	m.provider.RecordRequestSize(ctx, size, method, host, path)
 }
 
 // RecordResponseSize records response size.
-func (m *Metrics) RecordResponseSize(ctx context.Context, size int64, method, host, status string) {
+func (m *Metrics) RecordResponseSize(ctx context.Context, size int64, method, host, path, status string) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.RecordResponseSize(ctx, size, method, host, status)
+	m.provider.RecordResponseSize(ctx, size, method, host, path, status)
 }
 
 // IncrementInflight increments the active requests counter.
-func (m *Metrics) IncrementInflight(ctx context.Context, method, host string) {
+func (m *Metrics) IncrementInflight(ctx context.Context, method, host, path string) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.InflightInc(ctx, method, host)
+	m.provider.InflightInc(ctx, method, host, path)
 }
 
 // DecrementInflight decrements the active requests counter.
-func (m *Metrics) DecrementInflight(ctx context.Context, method, host string) {
+func (m *Metrics) DecrementInflight(ctx context.Context, method, host, path string) {
 	if !m.enabled || m.provider == nil {
 		return
 	}
-	m.provider.InflightDec(ctx, method, host)
+	m.provider.InflightDec(ctx, method, host, path)
 }
 
 // Close releases metrics resources.
@@ -106,4 +106,3 @@ func (m *Metrics) Close() error {
 	}
 	return nil
 }
-

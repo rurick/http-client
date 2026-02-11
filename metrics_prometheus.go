@@ -46,7 +46,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 					Name: MetricRequestsTotal,
 					Help: "Total number of HTTP client requests",
 				},
-				[]string{"client_name", "method", "host", "status", "retry", "error"},
+				[]string{"client_name", "method", "host", "path", "status", "retry", "error"},
 			),
 			RequestDuration: prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
@@ -54,21 +54,21 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 					Help:    "HTTP client request duration in seconds",
 					Buckets: DefaultDurationBuckets,
 				},
-				[]string{"client_name", "method", "host", "status", "attempt"},
+				[]string{"client_name", "method", "host", "path", "status", "attempt"},
 			),
 			RetriesTotal: prometheus.NewCounterVec(
 				prometheus.CounterOpts{
 					Name: MetricRetriesTotal,
 					Help: "Total number of HTTP client retries",
 				},
-				[]string{"client_name", "reason", "method", "host"},
+				[]string{"client_name", "reason", "method", "host", "path"},
 			),
 			InflightRequests: prometheus.NewGaugeVec(
 				prometheus.GaugeOpts{
 					Name: MetricInflightRequests,
 					Help: "Number of HTTP client requests currently in-flight",
 				},
-				[]string{"client_name", "method", "host"},
+				[]string{"client_name", "method", "host", "path"},
 			),
 			RequestSize: prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
@@ -76,7 +76,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 					Help:    "HTTP client request size in bytes",
 					Buckets: DefaultSizeBuckets,
 				},
-				[]string{"client_name", "method", "host"},
+				[]string{"client_name", "method", "host", "path"},
 			),
 			ResponseSize: prometheus.NewHistogramVec(
 				prometheus.HistogramOpts{
@@ -84,7 +84,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 					Help:    "HTTP client response size in bytes",
 					Buckets: DefaultSizeBuckets,
 				},
-				[]string{"client_name", "method", "host", "status"},
+				[]string{"client_name", "method", "host", "path", "status"},
 			),
 		}
 
@@ -110,7 +110,7 @@ func NewPrometheusMetricsProvider(clientName string, reg prometheus.Registerer) 
 }
 
 // RecordRequest records a request metric.
-func (p *PrometheusMetricsProvider) RecordRequest(_ context.Context, method, host, status string, retry, hasError bool) {
+func (p *PrometheusMetricsProvider) RecordRequest(_ context.Context, method, host, path, status string, retry, hasError bool) {
 	retryStr := "false"
 	if retry {
 		retryStr = "true"
@@ -119,38 +119,38 @@ func (p *PrometheusMetricsProvider) RecordRequest(_ context.Context, method, hos
 	if hasError {
 		errorStr = "true"
 	}
-	p.metrics.RequestsTotal.WithLabelValues(p.clientName, method, host, status, retryStr, errorStr).Inc()
+	p.metrics.RequestsTotal.WithLabelValues(p.clientName, method, host, path, status, retryStr, errorStr).Inc()
 }
 
 // RecordDuration records request duration.
-func (p *PrometheusMetricsProvider) RecordDuration(_ context.Context, seconds float64, method, host, status string, attempt int) {
+func (p *PrometheusMetricsProvider) RecordDuration(_ context.Context, seconds float64, method, host, path, status string, attempt int) {
 	attemptStr := strconv.Itoa(attempt)
-	p.metrics.RequestDuration.WithLabelValues(p.clientName, method, host, status, attemptStr).Observe(seconds)
+	p.metrics.RequestDuration.WithLabelValues(p.clientName, method, host, path, status, attemptStr).Observe(seconds)
 }
 
 // RecordRetry records a retry attempt metric.
-func (p *PrometheusMetricsProvider) RecordRetry(_ context.Context, reason, method, host string) {
-	p.metrics.RetriesTotal.WithLabelValues(p.clientName, reason, method, host).Inc()
+func (p *PrometheusMetricsProvider) RecordRetry(_ context.Context, reason, method, host, path string) {
+	p.metrics.RetriesTotal.WithLabelValues(p.clientName, reason, method, host, path).Inc()
 }
 
 // RecordRequestSize records request size.
-func (p *PrometheusMetricsProvider) RecordRequestSize(_ context.Context, bytes int64, method, host string) {
-	p.metrics.RequestSize.WithLabelValues(p.clientName, method, host).Observe(float64(bytes))
+func (p *PrometheusMetricsProvider) RecordRequestSize(_ context.Context, bytes int64, method, host, path string) {
+	p.metrics.RequestSize.WithLabelValues(p.clientName, method, host, path).Observe(float64(bytes))
 }
 
 // RecordResponseSize records response size.
-func (p *PrometheusMetricsProvider) RecordResponseSize(_ context.Context, bytes int64, method, host, status string) {
-	p.metrics.ResponseSize.WithLabelValues(p.clientName, method, host, status).Observe(float64(bytes))
+func (p *PrometheusMetricsProvider) RecordResponseSize(_ context.Context, bytes int64, method, host, path, status string) {
+	p.metrics.ResponseSize.WithLabelValues(p.clientName, method, host, path, status).Observe(float64(bytes))
 }
 
 // InflightInc increments the active requests counter.
-func (p *PrometheusMetricsProvider) InflightInc(_ context.Context, method, host string) {
-	p.metrics.InflightRequests.WithLabelValues(p.clientName, method, host).Inc()
+func (p *PrometheusMetricsProvider) InflightInc(_ context.Context, method, host, path string) {
+	p.metrics.InflightRequests.WithLabelValues(p.clientName, method, host, path).Inc()
 }
 
 // InflightDec decrements the active requests counter.
-func (p *PrometheusMetricsProvider) InflightDec(_ context.Context, method, host string) {
-	p.metrics.InflightRequests.WithLabelValues(p.clientName, method, host).Dec()
+func (p *PrometheusMetricsProvider) InflightDec(_ context.Context, method, host, path string) {
+	p.metrics.InflightRequests.WithLabelValues(p.clientName, method, host, path).Dec()
 }
 
 // Close releases resources.

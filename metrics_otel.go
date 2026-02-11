@@ -13,12 +13,12 @@ import (
 
 // otelInstruments contains a set of OpenTelemetry instruments.
 type otelInstruments struct {
-	requests  metric.Int64Counter
-	retries   metric.Int64Counter
-	duration  metric.Float64Histogram
-	reqSize   metric.Float64Histogram
-	respSize  metric.Float64Histogram
-	inflight  metric.Int64UpDownCounter
+	requests metric.Int64Counter
+	retries  metric.Int64Counter
+	duration metric.Float64Histogram
+	reqSize  metric.Float64Histogram
+	respSize metric.Float64Histogram
+	inflight metric.Int64UpDownCounter
 }
 
 // globalOtelInstruments caches instruments by MeterProvider.
@@ -101,11 +101,12 @@ func NewOpenTelemetryMetricsProvider(clientName string, mp metric.MeterProvider)
 }
 
 // RecordRequest records a request metric.
-func (o *OpenTelemetryMetricsProvider) RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool) {
+func (o *OpenTelemetryMetricsProvider) RecordRequest(ctx context.Context, method, host, path, status string, retry, hasError bool) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 		attribute.String("status", status),
 		attribute.Bool("retry", retry),
 		attribute.Bool("error", hasError),
@@ -114,11 +115,12 @@ func (o *OpenTelemetryMetricsProvider) RecordRequest(ctx context.Context, method
 }
 
 // RecordDuration records request duration.
-func (o *OpenTelemetryMetricsProvider) RecordDuration(ctx context.Context, seconds float64, method, host, status string, attempt int) {
+func (o *OpenTelemetryMetricsProvider) RecordDuration(ctx context.Context, seconds float64, method, host, path, status string, attempt int) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 		attribute.String("status", status),
 		attribute.String("attempt", strconv.Itoa(attempt)),
 	}
@@ -126,53 +128,58 @@ func (o *OpenTelemetryMetricsProvider) RecordDuration(ctx context.Context, secon
 }
 
 // RecordRetry records a retry attempt metric.
-func (o *OpenTelemetryMetricsProvider) RecordRetry(ctx context.Context, reason, method, host string) {
+func (o *OpenTelemetryMetricsProvider) RecordRetry(ctx context.Context, reason, method, host, path string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("reason", reason),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 	}
 	o.inst.retries.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
 // RecordRequestSize records request size.
-func (o *OpenTelemetryMetricsProvider) RecordRequestSize(ctx context.Context, bytes int64, method, host string) {
+func (o *OpenTelemetryMetricsProvider) RecordRequestSize(ctx context.Context, bytes int64, method, host, path string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 	}
 	o.inst.reqSize.Record(ctx, float64(bytes), metric.WithAttributes(attrs...))
 }
 
 // RecordResponseSize records response size.
-func (o *OpenTelemetryMetricsProvider) RecordResponseSize(ctx context.Context, bytes int64, method, host, status string) {
+func (o *OpenTelemetryMetricsProvider) RecordResponseSize(ctx context.Context, bytes int64, method, host, path, status string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 		attribute.String("status", status),
 	}
 	o.inst.respSize.Record(ctx, float64(bytes), metric.WithAttributes(attrs...))
 }
 
 // InflightInc increments the active requests counter.
-func (o *OpenTelemetryMetricsProvider) InflightInc(ctx context.Context, method, host string) {
+func (o *OpenTelemetryMetricsProvider) InflightInc(ctx context.Context, method, host, path string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 	}
 	o.inst.inflight.Add(ctx, 1, metric.WithAttributes(attrs...))
 }
 
 // InflightDec decrements the active requests counter.
-func (o *OpenTelemetryMetricsProvider) InflightDec(ctx context.Context, method, host string) {
+func (o *OpenTelemetryMetricsProvider) InflightDec(ctx context.Context, method, host, path string) {
 	attrs := []attribute.KeyValue{
 		attribute.String("client_name", o.clientName),
 		attribute.String("method", method),
 		attribute.String("host", host),
+		attribute.String("path", path),
 	}
 	o.inst.inflight.Add(ctx, -1, metric.WithAttributes(attrs...))
 }

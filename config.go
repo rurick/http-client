@@ -77,6 +77,11 @@ type Config struct {
 	// OTelMeterProvider is an optional OpenTelemetry metrics provider
 	// If nil, otel.GetMeterProvider() is used
 	OTelMeterProvider metric.MeterProvider
+
+	// IncludePathInMetrics enables adding request path (endpoint) to metrics labels
+	// Default is false to avoid high cardinality with dynamic paths containing IDs
+	// When false, path label will be set to "-" in all metrics
+	IncludePathInMetrics bool
 }
 
 // RetryConfig contains retry mechanism settings.

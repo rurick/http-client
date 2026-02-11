@@ -25,26 +25,26 @@ var DefaultSizeBuckets = []float64{
 
 // MetricsProvider defines the interface for various metrics backends.
 type MetricsProvider interface {
-	// RecordRequest records a request metric
-	RecordRequest(ctx context.Context, method, host, status string, retry, hasError bool)
+	// RecordRequest records a request metric (path is the request path, e.g. /api/users).
+	RecordRequest(ctx context.Context, method, host, path, status string, retry, hasError bool)
 
 	// RecordDuration records request duration in seconds
-	RecordDuration(ctx context.Context, seconds float64, method, host, status string, attempt int)
+	RecordDuration(ctx context.Context, seconds float64, method, host, path, status string, attempt int)
 
 	// RecordRetry records a retry attempt metric
-	RecordRetry(ctx context.Context, reason, method, host string)
+	RecordRetry(ctx context.Context, reason, method, host, path string)
 
 	// RecordRequestSize records request size in bytes
-	RecordRequestSize(ctx context.Context, bytes int64, method, host string)
+	RecordRequestSize(ctx context.Context, bytes int64, method, host, path string)
 
 	// RecordResponseSize records response size in bytes
-	RecordResponseSize(ctx context.Context, bytes int64, method, host, status string)
+	RecordResponseSize(ctx context.Context, bytes int64, method, host, path, status string)
 
 	// InflightInc increments the active requests counter
-	InflightInc(ctx context.Context, method, host string)
+	InflightInc(ctx context.Context, method, host, path string)
 
 	// InflightDec decrements the active requests counter
-	InflightDec(ctx context.Context, method, host string)
+	InflightDec(ctx context.Context, method, host, path string)
 
 	// Close releases provider resources
 	Close() error
