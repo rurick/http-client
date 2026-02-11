@@ -483,6 +483,197 @@ func TestGetHost(t *testing.T) {
 	}
 }
 
+func TestRoundTripper_POST_RetriesOnPreConnectErrors(t *testing.T) {
+	preConnectErrors := []struct {
+		name string
+		err  error
+	}{
+		{"connection_refused", errors.New("dial tcp 127.0.0.1:8080: connection refused")},
+		{"connection_reset", errors.New("read tcp: connection reset by peer")},
+		{"broken_pipe", errors.New("write tcp: broken pipe")},
+		{"no_such_host", errors.New("dial tcp: lookup nonexistent.example.com: no such host")},
+		{"network_unreachable", errors.New("dial tcp 192.0.2.1:80: network is unreachable")},
+		{"connection_timed_out", errors.New("dial tcp 192.0.2.1:80: connection timed out")},
+	}
+
+	for _, tc := range preConnectErrors {
+		t.Run("POST_"+tc.name, func(t *testing.T) {
+			mock := &mockRoundTripper{
+				errors: []error{tc.err, nil},
+				responses: []*http.Response{
+					nil,
+					{StatusCode: 201, Header: make(http.Header)},
+				},
+			}
+
+			config := Config{
+				Transport:    mock,
+				RetryEnabled: true,
+				RetryConfig: RetryConfig{
+					MaxAttempts:      3,
+					BaseDelay:        1 * time.Millisecond,
+					MaxDelay:         10 * time.Millisecond,
+					RetryMethods:     []string{"GET"}, // POST is NOT in RetryMethods
+					RetryStatusCodes: []int{500, 502, 503},
+				},
+			}.withDefaults()
+
+			rt := &RoundTripper{
+				base:    mock,
+				config:  config,
+				metrics: NewMetrics("test-post-preconnect"),
+			}
+
+			req, _ := http.NewRequest("POST", "http://example.com", nil)
+			req = req.WithContext(context.Background())
+			// No Idempotency-Key header
+
+			result, err := rt.RoundTrip(req)
+			if err != nil {
+				t.Fatalf("expected success after retry on %s, got error: %v", tc.name, err)
+			}
+
+			if result.StatusCode != 201 {
+				t.Errorf("expected status 201, got %d", result.StatusCode)
+			}
+
+			if mock.callCount != 2 {
+				t.Errorf("expected 2 calls (1 pre-connect error + 1 success), got %d", mock.callCount)
+			}
+		})
+	}
+}
+
+func TestRoundTripper_PATCH_RetriesOnPreConnectError(t *testing.T) {
+	mock := &mockRoundTripper{
+		errors: []error{errors.New("dial tcp 127.0.0.1:8080: connection refused"), nil},
+		responses: []*http.Response{
+			nil,
+			{StatusCode: 200, Header: make(http.Header)},
+		},
+	}
+
+	config := Config{
+		Transport:    mock,
+		RetryEnabled: true,
+		RetryConfig: RetryConfig{
+			MaxAttempts:      3,
+			BaseDelay:        1 * time.Millisecond,
+			MaxDelay:         10 * time.Millisecond,
+			RetryMethods:     []string{"GET"}, // PATCH is NOT in RetryMethods
+			RetryStatusCodes: []int{500},
+		},
+	}.withDefaults()
+
+	rt := &RoundTripper{
+		base:    mock,
+		config:  config,
+		metrics: NewMetrics("test-patch-preconnect"),
+	}
+
+	req, _ := http.NewRequest("PATCH", "http://example.com", nil)
+	req = req.WithContext(context.Background())
+
+	result, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("expected success after retry, got error: %v", err)
+	}
+
+	if result.StatusCode != 200 {
+		t.Errorf("expected status 200, got %d", result.StatusCode)
+	}
+
+	if mock.callCount != 2 {
+		t.Errorf("expected 2 calls (1 pre-connect error + 1 success), got %d", mock.callCount)
+	}
+}
+
+func TestRoundTripper_POST_NoRetryOn5xx(t *testing.T) {
+	// POST without Idempotency-Key should NOT retry on HTTP 500
+	mock := &mockRoundTripper{
+		responses: []*http.Response{
+			{StatusCode: 500, Header: make(http.Header)},
+			{StatusCode: 200, Header: make(http.Header)},
+		},
+	}
+
+	config := Config{
+		Transport:    mock,
+		RetryEnabled: true,
+		RetryConfig: RetryConfig{
+			MaxAttempts:      3,
+			BaseDelay:        1 * time.Millisecond,
+			MaxDelay:         10 * time.Millisecond,
+			RetryMethods:     []string{"GET"},
+			RetryStatusCodes: []int{500},
+		},
+	}.withDefaults()
+
+	rt := &RoundTripper{
+		base:    mock,
+		config:  config,
+		metrics: NewMetrics("test-post-no-retry-5xx"),
+	}
+
+	req, _ := http.NewRequest("POST", "http://example.com", nil)
+	req = req.WithContext(context.Background())
+
+	result, err := rt.RoundTrip(req)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if result.StatusCode != 500 {
+		t.Errorf("expected status 500 (no retry for POST on 5xx), got %d", result.StatusCode)
+	}
+
+	if mock.callCount != 1 {
+		t.Errorf("expected 1 call (no retry for POST without Idempotency-Key on 5xx), got %d", mock.callCount)
+	}
+}
+
+func TestRoundTripper_POST_NoRetryOnTimeout(t *testing.T) {
+	// POST without Idempotency-Key should NOT retry on generic timeout
+	// because the request may have been processed by the server
+	mock := &mockRoundTripper{
+		errors: []error{&mockNetworkError{timeout: true}, nil},
+		responses: []*http.Response{
+			nil,
+			{StatusCode: 200, Header: make(http.Header)},
+		},
+	}
+
+	config := Config{
+		Transport:    mock,
+		RetryEnabled: true,
+		RetryConfig: RetryConfig{
+			MaxAttempts:  3,
+			BaseDelay:    1 * time.Millisecond,
+			MaxDelay:     10 * time.Millisecond,
+			RetryMethods: []string{"GET"},
+		},
+	}.withDefaults()
+
+	rt := &RoundTripper{
+		base:    mock,
+		config:  config,
+		metrics: NewMetrics("test-post-no-retry-timeout"),
+	}
+
+	req, _ := http.NewRequest("POST", "http://example.com", nil)
+	req = req.WithContext(context.Background())
+
+	_, err := rt.RoundTrip(req)
+	// Should return error without retrying
+	if err == nil {
+		t.Fatal("expected error on timeout for POST without Idempotency-Key")
+	}
+
+	if mock.callCount != 1 {
+		t.Errorf("expected 1 call (no retry for POST without Idempotency-Key on timeout), got %d", mock.callCount)
+	}
+}
+
 func TestRoundTripperShouldRetryStatus(t *testing.T) {
 	retryableStatuses := []int{429, 500, 502, 503, 504, 599}
 	nonRetryableStatuses := []int{200, 201, 400, 401, 403, 404, 410}

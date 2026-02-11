@@ -134,6 +134,9 @@ func (rt *RoundTripper) parseRetryAfterHeader(config RetryConfig, resp *http.Res
 // getRetryReasonWithConfig is similar to getRetryReason, but uses status policy from RetryConfig.
 func getRetryReasonWithConfig(cfg RetryConfig, err error, status int) string {
 	if err != nil {
+		if isPreConnectError(err) {
+			return RetryReasonPreConnect
+		}
 		if isNetworkError(err) {
 			return RetryReasonNetwork
 		}
@@ -182,7 +185,9 @@ func shouldRetryAttempt(
 		return false, ""
 	}
 
-	if !cfg.RetryConfig.isRequestRetryable(req) {
+	// For pre-connect errors (connection refused, reset, etc.) retry is safe
+	// for any HTTP method because the request was never sent to the server.
+	if !isPreConnectError(err) && !cfg.RetryConfig.isRequestRetryable(req) {
 		return false, ""
 	}
 
@@ -236,10 +241,15 @@ func isNetworkError(err error) bool {
 		return isNetworkError(urlErr.Err)
 	}
 
-	// Check for connection reset
-	return strings.Contains(err.Error(), "connection reset") ||
-		strings.Contains(err.Error(), "broken pipe") ||
-		strings.Contains(err.Error(), "connection refused")
+	// Check for pre-connect errors
+	errStr := err.Error()
+	for _, s := range preConnectErrorStrings {
+		if strings.Contains(errStr, s) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // isTimeoutError checks if an error is a timeout.
